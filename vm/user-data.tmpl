@@ -1,0 +1,46 @@
+#cloud-config
+users:
+  - name: root
+    ssh_authorized_keys:
+      - @PUBKEY@
+write_files:
+  - path: /root/torus/archinstall.json
+    encoding: b64
+    content: @ARCHINSTALL_B64@
+  - path: /root/torus/creds.json
+    permissions: '0600'
+    encoding: b64
+    content: @CREDS_B64@
+  - path: /root/torus/firstboot.sh
+    permissions: '0755'
+    encoding: b64
+    content: @FIRSTBOOT_B64@
+  - path: /root/torus/torus-firstboot.service
+    content: |
+      [Unit]
+      Description=torus VM first boot
+      After=network-online.target
+      Wants=network-online.target
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/torus-firstboot
+      [Install]
+      WantedBy=multi-user.target
+  - path: /root/torus/authorized_keys
+    content: |
+      @PUBKEY@
+runcmd:
+  - - bash
+    - -c
+    - |
+      set -e
+      cd /root/torus
+      archinstall --config archinstall.json --creds creds.json --silent > install.log 2>&1
+      install -m 755 firstboot.sh /mnt/usr/local/sbin/torus-firstboot
+      install -m 644 torus-firstboot.service /mnt/etc/systemd/system/torus-firstboot.service
+      arch-chroot /mnt systemctl enable torus-firstboot.service
+      install -d -m 700 -o 1000 -g 1000 /mnt/home/mmr/.ssh
+      install -m 600 -o 1000 -g 1000 authorized_keys /mnt/home/mmr/.ssh/authorized_keys
+      cp install.log /mnt/var/log/torus-archinstall.log
+      sync
+      poweroff

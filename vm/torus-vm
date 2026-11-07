@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HERE=$(cd "$(dirname "$0")" && pwd)
+V=${TORUS_VM_DIR:-$HOME/vms/torus}
+OVMF=/usr/share/edk2/x64
+KEY=$V/id_ed25519
+PORT=2222
+MIRROR=https://geo.mirror.pkgbuild.com/iso/latest
+
+die() { echo "torus-vm: $*" >&2; exit 1; }
+
+ssh_opts=(-i "$KEY" -p "$PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
+
+start_tpm() {
+  local name=$1
+  mkdir -p "$V/$name.tpm"
+  swtpm socket --tpm2 --tpmstate dir="$V/$name.tpm" --ctrl type=unixio,path="$V/$name.swtpm.sock" --daemon --terminate
+  local t=0
+  until [[ -S $V/$name.swtpm.sock ]]; do sleep 0.2; t=$((t + 1)); ((t < 50)) || die "swtpm did not start"; done
+}
+
+qemu_base() {
+  local name=$1 disk=$2 vars=$3
+  start_tpm "$name" >&2
+  echo qemu-system-x86_64 -name "torus-$name"
+  echo -machine q35,smm=on,accel=kvm -cpu host -smp 8 -m 12G
+  echo -global driver=cfi.pflash01,property=secure,value=on
+  echo -drive if=pflash,format=raw,unit=0,readonly=on,file=$OVMF/OVMF_CODE.secboot.4m.fd
+  echo -drive if=pflash,format=raw,unit=1,file=$vars
+  echo -drive file=$disk,if=virtio,format=qcow2,discard=unmap
+  echo -device virtio-vga-gl,blob=true,hostmem=4G
+  echo -display egl-headless,rendernode=/dev/dri/renderD128
+  echo -vnc 127.0.0.1:5
+  echo -netdev user,id=n0,hostfwd=tcp:127.0.0.1:$PORT-:22 -device virtio-net-pci,netdev=n0
+  echo -device virtio-rng-pci
+  echo -chardev socket,id=chrtpm,path=$V/$name.swtpm.sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0
+  echo -qmp unix:$V/$name.qmp,server,nowait
+  echo -pidfile $V/$name.pid -daemonize
+}
+
+running() {
+  [[ -f $V/$1.pid ]] && kill -0 "$(cat "$V/$1.pid")" 2>/dev/null
+}
+
+wait_gone() {
+  local name=$1 limit=$2 t=0
+  while running "$name"; do
+    sleep 10
+    t=$((t + 10))
+    ((t < limit)) || return 1
+  done
+}
+
+wait_ssh() {
+  local t=0
+  until ssh "${ssh_opts[@]}" "${2:-mmr}@127.0.0.1" true 2>/dev/null; do
+    sleep 5
+    t=$((t + 5))
+    ((t < ${1:-300})) || return 1
+  done
+}
+
+qmp() {
+  local name=$1 cmd=$2
+  printf '{"execute":"qmp_capabilities"}\n%s\n' "$cmd" | socat -t 5 - "UNIX-CONNECT:$V/$name.qmp" | tail -1
+}
+
+current() {
+  local f
+  for f in "$V"/*.pid; do
+    [[ -e $f ]] || continue
+    f=${f##*/}
+    running "${f%.pid}" && { echo "${f%.pid}"; return; }
+  done
+  return 1
+}
+
+cmd_fetch_iso() {
+  mkdir -p "$V/iso"
+  cd "$V/iso"
+  curl -fsSLO "$MIRROR/sha256sums.txt"
+  local iso
+  iso=$(awk '/archlinux-x86_64.iso$/ {print $2}' sha256sums.txt)
+  [[ -n $iso ]] || die "no iso in sha256sums.txt"
+  [[ -f $iso ]] || curl -fL --progress-bar -o "$iso" "$MIRROR/$iso"
+  grep " $iso\$" sha256sums.txt | sha256sum -c -
+  echo "$V/iso/$iso"
+}
+
+cmd_create() {
+  [[ ! -e $V/base.qcow2 ]] || die "base.qcow2 exists, remove it first"
+  mkdir -p "$V/seed" "$V/shots" "$V/logs"
+  local iso="$V/iso/archlinux-x86_64.iso"
+  [[ -f $iso ]] || die "run fetch-iso first"
+  [[ -f $KEY ]] || ssh-keygen -q -t ed25519 -N '' -C torus-vm -f "$KEY"
+  local pw
+  pw=$(head -c 18 /dev/urandom | base64)
+  jq -n --arg p "$pw" '{users:[{username:"mmr","!password":$p,sudo:true,groups:["wheel"]}],"!root-password":$p}' > "$V/seed/creds.json"
+  chmod 600 "$V/seed/creds.json"
+  printf '%s\n' "$pw" > "$V/password"
+  chmod 600 "$V/password"
+  local pub
+  pub=$(cat "$KEY.pub")
+  sed -e "s|@PUBKEY@|$pub|g" \
+      -e "s|@ARCHINSTALL_B64@|$(base64 -w0 "$HERE/archinstall.json")|" \
+      -e "s|@CREDS_B64@|$(base64 -w0 "$V/seed/creds.json")|" \
+      -e "s|@FIRSTBOOT_B64@|$(base64 -w0 "$HERE/firstboot.sh")|" \
+      "$HERE/user-data.tmpl" > "$V/seed/user-data"
+  printf 'instance-id: torus-vm\nlocal-hostname: archiso\n' > "$V/seed/meta-data"
+  mkisofs -quiet -o "$V/seed.iso" -V CIDATA -J -r "$V/seed/user-data" "$V/seed/meta-data"
+  cp "$OVMF/OVMF_VARS.4m.fd" "$V/base.vars.fd"
+  qemu-img create -q -f qcow2 "$V/base.qcow2" 80G
+  $(qemu_base base "$V/base.qcow2" "$V/base.vars.fd") \
+    -drive file="$iso",media=cdrom,readonly=on -drive file="$V/seed.iso",media=cdrom,readonly=on \
+    -boot order=dc
+  echo "installing Arch (archinstall over cloud-init), this takes a while"
+  wait_gone base 3600 || die "install did not power off within 60 min; ssh -p $PORT root@127.0.0.1 with $KEY to look"
+  $(qemu_base base "$V/base.qcow2" "$V/base.vars.fd")
+  echo "first boot: secure boot keys and signed grub"
+  wait_gone base 900 || die "firstboot did not power off within 15 min"
+  chmod 444 "$V/base.qcow2" "$V/base.vars.fd"
+  echo "$V/base.qcow2"
+}
+
+cmd_up() {
+  local name=$1 from=${3:-base}
+  [[ ${2:-} == --from || -z ${2:-} ]] || die "usage: up <name> [--from base|hyde]"
+  [[ -f $V/$from.qcow2 ]] || die "no image $from"
+  ! current >/dev/null || die "a VM is already running: $(current)"
+  qemu-img create -q -f qcow2 -b "$V/$from.qcow2" -F qcow2 "$V/$name.qcow2"
+  cp "$V/$from.vars.fd" "$V/$name.vars.fd"
+  chmod 644 "$V/$name.vars.fd"
+  echo "$from" > "$V/$name.from"
+  cmd_start "$name"
+}
+
+cmd_start() {
+  local name=$1
+  [[ -f $V/$name.qcow2 ]] || die "no overlay $name"
+  ! current >/dev/null || die "a VM is already running: $(current)"
+  $(qemu_base "$name" "$V/$name.qcow2" "$V/$name.vars.fd")
+  wait_ssh "${TORUS_VM_WAIT:-300}" || die "ssh did not come up"
+  echo "up: $name"
+}
+
+cmd_rescue() {
+  local name=$1
+  [[ -f $V/$name.qcow2 ]] || die "no overlay $name"
+  ! current >/dev/null || die "a VM is already running: $(current)"
+  mkdir -p "$V/rescue"
+  printf '#cloud-config\nusers:\n  - name: root\n    ssh_authorized_keys:\n      - %s\n' "$(cat "$KEY.pub")" > "$V/rescue/user-data"
+  printf 'instance-id: torus-rescue\nlocal-hostname: archiso\n' > "$V/rescue/meta-data"
+  mkisofs -quiet -o "$V/rescue.iso" -V CIDATA -J -r "$V/rescue/user-data" "$V/rescue/meta-data"
+  cp "$OVMF/OVMF_VARS.4m.fd" "$V/rescue.vars.fd"
+  $(qemu_base "$name" "$V/$name.qcow2" "$V/rescue.vars.fd") \
+    -drive file="$V/iso/archlinux-x86_64.iso",media=cdrom,readonly=on -drive file="$V/rescue.iso",media=cdrom,readonly=on \
+    -boot order=d
+  wait_ssh 300 root || die "rescue ssh did not come up"
+  echo "rescue: ssh root via 'torus-vm rssh'"
+}
+
+cmd_rssh() {
+  ssh "${ssh_opts[@]}" root@127.0.0.1 "$@"
+}
+
+cmd_ssh() {
+  ssh "${ssh_opts[@]}" mmr@127.0.0.1 "$@"
+}
+
+cmd_scp_to() {
+  scp -i "$KEY" -P "$PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -r "$1" "mmr@127.0.0.1:$2"
+}
+
+cmd_scp_from() {
+  scp -i "$KEY" -P "$PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -r "mmr@127.0.0.1:$1" "$2"
+}
+
+cmd_shot() {
+  local out=$1 name
+  name=$(current) || die "no VM running"
+  mkdir -p "$(dirname "$out")"
+  timeout 30 gvnccapture -q 127.0.0.1:5 "$out" || die "vnc capture failed for $name"
+  echo "$out"
+}
+
+cmd_reboot() {
+  cmd_ssh 'sudo systemctl reboot' || true
+  sleep 15
+  wait_ssh 300 || die "ssh did not come back after reboot"
+}
+
+cmd_down() {
+  local name=$1
+  running "$name" || return 0
+  qmp "$name" '{"execute":"system_powerdown"}' >/dev/null || true
+  if ! wait_gone "$name" 60; then
+    kill "$(cat "$V/$name.pid")" 2>/dev/null || true
+  fi
+  rm -f "$V/$name.pid" "$V/$name.qmp"
+}
+
+cmd_freeze() {
+  local name=$1 image=$2
+  ! running "$name" || die "stop $name first"
+  [[ ! -e $V/$image.qcow2 ]] || die "$image.qcow2 exists"
+  qemu-img convert -O qcow2 "$V/$name.qcow2" "$V/$image.qcow2"
+  cp "$V/$name.vars.fd" "$V/$image.vars.fd"
+  chmod 444 "$V/$image.qcow2" "$V/$image.vars.fd"
+  echo "$V/$image.qcow2"
+}
+
+cmd_rm() {
+  local name=$1
+  [[ $name != base && $name != hyde ]] || die "refusing to remove a frozen image"
+  ! running "$name" || die "stop $name first"
+  rm -rf "$V/$name.qcow2" "$V/$name.vars.fd" "$V/$name.from" "$V/$name.pid" "$V/$name.qmp" "$V/$name.tpm" "$V/$name.swtpm.sock"
+}
+
+(($#)) || die "usage: torus-vm fetch-iso|create|up|ssh|scp-to|scp-from|shot|reboot|down|freeze|rm"
+cmd=$1; shift
+case $cmd in
+  fetch-iso) cmd_fetch_iso ;;
+  create) cmd_create ;;
+  up) cmd_up "$@" ;;
+  ssh) cmd_ssh "$@" ;;
+  start) cmd_start "$@" ;;
+  rescue) cmd_rescue "$@" ;;
+  rssh) cmd_rssh "$@" ;;
+  scp-to) cmd_scp_to "$@" ;;
+  scp-from) cmd_scp_from "$@" ;;
+  shot) cmd_shot "$@" ;;
+  reboot) cmd_reboot ;;
+  down) cmd_down "$@" ;;
+  freeze) cmd_freeze "$@" ;;
+  rm) cmd_rm "$@" ;;
+  *) die "unknown command $cmd" ;;
+esac
