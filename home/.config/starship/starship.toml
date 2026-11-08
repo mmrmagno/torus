@@ -33,6 +33,8 @@ format = "[ $duration]($style)"
 
 [kubernetes]
 disabled = false
+detect_files = ["kustomization.yaml", "Chart.yaml", "helmfile.yaml", "talconfig.yaml", "skaffold.yaml"]
+detect_folders = ["k8s", "kubernetes", "manifests", "talos", "clusters"]
 style = "sapphire"
 format = "[󱃾 $context]($style) "
 

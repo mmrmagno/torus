@@ -100,12 +100,13 @@ Singleton {
             const it = passPick
             if (passFields === null)
                 return [{ id: "ph", kind: "hint", glyph: "󰔟", title: "Checking " + it.title + "…", sub: "looking up which fields it has", act: () => {} }]
+            const open = { id: "po", kind: "app", glyph: "󰟵", title: "Open Proton Pass", sub: "for cards, keys and custom fields", act: () => Quickshell.execDetached(["proton-pass"]) }
             if (passFields.length === 0)
-                return [{ id: "ph", kind: "hint", glyph: "󰟵", title: it.title, sub: "nothing to copy in this item", act: () => {} }]
-            return [["password", "󰌾", "Password"], ["email", "󰇮", "Email"], ["username", "󰀄", "Username"], ["totp", "󰔟", "One-time code"]].filter(f => passFields.indexOf(f[0]) >= 0).map(f => ({
+                return [open]
+            return [["password", "󰌾", "Password"], ["email", "󰇮", "Email"], ["username", "󰀄", "Username"], ["totp", "󰔟", "One-time code"], ["note", "󰎚", "Note"]].filter(f => passFields.indexOf(f[0]) >= 0).map(f => ({
                 id: "pf", kind: "field", glyph: f[1], title: f[2], sub: it.title + " · copy, clears in " + passClear + " s",
                 act: () => copyField(it, f[0])
-            }))
+            })).concat([open])
         }
         if (passState === "error")
             return [{ id: "ph", kind: "hint", glyph: "󰟵", title: "Proton Pass is locked", sub: "run pass-cli login in a terminal, then try again", act: () => {} }]

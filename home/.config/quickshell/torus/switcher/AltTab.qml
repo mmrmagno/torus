@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Widgets
 import Quickshell.Hyprland
 import qs
 
@@ -9,6 +10,7 @@ PanelWindow {
 
     property int selected: 0
     property real releasedAt: 0
+    property bool revealed: false
     readonly property var windows: Hyprland.toplevels.values.slice().sort((a, b) => ((a.lastIpcObject || {}).focusHistoryID || 0) - ((b.lastIpcObject || {}).focusHistoryID || 0))
 
     function step(dir) {
@@ -24,6 +26,8 @@ PanelWindow {
             }
             Hyprland.refreshToplevels()
             selected = windows.length > 1 ? 1 : 0
+            revealed = false
+            reveal.restart()
             Store.setOpen("alttab", true)
             return
         }
@@ -42,7 +46,7 @@ PanelWindow {
     }
 
     screen: Store.focusedScreen
-    visible: Store.isOpen("alttab")
+    visible: Store.isOpen("alttab") && revealed
     readonly property int count: Math.max(1, windows.length)
     readonly property int maxW: (screen ? screen.width : 1200) - 80
     readonly property int maxH: (screen ? screen.height : 800) - 160
@@ -67,6 +71,12 @@ PanelWindow {
 
     Component.onCompleted: Store.altTabber = root
 
+    Timer {
+        id: reveal
+        interval: 110
+        onTriggered: root.revealed = Store.isOpen("alttab")
+    }
+
     Loader {
         anchors.fill: parent
         active: root.visible
@@ -78,6 +88,14 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         radius: 18
+        opacity: 0
+        scale: 0.96
+        Component.onCompleted: {
+            opacity = 1
+            scale = 1
+        }
+        Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
         color: Qt.alpha(Theme.base, Theme.glass)
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
@@ -101,12 +119,26 @@ PanelWindow {
                     color: sel ? Qt.alpha(Theme.accent, 0.2) : Theme.surface0
                     border.width: sel ? 2 : 0
                     border.color: Theme.accent
+                    IconImage {
+                        anchors.centerIn: parent
+                        anchors.verticalCenterOffset: -10
+                        implicitSize: Math.round(parent.height * 0.32)
+                        source: {
+                            const app = parent.modelData.wayland && parent.modelData.wayland.appId ? parent.modelData.wayland.appId : ""
+                            const e = app ? DesktopEntries.heuristicLookup(app) : null
+                            return Quickshell.iconPath(e ? e.icon : "", "application-x-executable")
+                        }
+                    }
                     ScreencopyView {
+                        id: shot
                         anchors.fill: parent
                         anchors.margins: 8
                         anchors.bottomMargin: 30
                         captureSource: parent.modelData.wayland
                         live: root.visible
+                        constraintSize: Qt.size(width, height)
+                        opacity: hasContent ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: 120 } }
                     }
                     Text {
                         anchors.bottom: parent.bottom
