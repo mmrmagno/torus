@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF=$(readlink -f "$0")
+REPO=$(cd "$(dirname "$SELF")/../../.." && pwd)
+STATE=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+ACCENTS=(rosewater flamingo pink mauve red maroon peach yellow green teal sky sapphire blue lavender)
+
+warn() { echo "torus: $*" >&2; }
+
+current_accent() {
+  cat "$STATE/accent" 2>/dev/null || echo mauve
+}
+
+render() {
+  local accent=$1 hex script tmp t
+  hex=$(jq -r --arg a "$accent" '.[$a]' "$REPO/theme/mocha.json")
+  script=$(jq -r 'to_entries[] | "s/@\(.key)_hex@/\(.value[1:])/g\ns/@\(.key)@/\(.value)/g"' "$REPO/theme/mocha.json")
+  script="s/@accent_name@/$accent/g
+s/@accent_hex@/${hex:1}/g
+s/@accent@/$hex/g
+$script"
+  mkdir -p "$STATE"
+  tmp=$(mktemp -d "$STATE/.theme.XXXXXX")
+  for t in "$REPO"/theme/templates/*.tmpl; do
+    sed "$script" "$t" > "$tmp/$(basename "$t" .tmpl)"
+  done
+  if [[ -d $STATE/theme ]]; then
+    mv -T --exchange "$tmp" "$STATE/theme"
+    rm -rf "$tmp"
+  else
+    mv "$tmp" "$STATE/theme"
+  fi
+  echo "$accent" > "$STATE/accent"
+}
+
+install_app_themes() {
+  local t=$STATE/theme
+  install -D -m 644 "$t/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+  install -D -m 644 "$t/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
+  install -D -m 644 "$t/btop.theme" "$HOME/.config/btop/themes/torus.theme"
+  if [[ -d $HOME/.config/vesktop ]]; then
+    mkdir -p "$HOME/.config/vesktop/themes"
+    printf '@import url("https://catppuccin.github.io/discord/dist/catppuccin-mocha-%s.theme.css");\n' "$(cat "$STATE/accent")" > "$HOME/.config/vesktop/themes/torus.theme.css"
+  fi
+}
+
+reload() {
+  local accent=$1
+  install_app_themes
+  hyprctl eval "dofile('$STATE/theme/hypr-colors.lua')" > /dev/null 2>&1 || warn "hyprland not reachable, borders update on next login"
+  qs -c torus ipc call torus reloadTheme > /dev/null 2>&1 || warn "shell not reachable"
+  pkill -USR1 -x kitty || true
+  local chadrc=$HOME/.config/nvim/lua/chadrc.lua
+  if [[ -f $chadrc ]] && grep -q -- '-- torus accent start' "$chadrc"; then
+    awk -v a="$accent" '
+      /-- torus accent start/ { print; print "M.torus_accent = \"" a "\""; skip = 1; next }
+      /-- torus accent end/ { skip = 0 }
+      !skip' "$chadrc" > "$chadrc.torus" && mv "$chadrc.torus" "$chadrc"
+  fi
+}
+
+cmd_accent() {
+  if (($# == 0)); then
+    current_accent
+    return
+  fi
+  local accent=$1
+  [[ " ${ACCENTS[*]} " == *" $accent "* ]] || { warn "unknown accent: $accent (one of: ${ACCENTS[*]})"; exit 2; }
+  render "$accent"
+  reload "$accent"
+  echo "accent: $accent"
+}
+
+cmd_setup() {
+  local accent
+  accent=$(current_accent)
+  render "$accent"
+  reload "$accent" 2> /dev/null || true
+  local g=org.gnome.desktop.interface
+  gsettings set $g gtk-theme adw-gtk3-dark || true
+  gsettings set $g color-scheme prefer-dark || true
+  gsettings set $g icon-theme Tela-circle-dracula || true
+  gsettings set $g font-name "Cantarell 10" || true
+  gsettings set $g monospace-font-name "JetBrainsMono Nerd Font 10" || true
+  gsettings set $g cursor-size 24 || true
+  gsettings set $g cursor-theme Bibata-Modern-Ice || true
+  bat cache --build > /dev/null 2>&1 || true
+  fc-cache > /dev/null 2>&1 || true
+  local qsb frag
+  qsb=$(command -v qsb || echo /usr/lib/qt6/bin/qsb)
+  if [[ -x $qsb ]]; then
+    mkdir -p "$STATE/shaders"
+    while IFS= read -r -d '' frag; do
+      "$qsb" --glsl "100 es,120,150" --hlsl 50 --msl 12 -o "$STATE/shaders/$(basename "$frag").qsb" "$frag"
+    done < <(find "$REPO/home/.config/quickshell" -name '*.frag' -print0)
+  else
+    warn "qsb missing (qt6-shadertools), the donut cannot render"
+  fi
+  local layout
+  layout=$(cat "$STATE/hyprlock" 2> /dev/null || echo marc-os)
+  [[ -e $STATE/hyprlock-layout.conf ]] || ln -sfn "$HOME/.config/hypr/hyprlock/$layout.conf" "$STATE/hyprlock-layout.conf"
+  if command -v deno > /dev/null && [[ ! -s $STATE/donut.png ]]; then
+    local tmp
+    tmp=$(mktemp -d)
+    deno run --quiet --allow-read --allow-write --allow-run "$REPO/donut/render-frames.ts" "$tmp" 1 600 transparent > /dev/null 2>&1 && mv "$tmp/frame-0000.png" "$STATE/donut.png"
+    rm -rf "$tmp"
+  fi
+  local inc=$HOME/.config/torus/delta.gitconfig
+  git config --global --get-all include.path 2> /dev/null | grep -qxF "$inc" || git config --global --add include.path "$inc"
+  systemctl --user enable torus-shell.service > /dev/null 2>&1 || true
+  systemctl --user mask dunst.service > /dev/null 2>&1 || true
+  echo "torus: setup done (accent $accent)"
+}
+
+(($#)) || { echo "usage: torus accent [name] | torus setup" >&2; exit 1; }
+cmd=$1
+shift
+case $cmd in
+  accent) cmd_accent "$@" ;;
+  setup) cmd_setup ;;
+  *) echo "unknown command: $cmd" >&2; exit 1 ;;
+esac

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+pid=$(hyprctl activewindow -j | jq -r '.pid // empty')
+[[ -n $pid ]] || exit 0
+pids=$({ ps -o pid= --ppid "$pid" 2> /dev/null || true; } | tr -d ' ' | tr '\n' ' ')
+ids=$(pw-dump | jq -r --arg pids " $pid $pids " '.[] | select(.type == "PipeWire:Interface:Node") | select((.info.props["media.class"] // "") | startswith("Stream/Output/Audio")) | ((.info.props["application.process.id"] // 0) | tostring) as $p | select($pids | contains(" " + $p + " ")) | .id')
+for id in $ids; do
+  wpctl set-mute "$id" toggle
+done

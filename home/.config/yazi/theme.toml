@@ -1,0 +1,39 @@
+[mgr]
+cwd = { fg = "#94e2d5" }
+hovered = { fg = "#1e1e2e", bg = "#cba6f7" }
+preview_hovered = { underline = true }
+find_keyword = { fg = "#f9e2af", italic = true }
+find_position = { fg = "#f5c2e7", bg = "reset", italic = true }
+marker_selected = { fg = "#a6e3a1", bg = "#a6e3a1" }
+marker_copied = { fg = "#f9e2af", bg = "#f9e2af" }
+marker_cut = { fg = "#f38ba8", bg = "#f38ba8" }
+border_style = { fg = "#7f849c" }
+
+[tabs]
+active = { fg = "#1e1e2e", bg = "#cba6f7" }
+inactive = { fg = "#cba6f7", bg = "#313244" }
+
+[mode]
+normal_main = { fg = "#1e1e2e", bg = "#cba6f7", bold = true }
+normal_alt = { fg = "#cba6f7", bg = "#313244" }
+select_main = { fg = "#1e1e2e", bg = "#a6e3a1", bold = true }
+select_alt = { fg = "#a6e3a1", bg = "#313244" }
+unset_main = { fg = "#1e1e2e", bg = "#f2cdcd", bold = true }
+unset_alt = { fg = "#f2cdcd", bg = "#313244" }
+
+[status]
+perm_type = { fg = "#89b4fa" }
+perm_read = { fg = "#f9e2af" }
+perm_write = { fg = "#f38ba8" }
+perm_exec = { fg = "#a6e3a1" }
+perm_sep = { fg = "#7f849c" }
+
+[filetype]
+rules = [
+  { mime = "image/*", fg = "#94e2d5" },
+  { mime = "{audio,video}/*", fg = "#f9e2af" },
+  { mime = "application/{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}", fg = "#f5c2e7" },
+  { mime = "application/{pdf,doc,rtf}", fg = "#a6e3a1" },
+  { url = "*/", fg = "#cba6f7" },
+  { url = "*", fg = "#cdd6f4" },
+]

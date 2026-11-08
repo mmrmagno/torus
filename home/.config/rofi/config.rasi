@@ -1,0 +1,13 @@
+configuration {
+    modi: "drun,window,run";
+    show-icons: true;
+    icon-theme: "Tela-circle-dracula";
+    font: "Inter 12";
+    drun-display-format: "{name}";
+    display-drun: "";
+    display-window: "";
+    hover-select: true;
+    me-select-entry: "";
+    me-accept-entry: "MousePrimary";
+}
+@theme "~/.config/rofi/themes/marc-os.rasi"

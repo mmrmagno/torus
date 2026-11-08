@@ -1,0 +1,105 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "file",
+    "source": "~/.config/fastfetch/logo.txt",
+    "color": {
+      "1": "38;2;86;75;112",
+      "2": "38;2;100;85;127",
+      "3": "38;2;114;96;144",
+      "4": "38;2;143;119;177",
+      "5": "38;2;159;132;196",
+      "6": "38;2;180;148;220",
+      "7": "38;2;197;173;249",
+      "8": "38;2;190;181;251",
+      "9": "38;2;180;190;254"
+    },
+    "padding": {
+      "right": 2
+    }
+  },
+  "display": {
+    "separator": " : ",
+    "color": {
+      "keys": "38;2;203;166;247",
+      "title": "38;2;180;190;254"
+    }
+  },
+  "modules": [
+    {
+      "type": "custom",
+      "format": "{#38;2;203;166;247}marc{#38;2;166;173;200} @ {#38;2;180;190;254}os"
+    },
+    {
+      "type": "custom",
+      "format": "{#38;2;88;91;112}────────────────────────────"
+    },
+    {
+      "type": "os",
+      "key": "󰣇 os",
+      "keyColor": "38;2;243;139;168",
+      "format": "{2}"
+    },
+    {
+      "type": "kernel",
+      "key": " kernel",
+      "keyColor": "38;2;243;139;168",
+      "format": "{2}"
+    },
+    {
+      "type": "packages",
+      "key": "󰏗 packages",
+      "keyColor": "38;2;166;227;161"
+    },
+    {
+      "type": "display",
+      "key": "󰍹 display",
+      "keyColor": "38;2;166;227;161",
+      "format": "{1}x{2} @ {3}Hz"
+    },
+    {
+      "type": "wm",
+      "key": "󱗃 wm",
+      "keyColor": "38;2;249;226;175"
+    },
+    {
+      "type": "terminal",
+      "key": " terminal",
+      "keyColor": "38;2;249;226;175"
+    },
+    {
+      "type": "cpu",
+      "key": " cpu",
+      "keyColor": "38;2;137;180;250"
+    },
+    {
+      "type": "gpu",
+      "key": "󰊴 gpu",
+      "keyColor": "38;2;137;180;250"
+    },
+    {
+      "type": "memory",
+      "key": " memory",
+      "keyColor": "38;2;116;199;236"
+    },
+    {
+      "type": "disk",
+      "key": "󱦟 disk",
+      "keyColor": "38;2;116;199;236",
+      "folders": "/"
+    },
+    {
+      "type": "uptime",
+      "key": "󱫐 uptime",
+      "keyColor": "38;2;180;190;254"
+    },
+    {
+      "type": "custom",
+      "format": ""
+    },
+    {
+      "type": "colors",
+      "symbol": "circle"
+    }
+  ]
+}

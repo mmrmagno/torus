@@ -1,0 +1,26 @@
+@import "~/.config/rofi/themes/marc-os.rasi"
+
+window {
+    width: 820px;
+}
+
+listview {
+    columns: 5;
+    lines: 3;
+    flow: horizontal;
+}
+
+element {
+    orientation: vertical;
+    padding: 16px 8px;
+    spacing: 8px;
+}
+
+element-icon {
+    size: 48px;
+    horizontal-align: 0.5;
+}
+
+element-text {
+    horizontal-align: 0.5;
+}

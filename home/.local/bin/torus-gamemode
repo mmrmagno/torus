@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+mkdir -p "$state"
+current=$(cat "$state/gamemode" 2> /dev/null || echo off)
+
+if [[ $current == off ]]; then
+  hyprctl eval 'hl.config({ animations = { enabled = false }, decoration = { blur = { enabled = false }, shadow = { enabled = false }, rounding = 0 }, general = { gaps_in = 0, gaps_out = 0, border_size = 1 } })' > /dev/null
+  echo on > "$state/gamemode"
+  qs -c torus ipc call torus gamemode true > /dev/null 2>&1 || true
+  notify-send -a torus -u low "Game mode" "on: effects off, donut paused"
+else
+  hyprctl reload > /dev/null
+  echo off > "$state/gamemode"
+  qs -c torus ipc call torus gamemode false > /dev/null 2>&1 || true
+  notify-send -a torus -u low "Game mode" "off"
+fi

@@ -176,6 +176,14 @@ cmd_scp_from() {
   scp -i "$KEY" -P "$PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -r "mmr@127.0.0.1:$1" "$2"
 }
 
+cmd_push() {
+  local src name
+  src=$(cd "$1" && pwd)
+  name=$(basename "$src")
+  tar -C "$(dirname "$src")" --exclude=.git -czf - "$name" | ssh "${ssh_opts[@]}" mmr@127.0.0.1 "rm -rf ~/$name && tar -C ~ -xzf -"
+  echo "pushed $name"
+}
+
 cmd_shot() {
   local out=$1 name
   name=$(current) || die "no VM running"
@@ -229,6 +237,7 @@ case $cmd in
   rssh) cmd_rssh "$@" ;;
   scp-to) cmd_scp_to "$@" ;;
   scp-from) cmd_scp_from "$@" ;;
+  push) cmd_push "$@" ;;
   shot) cmd_shot "$@" ;;
   reboot) cmd_reboot ;;
   down) cmd_down "$@" ;;

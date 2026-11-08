@@ -1,0 +1,12 @@
+export PATH="$HOME/.local/bin:$PATH"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state"
+export XDG_CACHE_HOME="$HOME/.cache"
+export QT_QPA_PLATFORMTHEME=qt6ct
+export QT_QPA_PLATFORM="wayland;xcb"
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+export ELECTRON_OZONE_PLATFORM_HINT=auto
+export MOZ_ENABLE_WAYLAND=1
+export XCURSOR_SIZE=24
+[ -r "$HOME/.local/state/torus/theme/cursor.env" ] && . "$HOME/.local/state/torus/theme/cursor.env"

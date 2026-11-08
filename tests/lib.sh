@@ -36,3 +36,12 @@ mkfixture() {
   local d=$1
   mkdir -p "$d/home" "$d/root" "$d/out" "$d/torus"
 }
+
+wait_for() {
+  local file=$1 pattern=$2 i
+  for i in $(seq 50); do
+    grep -q -- "$pattern" "$file" 2> /dev/null && return 0
+    sleep 0.05
+  done
+  return 1
+}

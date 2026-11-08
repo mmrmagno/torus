@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=marc-os
+Description=the spinning donut from marc-os.com
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/marc-os
+ScriptFile=/usr/share/plymouth/themes/marc-os/marc-os.script

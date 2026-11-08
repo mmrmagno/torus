@@ -1,0 +1,74 @@
+@import "~/.local/state/torus/theme/rofi-colors.rasi"
+
+* {
+    background-color: transparent;
+    text-color: @text;
+    font: "Inter 12";
+}
+
+window {
+    width: 560px;
+    location: center;
+    anchor: center;
+    border: 1px;
+    border-color: @accent;
+    border-radius: 16px;
+    background-color: @base;
+    padding: 0;
+}
+
+mainbox {
+    children: [ inputbar, listview ];
+    spacing: 0;
+}
+
+inputbar {
+    padding: 16px 18px;
+    spacing: 10px;
+    children: [ prompt, entry ];
+    background-color: @mantle;
+}
+
+prompt {
+    text-color: @accent;
+    font: "JetBrainsMono Nerd Font 12";
+}
+
+entry {
+    placeholder: "search";
+    placeholder-color: @overlay0;
+    cursor: text;
+}
+
+listview {
+    lines: 8;
+    columns: 1;
+    fixed-height: true;
+    padding: 8px;
+    spacing: 4px;
+    scrollbar: false;
+}
+
+element {
+    padding: 9px 12px;
+    spacing: 12px;
+    border-radius: 10px;
+}
+
+element normal.normal, element alternate.normal {
+    background-color: transparent;
+}
+
+element selected.normal {
+    background-color: @surface0;
+    text-color: @accent;
+}
+
+element-icon {
+    size: 22px;
+}
+
+element-text {
+    text-color: inherit;
+    vertical-align: 0.5;
+}

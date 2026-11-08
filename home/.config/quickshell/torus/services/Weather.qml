@@ -1,0 +1,68 @@
+pragma Singleton
+import QtQuick
+import Quickshell
+import Quickshell.Io
+
+Singleton {
+    id: root
+
+    property bool ok: false
+    property string temp: "--"
+    property string feels: "--"
+    property string desc: "weather unavailable"
+    property string icon: "󰖐"
+    property string place: ""
+    property var hours: []
+
+    function iconFor(code) {
+        const c = parseInt(code)
+        if (c === 113) return "󰖙"
+        if (c === 116) return "󰖕"
+        if (c === 119 || c === 122) return "󰖐"
+        if ([143, 248, 260].includes(c)) return "󰖑"
+        if (c >= 386) return "󰖓"
+        if ([179, 227, 230, 323, 326, 329, 332, 335, 338, 368, 371].includes(c)) return "󰖘"
+        return "󰖗"
+    }
+
+    function refresh() {
+        proc.running = true
+    }
+
+    Process {
+        id: proc
+        command: ["curl", "-sf", "--max-time", "10", "https://wttr.in/?format=j1"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const j = JSON.parse(text)
+                    const cur = j.current_condition[0]
+                    root.temp = cur.temp_C + "°"
+                    root.feels = cur.FeelsLikeC + "°"
+                    root.desc = cur.weatherDesc[0].value
+                    root.icon = root.iconFor(cur.weatherCode)
+                    root.place = j.nearest_area ? j.nearest_area[0].areaName[0].value : ""
+                    root.hours = j.weather[0].hourly.filter((h, i) => i % 2 === 0).map(h => ({ t: (parseInt(h.time) / 100) + ":00", temp: h.tempC + "°", icon: root.iconFor(h.weatherCode) }))
+                    root.ok = true
+                } catch (e) {
+                    root.ok = false
+                    root.desc = "weather unavailable"
+                }
+            }
+        }
+        onExited: code => {
+            if (code !== 0) {
+                root.ok = false
+                root.desc = "weather unavailable"
+            }
+        }
+    }
+
+    Timer {
+        interval: 1800000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.refresh()
+    }
+}

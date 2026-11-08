@@ -1,0 +1,41 @@
+Window.SetBackgroundTopColor(0.118, 0.118, 0.180);
+Window.SetBackgroundBottomColor(0.094, 0.094, 0.145);
+
+count = 90;
+for (i = 0; i < count; i++)
+  frames[i] = Image("frame-" + i + ".png");
+
+donut = Sprite();
+donut.SetX(Window.GetX() + Window.GetWidth() / 2 - frames[0].GetWidth() / 2);
+donut.SetY(Window.GetY() + Window.GetHeight() / 2 - frames[0].GetHeight() / 2 - 40);
+
+caption = Sprite(Image.Text("marc @ os", 0.706, 0.745, 0.996, 1, "JetBrainsMono Nerd Font 14"));
+caption.SetX(Window.GetX() + Window.GetWidth() / 2 - caption.GetImage().GetWidth() / 2);
+caption.SetY(donut.GetY() + frames[0].GetHeight() + 24);
+
+tick = 0;
+fun refresh() {
+  donut.SetImage(frames[Math.Int(tick / 2) % count]);
+  tick++;
+}
+Plymouth.SetRefreshFunction(refresh);
+
+prompt = Sprite();
+bullets = Sprite();
+fun display_password(text, num) {
+  prompt.SetImage(Image.Text(text, 0.804, 0.839, 0.957, 1, "Inter 12"));
+  prompt.SetX(Window.GetX() + Window.GetWidth() / 2 - prompt.GetImage().GetWidth() / 2);
+  prompt.SetY(caption.GetY() + 60);
+  s = "";
+  for (j = 0; j < num; j++)
+    s += "●";
+  bullets.SetImage(Image.Text(s, 0.796, 0.651, 0.969, 1, "Inter 14"));
+  bullets.SetX(Window.GetX() + Window.GetWidth() / 2 - bullets.GetImage().GetWidth() / 2);
+  bullets.SetY(prompt.GetY() + 30);
+}
+fun display_normal() {
+  prompt.SetImage(Image.Text("", 0, 0, 0, 0));
+  bullets.SetImage(Image.Text("", 0, 0, 0, 0));
+}
+Plymouth.SetDisplayPasswordFunction(display_password);
+Plymouth.SetDisplayNormalFunction(display_normal);

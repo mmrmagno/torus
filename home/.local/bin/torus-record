@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dir=${XDG_VIDEOS_DIR:-$HOME/Videos}
+mkdir -p "$dir"
+
+case ${1:-toggle} in
+  toggle)
+    if pgrep -f 'gpu-screen-recorder .*-o .*/torus-' > /dev/null; then
+      pkill -INT -f 'gpu-screen-recorder .*-o .*/torus-'
+      notify-send -a torus "Recording" "saved to $dir"
+    else
+      setsid -f gpu-screen-recorder -w portal -f 60 -a default_output -o "$dir/torus-$(date +%Y%m%d-%H%M%S).mp4" > /dev/null 2>&1
+      notify-send -a torus -u low "Recording" "started, SUPER+SHIFT+R to stop"
+    fi
+    ;;
+  replay-save)
+    if pgrep -f 'gpu-screen-recorder .*-r ' > /dev/null; then
+      pkill -USR1 -f 'gpu-screen-recorder .*-r '
+      notify-send -a torus "Replay" "last 60 s saved to $dir"
+    else
+      setsid -f gpu-screen-recorder -w portal -f 60 -a default_output -c mp4 -r 60 -o "$dir" > /dev/null 2>&1
+      notify-send -a torus -u low "Replay" "buffer started, SUPER+ALT+R again saves the last 60 s"
+    fi
+    ;;
+  *)
+    echo "usage: torus-record toggle|replay-save" >&2
+    exit 2
+    ;;
+esac

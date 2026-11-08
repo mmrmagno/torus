@@ -67,3 +67,38 @@ S
   printf '#!/usr/bin/env bash\nexit 1\n' > "$b/crontab"
   chmod +x "$b"/*
 }
+
+mkdesktopstubs() {
+  local b=$1 c
+  mkdir -p "$b"
+  for c in hyprctl qs pkill gsettings notify-send sudo bat systemctl qsb fc-cache; do
+    printf '#!/usr/bin/env bash\necho "%s $*" >> "$STUB_LOG"\nexit 0\n' "$c" > "$b/$c"
+  done
+  chmod +x "$b"/*
+}
+
+mkscriptstubs() {
+  local b=$1 c
+  mkdir -p "$b"
+  for c in grim satty tesseract wl-copy notify-send qs hyprpicker gpu-screen-recorder steam xdg-open cliphist qalc kill; do
+    printf '#!/usr/bin/env bash\necho "%s $*" >> "$STUB_LOG"\nexit 0\n' "$c" > "$b/$c"
+  done
+  printf '#!/usr/bin/env bash\necho "slurp $*" >> "$STUB_LOG"\necho "10,20 300x200"\n' > "$b/slurp"
+  printf '#!/usr/bin/env bash\necho "pgrep $*" >> "$STUB_LOG"\nexit 1\n' > "$b/pgrep"
+  printf '#!/usr/bin/env bash\necho "rofi $*" >> "$STUB_LOG"\ncat > "$STUB_LOG.rofi-in"\nprintf "%%s\\n" "${STUB_ROFI_PICK:-}"\n' > "$b/rofi"
+  cat > "$b/hyprctl" <<'S'
+#!/usr/bin/env bash
+echo "hyprctl $*" >> "$STUB_LOG"
+case "$*" in
+  "monitors -j") echo '[{"name":"DP-1","focused":true},{"name":"DP-2","focused":false}]' ;;
+  "activewindow -j") echo '{"pid":4242,"class":"kitty"}' ;;
+esac
+exit 0
+S
+  cat > "$b/pw-dump" <<'S'
+#!/usr/bin/env bash
+echo '[{"id":77,"type":"PipeWire:Interface:Node","info":{"props":{"application.process.id":4242,"media.class":"Stream/Output/Audio"}}},{"id":12,"type":"PipeWire:Interface:Node","info":{"props":{"media.class":"Audio/Sink"}}}]'
+S
+  printf '#!/usr/bin/env bash\necho "wpctl $*" >> "$STUB_LOG"\nexit 0\n' > "$b/wpctl"
+  chmod +x "$b"/*
+}

@@ -1,0 +1,3 @@
+bibata-cursor-theme-bin
+tela-circle-icon-theme-git
+catppuccin-sddm-theme-mocha

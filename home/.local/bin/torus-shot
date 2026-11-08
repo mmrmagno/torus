@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dir=${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots
+mkdir -p "$dir"
+file=$dir/torus-$(date +%Y%m%d-%H%M%S).png
+
+focused() {
+  hyprctl monitors -j | jq -r '.[] | select(.focused) | .name'
+}
+
+case ${1:-s} in
+  s)
+    geo=$(slurp -d) || exit 0
+    grim -g "$geo" "$file"
+    ;;
+  sf)
+    hyprpicker -r -z &
+    picker=$!
+    sleep 0.2
+    geo=$(slurp -d) || { kill "$picker" 2> /dev/null; exit 0; }
+    grim -g "$geo" "$file"
+    kill "$picker" 2> /dev/null || true
+    ;;
+  m)
+    grim -o "$(focused)" "$file"
+    ;;
+  p)
+    grim "$file"
+    ;;
+  sc)
+    geo=$(slurp -d) || exit 0
+    grim -g "$geo" - | tesseract - - -l eng 2> /dev/null | wl-copy
+    notify-send -a torus "OCR" "text copied to clipboard"
+    exit 0
+    ;;
+  *)
+    echo "usage: torus-shot s|sf|m|p|sc" >&2
+    exit 2
+    ;;
+esac
+[[ -f $file ]] && wl-copy < "$file"
+satty --filename "$file" --output-filename "$file" --early-exit --copy-command wl-copy &

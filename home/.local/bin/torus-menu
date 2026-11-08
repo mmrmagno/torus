@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+data=$HOME/.local/share/torus
+style=$(cat "$state/rofi-style" 2> /dev/null || echo marc-os)
+theme=$HOME/.config/rofi/themes/$style.rasi
+styles=(marc-os compact grid)
+
+menu() {
+  rofi -dmenu -i -p "$1" -theme "$theme" "${@:2}"
+}
+
+case ${1:-drun} in
+  drun) exec rofi -show drun -show-icons -theme "$theme" ;;
+  window) exec rofi -show window -show-icons -theme "$theme" ;;
+  files)
+    list=$(cd "$HOME" && { find . -maxdepth 4 -name '.*' -prune -o -type f -print 2> /dev/null || true; } | sed 's|^\./||')
+    pick=$(menu "files" <<< "$list") || exit 0
+    [[ -n $pick ]] && xdg-open "$HOME/$pick"
+    ;;
+  emoji)
+    pick=$(menu "emoji" < "$data/emoji.db") || exit 0
+    [[ -n $pick ]] && printf '%s' "${pick%% *}" | wl-copy
+    ;;
+  glyph)
+    pick=$(menu "glyph" < "$data/glyph.db") || exit 0
+    [[ -n $pick ]] && printf '%s' "$(cut -f1 <<< "$pick")" | wl-copy
+    ;;
+  calc)
+    expr=$(menu "calc" < /dev/null) || exit 0
+    [[ -n $expr ]] || exit 0
+    result=$(qalc -t "$expr")
+    printf '%s' "$result" | wl-copy
+    notify-send -a torus "$expr" "= $result (copied)"
+    ;;
+  websearch)
+    engines=$(sed 's/^ *\([^|]*\)| *\([^|]*\) |.*/\1 \2/' "$data/websearch.lst")
+    engine=$(menu "search with" <<< "$engines") || exit 0
+    [[ -n $engine ]] || exit 0
+    name=${engine##* }
+    url=$(grep -F "| $name |" "$data/websearch.lst" | head -1 | awk -F'| ' '{print $NF}')
+    query=$(menu "$name" < /dev/null) || exit 0
+    [[ -n $query ]] && xdg-open "${url//%s/$(jq -rn --arg q "$query" '$q | @uri')}"
+    ;;
+  clipboard)
+    pick=$(cliphist list | menu "clipboard") || exit 0
+    [[ -n $pick ]] && cliphist decode <<< "$pick" | wl-copy
+    ;;
+  clipmanager)
+    action=$(printf 'delete an item\nwipe history\n' | menu "clipboard manager") || exit 0
+    case $action in
+      "delete an item") pick=$(cliphist list | menu "delete") && cliphist delete <<< "$pick" ;;
+      "wipe history") cliphist wipe && notify-send -a torus "Clipboard" "history wiped" ;;
+    esac
+    ;;
+  games)
+    list=""
+    for f in "$HOME"/.local/share/Steam/steamapps/appmanifest_*.acf; do
+      [[ -e $f ]] || continue
+      id=$(awk -F'"' '/"appid"/ {print $4; exit}' "$f")
+      name=$(awk -F'"' '/"name"/ {print $4; exit}' "$f")
+      [[ $name == *"Steam Linux Runtime"* || $name == Proton* || $name == "Steamworks Common"* ]] && continue
+      list+="$name"$'\t'"$id"$'\n'
+    done
+    pick=$(cut -f1 <<< "$list" | grep -v '^$' | sort | menu "play") || exit 0
+    [[ -n $pick ]] || exit 0
+    id=$(awk -F'\t' -v n="$pick" '$1 == n {print $2; exit}' <<< "$list")
+    steam "steam://rungameid/$id" > /dev/null 2>&1 &
+    ;;
+  style)
+    i=0
+    for s in "${!styles[@]}"; do [[ ${styles[$s]} == "$style" ]] && i=$s; done
+    next=${styles[$(((i + 1) % ${#styles[@]}))]}
+    mkdir -p "$state"
+    echo "$next" > "$state/rofi-style"
+    notify-send -a torus -u low "Menu style" "$next"
+    ;;
+  wallpaper)
+    pick=$(qs -c torus ipc call torus wallpaperList | sed 's|^still:||' | menu "wallpaper") || exit 0
+    [[ -z $pick ]] && exit 0
+    [[ $pick == donut ]] || pick="still:$pick"
+    qs -c torus ipc call torus wallpaper "$pick" > /dev/null
+    ;;
+  accent)
+    pick=$(printf '%s\n' rosewater flamingo pink mauve red maroon peach yellow green teal sky sapphire blue lavender | menu "accent") || exit 0
+    [[ -n $pick ]] && torus accent "$pick"
+    ;;
+  animations)
+    pick=$(printf 'smooth\nsnappy\noff\n' | menu "animations") || exit 0
+    [[ -n $pick ]] || exit 0
+    mkdir -p "$state"
+    echo "$pick" > "$state/animations"
+    hyprctl reload > /dev/null
+    ;;
+  hyprlock)
+    pick=$(printf 'marc-os\nsf_marc\n' | menu "lock screen") || exit 0
+    [[ -n $pick ]] || exit 0
+    mkdir -p "$state"
+    echo "$pick" > "$state/hyprlock"
+    ln -sfn "$HOME/.config/hypr/hyprlock/$pick.conf" "$state/hyprlock-layout.conf"
+    ;;
+  *)
+    echo "usage: torus-menu drun|window|files|emoji|glyph|calc|websearch|clipboard|clipmanager|games|style|wallpaper|accent|animations|hyprlock" >&2
+    exit 2
+    ;;
+esac

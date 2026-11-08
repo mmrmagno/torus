@@ -1,0 +1,24 @@
+@import "~/.config/rofi/themes/marc-os.rasi"
+
+window {
+    width: 420px;
+    location: north;
+    anchor: north;
+    y-offset: 48px;
+}
+
+inputbar {
+    padding: 10px 14px;
+}
+
+listview {
+    lines: 6;
+}
+
+element {
+    padding: 6px 10px;
+}
+
+element-icon {
+    size: 18px;
+}

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! hyprctl clients -j | jq -e 'any(.[]; .class == "torus-dropdown")' > /dev/null; then
+  setsid -f kitty --class torus-dropdown > /dev/null 2>&1
+  for _ in $(seq 20); do
+    hyprctl clients -j | jq -e 'any(.[]; .class == "torus-dropdown")' > /dev/null && break
+    sleep 0.1
+  done
+fi
+hyprctl eval 'hl.dispatch(hl.dsp.workspace.toggle_special("term"))' > /dev/null
