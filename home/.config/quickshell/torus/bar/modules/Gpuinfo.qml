@@ -9,4 +9,5 @@ Chip {
     icon: "󰢮"
     label: showTemp ? (SysStats.gpuTemp >= 0 ? SysStats.gpuTemp + "°C" : "--") : (SysStats.gpuBusy >= 0 ? SysStats.gpuBusy + "%" : "--")
     onClicked: showTemp = !showTemp
+    card: Component { GpuCard {} }
 }

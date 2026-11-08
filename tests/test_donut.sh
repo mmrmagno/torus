@@ -14,6 +14,9 @@ deno eval --quiet "import { grid, CHARS, W, H } from '$REPO/donut/donut.mjs'; co
 diff "$F/expected" "$F/visible" > /dev/null || fail "logo text differs from the donut after fastfetch decoding"
 grep -q '\$[1-9]' "$F/ff/logo.txt" || fail "logo has no color slots"
 jq -e '.logo.color["1"]' "$F/ff/config.jsonc" > /dev/null || fail "fastfetch config lacks color slots"
+cmp -s "$F/ff/config.jsonc" "$REPO/home/.config/fastfetch/config.jsonc" || fail "committed fastfetch config differs from render-logo.ts output"
+jq -r ".modules[].key // empty" "$F/ff/config.jsonc" | grep -E "^ |^[a-z]" && fail "fastfetch key without an icon"
+jq -r '.modules[] | select(.type == "command") | .key' "$F/ff/config.jsonc" | grep -q " age$" || fail "fastfetch has no system age"
 
 deno run --quiet --allow-read --allow-write --allow-run "$REPO/donut/render-frames.ts" "$F/frames" 3 400 > /dev/null
 assert_eq 3 "$(ls "$F/frames"/frame-*.png | wc -l)" "frame count"

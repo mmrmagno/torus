@@ -7,4 +7,5 @@ import qs.services
 Chip {
     icon: "󰾆"
     label: SysStats.memUsed.toFixed(1) + "G"
+    card: Component { MemCard {} }
 }

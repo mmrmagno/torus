@@ -9,6 +9,7 @@ import Quickshell.Services.Mpris
 Chip {
     readonly property var player: Mpris.players.values.length > 0 ? Mpris.players.values[0] : null
     icon: player && player.isPlaying ? "󰏤" : "󰐊"
+    tip: player ? (player.trackTitle || "") + (player.trackArtist ? "\n" + player.trackArtist : "") + "\nClick play/pause, scroll skip" : "Nothing playing"
     label: {
         if (!player)
             return "Music"

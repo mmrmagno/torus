@@ -10,6 +10,7 @@ Chip {
     id: root
     property bool inhibit: false
     icon: inhibit ? "󰅶" : "󰾪"
+    tip: inhibit ? "Staying awake (click to allow sleep)" : "Click to keep the screen awake"
     iconColor: inhibit ? Theme.peach : Theme.overlay
     onClicked: inhibit = !inhibit
 

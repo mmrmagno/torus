@@ -81,6 +81,7 @@ cmd_setup() {
   gsettings set $g gtk-theme adw-gtk3-dark || true
   gsettings set $g color-scheme prefer-dark || true
   gsettings set $g icon-theme Tela-circle-dracula || true
+  [[ -e $HOME/.config/hypr/hyprtoolkit.conf && ! -L $HOME/.config/hypr/hyprtoolkit.conf ]] || { mkdir -p "$HOME/.config/hypr" && ln -sfn "$STATE/theme/hyprtoolkit.conf" "$HOME/.config/hypr/hyprtoolkit.conf"; }
   gsettings set $g font-name "Cantarell 10" || true
   gsettings set $g monospace-font-name "JetBrainsMono Nerd Font 10" || true
   gsettings set $g cursor-size 24 || true

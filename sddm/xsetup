@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+conf=${TORUS_SDDM_MONITORS:-/etc/torus/sddm-monitors}
+next=${TORUS_SDDM_NEXT:-/usr/share/sddm/scripts/Xsetup}
+
+edid_name() {
+  local hex=$1 off i
+  for off in 54 72 90 108; do
+    i=$((off * 2))
+    if [[ ${hex:i:6} == 000000 && ${hex:i+6:2} == fc ]]; then
+      printf "$(sed 's/../\\x&/g' <<< "${hex:i+10:26}")" | tr -d '\n' | sed 's/ *$//'
+      return
+    fi
+  done
+}
+
+if [[ ${1:-} == --edid-name ]]; then
+  edid_name "$(od -An -tx1 -v "$2" | tr -d ' \n')"
+  echo
+  exit 0
+fi
+
+if [[ -r $conf ]]; then
+  while read -r out hex; do
+    name=$(edid_name "$hex")
+    [[ -n $name ]] || continue
+    read -r _ transform x y < <(awk -v n="$name" '$1 == n' "$conf")
+    [[ -n ${transform:-} ]] || continue
+    case $transform in
+      1) rot=right ;;
+      2) rot=inverted ;;
+      3) rot=left ;;
+      *) rot=normal ;;
+    esac
+    xrandr --output "$out" --rotate "$rot" --pos "${x}x${y}"
+    transform=""
+  done < <(xrandr --prop | awk '
+    function flush() { if (out != "" && hex != "") print out, hex; hex = ""; grab = 0 }
+    /^[^ \t]+ connected/ { flush(); out = $1; next }
+    /^[^ \t]/ { flush(); out = ""; next }
+    /^\tEDID:/ { grab = 1; next }
+    grab && /^\t\t[0-9a-f]+$/ { gsub(/[ \t]/, ""); hex = hex $0; next }
+    { grab = 0 }
+    END { flush() }
+  ')
+fi
+
+[[ -x $next ]] && exec "$next"
+exit 0

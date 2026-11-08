@@ -10,6 +10,7 @@ Chip {
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property bool ready: sink && sink.audio
     icon: !ready || sink.audio.muted ? "󰝟" : "󰕾"
+    tip: ready ? "Volume " + Math.round(sink.audio.volume * 100) + "%" + (sink.audio.muted ? ", muted" : "") + "\nClick mute, scroll volume, right click mixer" : "No audio output"
     iconColor: ready && sink.audio.muted ? Theme.red : Theme.accent
     label: ready ? Math.round(sink.audio.volume * 100) : "--"
     onClicked: if (ready) sink.audio.muted = !sink.audio.muted

@@ -154,7 +154,7 @@ PanelWindow {
                         }
                         PanelButton { icon: "󰂛"; label: "DND"; active: Store.dnd; onClicked: Store.dnd = !Store.dnd }
                         PanelButton { icon: "󰊴"; label: "Game"; active: Store.gamemode; onClicked: Quickshell.execDetached(["torus-gamemode"]) }
-                        PanelButton { icon: "󰖔"; label: "Night"; onClicked: Quickshell.execDetached(["sh", "-c", "hyprctl hyprsunset temperature 5500"]) }
+                        PanelButton { icon: "󰖔"; label: "Night"; active: NightLight.on; onClicked: NightLight.toggle() }
                         PanelButton { icon: "󰓅"; label: "Power"; onClicked: Quickshell.execDetached(["sh", "-c", "p=$(powerprofilesctl get); case $p in performance) n=balanced;; balanced) n=power-saver;; *) n=performance;; esac; powerprofilesctl set $n; notify-send -a torus \"Power profile\" $n"]) }
                         PanelButton { icon: "󰏘"; label: "Accent"; onClicked: Quickshell.execDetached(["torus-menu", "accent"]) }
                         PanelButton { icon: "󰸉"; label: "Wallpaper"; onClicked: Quickshell.execDetached(["torus-menu", "wallpaper"]) }

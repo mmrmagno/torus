@@ -42,7 +42,7 @@ check_binds() {
   fi
 }
 
-BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates keyhint privacy record tray wallpaper accent barpreset clipboard menu notifications power"
+BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates keyhint privacy record tray wallpaper accent clipboard menu notifications power"
 
 check_bar() {
   local out screens bad=""
@@ -555,12 +555,72 @@ check_media() {
   if [[ -z $bad ]]; then section media ok "visualizer $f1>$f2, $n lyric lines, now: $line, cava stops when idle"; else section media fail "$bad"; fi
 }
 
+check_night() {
+  local bad="" t
+  [[ $("${QS[@]}" nightLight 2>/dev/null) == true ]] && "${QS[@]}" nightLightToggle > /dev/null && sleep 1
+  "${QS[@]}" nightLightToggle > /dev/null; sleep 1.5
+  [[ $("${QS[@]}" nightLight 2>/dev/null) == true ]] || bad+="on-not-shown "
+  t=$(hyprctl hyprsunset temperature 2>/dev/null)
+  [[ $t == 5500 ]] || bad+="temperature-$t "
+  "${QS[@]}" nightLightToggle > /dev/null; sleep 1.5
+  [[ $("${QS[@]}" nightLight 2>/dev/null) == false ]] || bad+="off-snaps-back "
+  if [[ -z $bad ]]; then section night ok "toggles on (5500 K) and stays off"; else section night fail "$bad"; fi
+}
+
+lock_cycle() {
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  locked_is true || return 1
+  sleep "${1:-1}"
+  wtype -k Shift_L
+  sleep 0.5
+  type_pw "$LOCK_PW"
+  locked_is false
+}
+
+check_spin() {
+  local bad="" screens main side a1 a2 b1 b2 kitty
+  [[ -n ${LOCK_PW:-} ]] || { section spin fail "LOCK_PW not set"; return; }
+  screens=$(hyprctl monitors -j | jq -r '.[].name')
+  main=$(head -1 <<<"$screens")
+  side=$(sed -n 2p <<<"$screens")
+  "${QS[@]}" wallpaper donut > /dev/null
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
+  hyprctl eval 'hl.exec_cmd("kitty --class parity-spin")' > /dev/null
+  for _ in $(seq 100); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity-spin")' > /dev/null && break; sleep 0.2; done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity-spin" }))' > /dev/null 2>&1
+  for _ in $(seq 10); do
+    hyprctl clients -j | jq -e 'any(.[]; .class == "parity-spin" and .fullscreen > 0)' > /dev/null && break
+    hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen())' > /dev/null
+    sleep 0.5
+  done
+  lock_cycle || bad+="lock-fullscreen "
+  kitty=$(hyprctl clients -j | jq -r '.[] | select(.class == "parity-spin") | .pid')
+  [[ -n $kitty ]] && kill "$kitty"
+  sleep 1
+  lock_cycle 33 || bad+="lock-nap "
+  lock_cycle || bad+="lock-3 "
+  if [[ -n $side ]]; then
+    hyprctl output remove "$side" > /dev/null
+    sleep 2
+    hyprctl output create headless "$side" > /dev/null
+    hyprctl eval "hl.monitor({ output = \"$side\", mode = \"1920x1080\", position = \"1920x0\", scale = 1, transform = 3 })" > /dev/null
+    sleep 3
+  fi
+  a1=$(frames "$main"); b1=$(frames "$side"); sleep 3; a2=$(frames "$main"); b2=$(frames "$side")
+  ((a2 > a1)) || bad+="main-stopped($a1=$a2) "
+  [[ -z $side ]] || ((b2 > b1)) || bad+="side-stopped($b1=$b2) "
+  local detail="main $a1>$a2, side $b1>$b2 after fullscreen lock, 2 locks, screen replug, clock[$("${QS[@]}" donutClock 2>/dev/null)]"
+  if [[ -z $bad ]]; then section spin ok "$detail"; else section spin fail "$bad $detail"; fi
+}
+
 case ${1:-all} in
   media) check_media ;;
   lock) check_lock ;;
   look) check_look ;;
   dashboard) check_dashboard ;;
   donut) check_donut ;;
+  spin) check_spin ;;
+  night) check_night ;;
   notify) check_notify ;;
   island) check_island ;;
   widgets) check_widgets ;;
@@ -571,7 +631,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_polkit; check_media ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_polkit; check_media ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

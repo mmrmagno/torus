@@ -7,4 +7,5 @@ import qs.services
 Chip {
     icon: "󰍛"
     label: Math.round(SysStats.cpu) + "%"
+    card: Component { CpuCard {} }
 }

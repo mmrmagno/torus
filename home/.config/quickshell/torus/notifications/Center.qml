@@ -63,7 +63,7 @@ PanelWindow {
                 spacing: 6
                 PanelButton { icon: "󰖩"; label: "Network"; onClicked: Quickshell.execDetached(["nm-connection-editor"]) }
                 PanelButton { icon: "󰂯"; label: "Bluetooth"; onClicked: Quickshell.execDetached(["blueman-manager"]) }
-                PanelButton { icon: "󰖔"; label: "Night light"; onClicked: Quickshell.execDetached(["sh", "-c", "hyprctl hyprsunset temperature 5500"]) }
+                PanelButton { icon: "󰖔"; label: "Night light"; active: NightLight.on; onClicked: NightLight.toggle() }
                 PanelButton { icon: "󰐥"; label: "Session"; onClicked: { Store.setOpen("center", false); Store.setOpen("logout", true) } }
             }
 

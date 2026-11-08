@@ -28,6 +28,9 @@ system_install() {
   for c in deno magick plymouth-set-default-theme grub-mkconfig mkinitcpio; do
     command -v "$c" > /dev/null || missing+=("$c")
   done
+  local qsb
+  qsb=$(command -v qsb || echo /usr/lib/qt6/bin/qsb)
+  [[ -x $qsb ]] || missing+=("qsb (qt6-shadertools)")
   [[ -f $R/etc/default/grub ]] || missing+=("$R/etc/default/grub")
   [[ -f $R/etc/mkinitcpio.conf ]] || missing+=("$R/etc/mkinitcpio.conf")
   if ((${#missing[@]})); then
@@ -78,13 +81,32 @@ system_install() {
   printf '%s\n' boot/grub/themes/marc-os/donut.png usr/share/sddm/themes/torus-background.png >> "$list"
   sort -u -o "$list" "$list"
 
-  if [[ -d $R/usr/share/sddm/themes/catppuccin-mocha-$accent ]]; then
-    mkdir -p "$R/etc/sddm.conf.d"
-    printf '[Theme]\nCurrent=catppuccin-mocha-%s\n' "$accent" > "$R/etc/sddm.conf.d/zz-torus.conf"
-    printf '[General]\nCustomBackground="true"\nBackground="/usr/share/sddm/themes/torus-background.png"\nFont="Inter"\nFontSize=10\nClockEnabled="true"\n' > "$R/usr/share/sddm/themes/catppuccin-mocha-$accent/theme.conf.user"
-  else
-    echo "torus: sddm theme catppuccin-mocha-$accent not installed, sddm theme left as it was" >&2
+  local T=usr/share/sddm/themes/torus frag hex
+  install -D -m 644 "$REPO/home/.config/quickshell/torus/background/donut.mjs" "$R/$T/donut.mjs"
+  for frag in torus donut; do
+    "$qsb" --glsl "100 es,120,150" --hlsl 50 --msl 12 -o "$R/$T/$frag.frag.qsb" "$REPO/home/.config/quickshell/torus/background/$frag.frag"
+  done
+  hex=$(jq -r --arg a "$accent" '.[$a]' "$REPO/theme/mocha.json")
+  printf '[General]\naccent="%s"\n' "$hex" > "$R/$T/theme.conf.user"
+  install -D -m 755 "$REPO/sddm/xsetup" "$R/usr/local/lib/torus/sddm-xsetup"
+  mkdir -p "$R/etc/torus"
+  : > "$R/etc/torus/sddm-monitors"
+  local mon=${TORUS_MONITORS:-$uhome/.config/hypr/monitors.lua} out pos tr name
+  if [[ -r $mon ]]; then
+    while read -r out pos tr; do
+      name=$("$REPO/sddm/xsetup" --edid-name "$(ls "${TORUS_SYSFS:-/sys}"/class/drm/card*-"$out"/edid 2> /dev/null | head -n 1)" 2> /dev/null || true)
+      [[ -n $name ]] && echo "$name $tr ${pos%x*} ${pos#*x}" >> "$R/etc/torus/sddm-monitors"
+    done < <(awk -F'"' '
+      /output *=/ { out = $2 }
+      /position *=/ { pos = $2 }
+      /transform *=/ { split($0, a, "="); tr = a[2] + 0 }
+      /^}\)/ { if (out != "") print out, (pos == "" ? "0x0" : pos), tr + 0; out = ""; pos = ""; tr = 0 }
+    ' "$mon")
   fi
+  mkdir -p "$R/etc/sddm.conf.d"
+  printf '[Theme]\nCurrent=torus\n\n[X11]\nDisplayCommand=/usr/local/lib/torus/sddm-xsetup\n' > "$R/etc/sddm.conf.d/zz-torus.conf"
+  printf '%s\n' "$T/donut.mjs" "$T/torus.frag.qsb" "$T/donut.frag.qsb" "$T/theme.conf.user" usr/local/lib/torus/sddm-xsetup etc/torus/sddm-monitors >> "$list"
+  sort -u -o "$list" "$list"
 
   local grub=$R/etc/default/grub
   if grep -q '^GRUB_THEME=' "$grub"; then
@@ -128,7 +150,7 @@ system_undo() {
       [[ -n $f ]] && rm -f "$R/$f"
     done < "$list"
   fi
-  rm -rf "$R/usr/share/plymouth/themes/marc-os" "$R/boot/grub/themes/marc-os"
+  rm -rf "$R/usr/share/plymouth/themes/marc-os" "$R/boot/grub/themes/marc-os" "$R/usr/share/sddm/themes/torus" "$R/usr/local/lib/torus" "$R/etc/torus"
   while IFS= read -r -d '' f; do
     [[ $f == absent.txt || $f == plymouth-theme ]] && continue
     install -D -m 644 "$O/$f" "$R/$f"

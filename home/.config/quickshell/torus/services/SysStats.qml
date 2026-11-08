@@ -16,6 +16,20 @@ Singleton {
     property string gpuBusyPath: ""
     property string gpuTempPath: ""
     property var lastCpu: [0, 0]
+    property var lastCores: []
+    property var cores: []
+    property string load: ""
+    property real memCached: 0
+    property real swapUsed: 0
+    property real swapTotal: 0
+    property int cpuMhz: -1
+    property string gpuDir: ""
+    property string gpuHwmon: ""
+    property real vramUsed: -1
+    property real vramTotal: -1
+    property int gpuWatts: -1
+    property int gpuMhz: -1
+    property int gpuHotspot: -1
 
     readonly property real memPercent: memTotal > 0 ? memUsed / memTotal * 100 : 0
 
@@ -25,7 +39,7 @@ Singleton {
     }
 
     Process {
-        command: ["sh", "-c", "for h in /sys/class/hwmon/hwmon*; do n=$(cat $h/name 2>/dev/null); case $n in coretemp|k10temp|zenpower) echo cpu $h/temp1_input;; amdgpu) echo gpu $h/temp1_input;; esac; done; ls /sys/class/drm/card*/device/gpu_busy_percent 2>/dev/null | sed 's/^/busy /'"]
+        command: ["sh", "-c", "for h in /sys/class/hwmon/hwmon*; do n=$(cat $h/name 2>/dev/null); case $n in coretemp|k10temp|zenpower) echo cpu $h/temp1_input;; amdgpu) echo gpu $h/temp1_input;; esac; done; ls /sys/class/drm/card*/device/gpu_busy_percent 2>/dev/null | sed 's/^/busy /'; for d in /sys/class/drm/card*/device; do [ -f $d/mem_info_vram_total ] && echo vram $d; done; for h in /sys/class/hwmon/hwmon*; do [ \"$(cat $h/name 2>/dev/null)\" = amdgpu ] && echo gpuhw $h; done"]
         running: true
         stdout: SplitParser {
             onRead: line => {
@@ -36,6 +50,10 @@ Singleton {
                     root.gpuTempPath = path
                 else if (kind === "busy" && !root.gpuBusyPath)
                     root.gpuBusyPath = path
+                else if (kind === "vram" && !root.gpuDir)
+                    root.gpuDir = path
+                else if (kind === "gpuhw" && !root.gpuHwmon)
+                    root.gpuHwmon = path
             }
         }
     }
@@ -45,6 +63,13 @@ Singleton {
     FileView { id: cpuTempFile; path: root.cpuTempPath; printErrors: false }
     FileView { id: gpuTempFile; path: root.gpuTempPath; printErrors: false }
     FileView { id: gpuBusyFile; path: root.gpuBusyPath; printErrors: false }
+    FileView { id: loadFile; path: "/proc/loadavg" }
+    FileView { id: cpuinfo; path: "/proc/cpuinfo" }
+    FileView { id: vramUsedFile; path: root.gpuDir ? root.gpuDir + "/mem_info_vram_used" : ""; printErrors: false }
+    FileView { id: vramTotalFile; path: root.gpuDir ? root.gpuDir + "/mem_info_vram_total" : ""; printErrors: false }
+    FileView { id: powerFile; path: root.gpuHwmon ? root.gpuHwmon + "/power1_average" : ""; printErrors: false }
+    FileView { id: sclkFile; path: root.gpuHwmon ? root.gpuHwmon + "/freq1_input" : ""; printErrors: false }
+    FileView { id: hotFile; path: root.gpuHwmon ? root.gpuHwmon + "/temp2_input" : ""; printErrors: false }
 
     Timer {
         interval: 2000
@@ -54,7 +79,29 @@ Singleton {
         onTriggered: {
             stat.reload()
             meminfo.reload()
-            const f = stat.text().split("\n")[0].trim().split(/\s+/).slice(1).map(Number)
+            const lines = stat.text().split("\n")
+            const f = lines[0].trim().split(/\s+/).slice(1).map(Number)
+            const prev = root.lastCores
+            const now = []
+            const pct = []
+            for (const l of lines) {
+                if (!/^cpu\d/.test(l))
+                    continue
+                const v = l.trim().split(/\s+/).slice(1).map(Number)
+                const tot = v.reduce((a, b) => a + b, 0)
+                const idl = v[3] + (v[4] || 0)
+                const i = now.length
+                now.push([tot, idl])
+                const d = prev[i] ? tot - prev[i][0] : 0
+                pct.push(d > 0 ? (1 - (idl - prev[i][1]) / d) * 100 : 0)
+            }
+            root.lastCores = now
+            root.cores = pct
+            loadFile.reload()
+            root.load = loadFile.text().split(" ").slice(0, 3).join("  ")
+            cpuinfo.reload()
+            const mhz = cpuinfo.text().split("\n").filter(l => l.startsWith("cpu MHz")).map(l => parseFloat(l.split(":")[1]))
+            root.cpuMhz = mhz.length ? Math.round(mhz.reduce((a, b) => a + b, 0) / mhz.length) : -1
             const idle = f[3] + (f[4] || 0)
             const total = f.reduce((a, b) => a + b, 0)
             const dt = total - root.lastCpu[0]
@@ -69,6 +116,26 @@ Singleton {
             }
             root.memTotal = (m.MemTotal || 1) / 1048576
             root.memUsed = ((m.MemTotal || 0) - (m.MemAvailable || 0)) / 1048576
+            root.memCached = ((m.Cached || 0) + (m.Buffers || 0)) / 1048576
+            root.swapTotal = (m.SwapTotal || 0) / 1048576
+            root.swapUsed = ((m.SwapTotal || 0) - (m.SwapFree || 0)) / 1048576
+            if (root.gpuDir) {
+                vramUsedFile.reload()
+                vramTotalFile.reload()
+                root.vramUsed = root.readInt(vramUsedFile) / 1073741824
+                root.vramTotal = root.readInt(vramTotalFile) / 1073741824
+            }
+            if (root.gpuHwmon) {
+                powerFile.reload()
+                sclkFile.reload()
+                hotFile.reload()
+                const w = root.readInt(powerFile)
+                root.gpuWatts = w < 0 ? -1 : Math.round(w / 1000000)
+                const hz = root.readInt(sclkFile)
+                root.gpuMhz = hz < 0 ? -1 : Math.round(hz / 1000000)
+                const h = root.readInt(hotFile)
+                root.gpuHotspot = h < 0 ? -1 : Math.round(h / 1000)
+            }
             if (root.cpuTempPath) {
                 cpuTempFile.reload()
                 const t = root.readInt(cpuTempFile)

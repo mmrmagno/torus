@@ -5,11 +5,8 @@ import qs.components
 import qs.services
 
 Chip {
-    property bool warm: false
-    icon: warm ? "󰖔" : "󰖨"
-    iconColor: warm ? Theme.peach : Theme.overlay
-    onClicked: {
-        warm = !warm
-        Quickshell.execDetached(["hyprctl", "hyprsunset", warm ? "temperature 5500" : "identity"])
-    }
+    icon: NightLight.on ? "󰖔" : "󰖨"
+    iconColor: NightLight.on ? Theme.peach : Theme.overlay
+    tip: NightLight.on ? "Night light on, " + NightLight.temperature + " K" : "Night light off"
+    onClicked: NightLight.toggle()
 }

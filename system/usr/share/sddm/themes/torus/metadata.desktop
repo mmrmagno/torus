@@ -1,0 +1,10 @@
+[SddmGreeterTheme]
+Name=torus
+Description=marc @ os login with the spinning donut
+Type=sddm-theme
+Version=1.0
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=torus
+Theme-API=2.0
+QtVersion=6

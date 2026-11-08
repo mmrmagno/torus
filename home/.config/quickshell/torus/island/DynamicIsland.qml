@@ -27,7 +27,7 @@ PanelWindow {
         default: return 0
         }
     }
-    readonly property int pillHeight: mode === "notification" ? 56 : (lyricRow ? 46 : Store.barHeight)
+    readonly property int pillHeight: mode === "notification" ? 56 : Store.barHeight
 
     onModeChanged: Island.report(screen.name, mode === "" ? "hidden" : mode)
     Component.onCompleted: Island.report(screen.name, mode === "" ? "hidden" : mode)
@@ -104,24 +104,25 @@ PanelWindow {
             }
         }
 
-        ColumnLayout {
+        RowLayout {
             visible: root.mode === "media"
             anchors.fill: parent
-            anchors.leftMargin: 10
+            anchors.leftMargin: 5
             anchors.rightMargin: 14
-            anchors.topMargin: 4
-            anchors.bottomMargin: 4
-            spacing: 0
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.preferredHeight: Store.barHeight - 8
-                spacing: 8
-                Rectangle {
-                    Layout.preferredWidth: 20
-                    Layout.preferredHeight: 20
-                    radius: 10
-                    clip: true
-                    color: Theme.surface1
+            spacing: 8
+
+            Item {
+                Layout.preferredWidth: root.pillHeight - 6
+                Layout.preferredHeight: root.pillHeight - 6
+
+                ClippingRectangle {
+                    id: disk
+                    anchors.fill: parent
+                    radius: width / 2
+                    color: Theme.crust
+                    border.width: 1
+                    border.color: Qt.alpha(Theme.accent, 0.5)
+
                     Text {
                         anchors.centerIn: parent
                         visible: art.status !== Image.Ready
@@ -133,39 +134,67 @@ PanelWindow {
                     Image {
                         id: art
                         anchors.fill: parent
+                        anchors.margins: 1
                         source: Island.player ? Island.player.trackArtUrl : ""
+                        sourceSize.width: 64
+                        sourceSize.height: 64
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                     }
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 5
+                        height: 5
+                        radius: 2.5
+                        color: Theme.base
+                        border.width: 1
+                        border.color: Qt.alpha(Theme.text, 0.4)
+                    }
                     RotationAnimation on rotation {
                         running: root.mode === "media"
+                        paused: running && !(Island.player && Island.player.isPlaying)
                         from: 0
                         to: 360
-                        duration: 8000
+                        duration: 6000
                         loops: Animation.Infinite
                     }
                 }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: -1
+
                 Text {
                     Layout.fillWidth: true
                     text: Island.player ? (Island.player.trackTitle + (Island.player.trackArtist ? "  ·  " + Island.player.trackArtist : "")) : ""
                     color: Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: Theme.fontSize
+                    font.pixelSize: root.lyricRow ? Theme.fontSize - 1 : Theme.fontSize
+                    font.weight: root.lyricRow ? Font.DemiBold : Font.Normal
                     elide: Text.ElideRight
                 }
-                Bars { count: 8; maxHeight: 14; barWidth: 3 }
+                Text {
+                    id: lyric
+                    Layout.fillWidth: true
+                    visible: root.lyricRow
+                    text: Lyrics.line
+                    color: Theme.accent
+                    font.family: Theme.fontUi
+                    font.pixelSize: Theme.fontSize - 2
+                    font.italic: true
+                    elide: Text.ElideRight
+                    Behavior on text {
+                        SequentialAnimation {
+                            NumberAnimation { target: lyric; property: "opacity"; to: 0; duration: 120 }
+                            PropertyAction {}
+                            NumberAnimation { target: lyric; property: "opacity"; to: 1; duration: 220 }
+                        }
+                    }
+                }
             }
-            Text {
-                Layout.fillWidth: true
-                visible: root.lyricRow
-                text: Lyrics.line
-                horizontalAlignment: Text.AlignHCenter
-                color: Theme.accent
-                font.family: Theme.fontUi
-                font.pixelSize: Theme.fontSize - 1
-                font.italic: true
-                elide: Text.ElideRight
-            }
+
+            Bars { count: 8; maxHeight: 14; barWidth: 3 }
         }
 
         RowLayout {
@@ -206,9 +235,11 @@ PanelWindow {
             anchors.leftMargin: 14
             anchors.rightMargin: 16
             spacing: 10
-            IconImage {
-                implicitSize: 28
-                source: Island.flashData.image || Quickshell.iconPath(Island.flashData.icon || "", "dialog-information")
+            NotifIcon {
+                size: 28
+                image: Island.flashData.image || ""
+                appIcon: Island.flashData.icon || ""
+                app: Island.flashData.app || ""
             }
             ColumnLayout {
                 Layout.fillWidth: true

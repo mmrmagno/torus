@@ -8,6 +8,7 @@ Singleton {
     id: root
 
     property var full: ({})
+    readonly property bool any: Object.keys(full).some(k => full[k] === true)
 
     function isFull(name) {
         return full[name] === true

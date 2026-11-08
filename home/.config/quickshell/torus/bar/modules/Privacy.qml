@@ -10,6 +10,7 @@ Chip {
     readonly property int recording: Pipewire.nodes.values.filter(n => n.isStream && !n.isSink && n.audio).length
     readonly property bool shown: recording > 0
     icon: "󰍬"
+    tip: "Microphone in use"
     iconColor: Theme.red
     label: recording > 1 ? recording : ""
 }

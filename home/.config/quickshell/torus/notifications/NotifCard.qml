@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.Notifications
 import qs
+import qs.components
 import qs.services
 
 Rectangle {
@@ -37,11 +38,12 @@ Rectangle {
         anchors.margins: 12
         spacing: 12
 
-        IconImage {
+        NotifIcon {
             Layout.alignment: Qt.AlignTop
-            implicitSize: 40
-            visible: source != ""
-            source: card.notif ? (card.notif.image || Quickshell.iconPath(card.notif.appIcon, true)) : ""
+            size: 40
+            image: card.notif ? card.notif.image || "" : ""
+            appIcon: card.notif ? card.notif.appIcon || "" : ""
+            app: card.notif ? card.notif.appName || "" : ""
         }
 
         ColumnLayout {

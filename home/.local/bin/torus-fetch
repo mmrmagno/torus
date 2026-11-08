@@ -1,0 +1,76 @@
+#!/usr/bin/env -S deno run --quiet --no-config --allow-read --allow-run=fastfetch --allow-env
+const self = Deno.realPathSync(new URL(import.meta.url).pathname);
+const repo = self.replace(/\/home\/\.local\/bin\/torus-fetch$/, "");
+const { grid, ramp, CHARS, W, H } = await import(`file://${repo}/home/.config/quickshell/torus/background/donut.mjs`);
+
+const run = async (args: string[]) => {
+  const out = await new Deno.Command("fastfetch", { args, stdout: "piped", stderr: "null" }).output();
+  return new TextDecoder().decode(out.stdout);
+};
+const plain = async () => {
+  const p = new Deno.Command("fastfetch", { stdin: "inherit", stdout: "inherit", stderr: "inherit" }).spawn();
+  Deno.exit((await p.status).code);
+};
+
+const force = Deno.env.get("TORUS_FETCH_FORCE") === "1";
+const tty = Deno.stdout.isTerminal();
+const cols = tty ? Deno.consoleSize().columns : Number(Deno.env.get("COLUMNS") || 0);
+const forever = Deno.args.includes("--forever") && Deno.stdin.isTerminal();
+const frames = Number(Deno.env.get("TORUS_FETCH_FRAMES") || 30);
+if ((!tty && !force) || cols < 80 || frames < 1) await plain();
+
+const palette = JSON.parse(Deno.readTextFileSync(`${repo}/theme/mocha.json`));
+const colors: string[] = ramp(palette);
+const slotOf = (lvl: number) => Math.min(9, Math.floor((lvl * 9) / 12) + 1);
+const slotLevel = (slot: number) => Math.min(11, Math.round(((slot - 1) * 12) / 9 + 0.5));
+const ansi = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `\x1b[1;38;2;${(n >> 16) & 255};${(n >> 8) & 255};${n & 255}m`;
+};
+const slotColor = Array.from({ length: 10 }, (_, s) => (s ? ansi(colors[slotLevel(s)]) : ""));
+
+const info = (await run(["--logo", "none", "--pipe", "false"])).replace(/\n+$/, "").split("\n");
+const rows = Math.max(H, info.length);
+
+const draw = (A: number, B: number) => {
+  const g = grid(A, B);
+  let s = "";
+  for (let r = 0; r < rows; r++) {
+    let line = "";
+    let cur = 0;
+    for (let c = 0; c < W; c++) {
+      const lvl = r < H ? g[r * W + c] : -1;
+      if (lvl < 0) {
+        line += " ";
+        continue;
+      }
+      const slot = slotOf(lvl);
+      if (slot !== cur) {
+        line += slotColor[slot];
+        cur = slot;
+      }
+      line += CHARS[lvl];
+    }
+    s += `\r${line}\x1b[0m  ${info[r] ?? ""}\x1b[0m\x1b[K\n`;
+  }
+  return s;
+};
+
+const enc = new TextEncoder();
+const write = (s: string) => Deno.stdout.writeSync(enc.encode(s));
+const raw = Deno.stdin.isTerminal();
+if (raw) Deno.stdin.setRaw(true);
+try {
+  write("\x1b[?25l\x1b[?7l");
+  let stop = !forever;
+  if (forever && raw) Deno.stdin.read(new Uint8Array(16)).then(() => (stop = true));
+  for (let k = 0; forever ? !stop || k === 0 : k < frames; k++) {
+    const back = forever ? -k : frames - 1 - k;
+    if (k) write(`\x1b[${rows}A`);
+    write(draw(1 - back * 0.07, 1 - back * 0.03));
+    if (back || forever) await new Promise((r) => setTimeout(r, 33));
+  }
+} finally {
+  write("\x1b[?7h\x1b[?25h");
+  if (raw) Deno.stdin.setRaw(false);
+}

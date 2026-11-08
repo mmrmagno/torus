@@ -18,9 +18,10 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         spacing: 8
-        IconImage {
-            implicitSize: 16
-            source: group.entry.icon ? Quickshell.iconPath(group.entry.icon, "dialog-information") : (group.entry.items.length > 0 && group.entry.items[0].image || Quickshell.iconPath("dialog-information"))
+        NotifIcon {
+            size: 16
+            appIcon: group.entry.icon || ""
+            app: group.entry.app
         }
         Text {
             Layout.fillWidth: true

@@ -7,27 +7,30 @@ Item {
     id: view
 
     property bool live: true
+    property bool throttle: false
     property real cellH: 16
+    property real t: 0
+    property real acc: 0
+    property int skip: 0
     readonly property real cellW: Math.round(cellH * 0.6)
-    readonly property string shaderPath: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/torus/shaders/donut.frag.qsb"
-    property string frozen: ""
+    readonly property string shaderDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/torus/shaders/"
     signal frame
 
     implicitWidth: cellW * DonutClock.w
     implicitHeight: cellH * DonutClock.h
 
-    onLiveChanged: {
-        DonutClock.consumers += live ? 1 : -1
-        if (!live)
-            frozen = DonutClock.url
-    }
-    Component.onCompleted: if (live) DonutClock.consumers += 1
-    Component.onDestruction: if (live) DonutClock.consumers -= 1
-
-    Connections {
-        target: DonutClock
-        enabled: view.live
-        function onUrlChanged() {
+    FrameAnimation {
+        id: anim
+        running: view.live && view.visible
+        onTriggered: {
+            view.acc += frameTime
+            const rate = smoothFrameTime > 0 ? 1 / smoothFrameTime : 60
+            if (++view.skip < Math.max(1, Math.round(rate / (view.throttle ? 30 : 60))))
+                return
+            view.skip = 0
+            view.t += Math.min(view.acc, 0.1) * (1 + Visualizer.bass * 1.6)
+            view.acc = 0
+            DonutClock.ticks++
             view.frame()
         }
     }
@@ -61,12 +64,24 @@ Item {
         visible: false
     }
 
-    Image {
+    ShaderEffect {
+        id: levelPass
+        width: DonutClock.w
+        height: DonutClock.h
+        property point grid: Qt.point(DonutClock.w, DonutClock.h)
+        property point ab: Qt.point((1 + view.t * DonutClock.speedA) % (2 * Math.PI), (1 + view.t * DonutClock.speedB) % (2 * Math.PI))
+        fragmentShader: "file://" + view.shaderDir + "torus.frag.qsb"
+    }
+
+    ShaderEffectSource {
         id: levelTex
-        visible: false
+        sourceItem: levelPass
+        hideSource: true
         smooth: false
-        cache: true
-        source: view.live ? DonutClock.url : (view.frozen || DonutClock.url)
+        textureSize: Qt.size(DonutClock.w, DonutClock.h)
+        width: DonutClock.w
+        height: DonutClock.h
+        visible: false
     }
 
     ShaderEffect {
@@ -75,6 +90,6 @@ Item {
         property variant atlas: atlasTex
         property point grid: Qt.point(DonutClock.w, DonutClock.h)
         property real boost: 1 + Visualizer.bass * 0.45
-        fragmentShader: "file://" + view.shaderPath
+        fragmentShader: "file://" + view.shaderDir + "donut.frag.qsb"
     }
 }

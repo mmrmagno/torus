@@ -7,6 +7,7 @@ import qs.services
 Chip {
     available: Backlight.available
     icon: "󰃟"
+    tip: "Brightness, scroll to change"
     label: Backlight.percent + "%"
     onScrolled: delta => Backlight.adjust(delta * 5)
 }

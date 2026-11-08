@@ -42,7 +42,7 @@
     },
     {
       "type": "kernel",
-      "key": " kernel",
+      "key": "󰌽 kernel",
       "keyColor": "38;2;243;139;168",
       "format": "{2}"
     },
@@ -64,12 +64,12 @@
     },
     {
       "type": "terminal",
-      "key": " terminal",
+      "key": "󰆍 terminal",
       "keyColor": "38;2;249;226;175"
     },
     {
       "type": "cpu",
-      "key": " cpu",
+      "key": "󰻠 cpu",
       "keyColor": "38;2;137;180;250"
     },
     {
@@ -79,7 +79,7 @@
     },
     {
       "type": "memory",
-      "key": " memory",
+      "key": "󰍛 memory",
       "keyColor": "38;2;116;199;236"
     },
     {
@@ -87,6 +87,12 @@
       "key": "󱦟 disk",
       "keyColor": "38;2;116;199;236",
       "folders": "/"
+    },
+    {
+      "type": "command",
+      "key": "󰃭 age",
+      "keyColor": "38;2;180;190;254",
+      "text": "b=$(stat -c %W /); printf '%d days, since %s' $(( ($(date +%s) - b) / 86400 )) \"$(date -d @$b '+%-d %b %Y')\""
     },
     {
       "type": "uptime",

@@ -23,6 +23,7 @@ PanelWindow {
     DonutView {
         id: donut
         anchors.fill: parent
+        throttle: Fullscreen.any
         live: win.shown && !win.fullscreen && !Store.gamemode && !Store.donutPaused && !Store.locked
         cellH: win.screen ? Math.max(8, Math.round(Math.min(win.screen.width, win.screen.height) * 0.5 / DonutClock.h)) : 16
         onFrame: {

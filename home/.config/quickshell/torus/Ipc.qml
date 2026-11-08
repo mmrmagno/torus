@@ -50,7 +50,7 @@ IpcHandler {
     }
 
     function donutClock(): string {
-        return DonutClock.consumers + ":" + DonutClock.ticks
+        return "t:" + DonutClock.ticks
     }
 
     function widgets(mode: string): string {
@@ -223,6 +223,14 @@ IpcHandler {
 
     function lyricsLine(): string {
         return Lyrics.line
+    }
+
+    function nightLight(): bool {
+        return NightLight.on
+    }
+
+    function nightLightToggle(): void {
+        NightLight.toggle()
     }
 
     function isOpen(name: string): bool {

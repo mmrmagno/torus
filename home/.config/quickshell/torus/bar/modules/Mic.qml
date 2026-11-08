@@ -10,6 +10,7 @@ Chip {
     readonly property var source: Pipewire.defaultAudioSource
     readonly property bool ready: source && source.audio
     icon: !ready || source.audio.muted ? "󰍭" : "󰍬"
+    tip: ready ? "Microphone " + Math.round(source.audio.volume * 100) + "%" + (source.audio.muted ? ", muted" : "") : "No microphone"
     iconColor: ready && source.audio.muted ? Theme.red : Theme.accent
     onClicked: if (ready) source.audio.muted = !source.audio.muted
     onScrolled: delta => {

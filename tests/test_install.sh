@@ -40,6 +40,10 @@ mkdir -p "$F/sbin"
 for c in grub-mkconfig mkinitcpio plymouth-set-default-theme; do printf '#!/usr/bin/env bash\necho "%s $*" >> "$STUB_LOG"\n' "$c" > "$F/sbin/$c"; done
 printf '#!/usr/bin/env bash\necho "sbctl $*" >> "$STUB_LOG"\n[[ $1 == verify ]] && { echo "✗ /boot/grub/x86_64-efi/core.efi is not signed"; [[ -n ${STUB_UNSIGNED:-} ]] && echo "✗ /boot/vmlinuz-linux is not signed"; echo "✓ /boot/EFI/BOOT/BOOTX64.EFI is signed"; }\nexit 0\n' > "$F/sbin/sbctl"
 chmod +x "$F/sbin"/*
+export TORUS_SYSFS=$F/sys TORUS_MONITORS=$F/monitors.lua
+mkedid "$F/sys/class/drm/card1-DP-1/edid" VG27AQ1A
+mkedid "$F/sys/class/drm/card1-DP-2/edid" Q27G2WG4
+printf 'hl.monitor({\n    output = "DP-2",\n    mode = "2560x1440@120.0",\n    position = "2560x410",\n    scale = 1.0,\n    transform = 3\n})\nhl.monitor({\n    output = "DP-1",\n    mode = "2560x1440@144.01",\n    position = "0x1467",\n    scale = 1\n})\n' > "$F/monitors.lua"
 
 PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve > "$F/sys1"
 PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve > "$F/sys2"
@@ -53,8 +57,15 @@ assert_file "$R/boot/grub/themes/marc-os/donut.png"
 assert_file "$R/usr/share/plymouth/themes/marc-os/marc-os.script"
 assert_file "$R/usr/share/plymouth/themes/marc-os/frame-89.png"
 assert_file "$R/usr/share/sddm/themes/torus-background.png"
-assert_contains "$R/etc/sddm.conf.d/zz-torus.conf" "Current=catppuccin-mocha-mauve"
-assert_contains "$R/usr/share/sddm/themes/catppuccin-mocha-mauve/theme.conf.user" "torus-background.png"
+assert_contains "$R/etc/sddm.conf.d/zz-torus.conf" "Current=torus"
+assert_contains "$R/etc/sddm.conf.d/zz-torus.conf" "DisplayCommand=/usr/local/lib/torus/sddm-xsetup"
+[[ -x $R/usr/local/lib/torus/sddm-xsetup ]] || fail "sddm-xsetup not executable"
+T=$R/usr/share/sddm/themes/torus
+for f in Main.qml metadata.desktop donut.mjs torus.frag.qsb donut.frag.qsb; do assert_file "$T/$f"; done
+assert_contains "$T/theme.conf.user" 'accent="#cba6f7"'
+assert_contains "$R/etc/torus/sddm-monitors" "Q27G2WG4 3 2560 410"
+assert_contains "$R/etc/torus/sddm-monitors" "VG27AQ1A 0 0 1467"
+[[ -e $R/usr/share/sddm/themes/catppuccin-mocha-mauve/theme.conf.user ]] && fail "catppuccin theme must stay untouched"
 ls "$R/var/lib/torus/attic/"*/etc/default/grub > /dev/null || fail "original grub default kept in attic"
 order=$(grep -oE '^(plymouth-set-default-theme marc-os|grub-mkconfig|mkinitcpio|sbctl sign-all|sbctl verify)' "$STUB_LOG" | head -5 | tr '\n' '|')
 assert_eq "plymouth-set-default-theme marc-os|grub-mkconfig|mkinitcpio|sbctl sign-all|sbctl verify|" "$order" "system command order"
@@ -73,16 +84,15 @@ for c in grub-mkconfig mkinitcpio sbctl; do cp "$F/sbin/$c" "$F/sbin-partial/$c"
 sed -i 's|^GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/hollow-grub/theme.txt"|' "$R/etc/default/grub"
 cp "$R/etc/default/grub" "$F/grub.before"
 rc=0
-PATH=$F/sbin-partial:/usr/bin:/bin "$REPO/install.sh" --system --root "$R" --accent mauve > "$F/partial" 2>&1 || rc=$?
-if command -v plymouth-set-default-theme > /dev/null; then rc=3; fi
+mkdir -p "$F/usrbin"
+for b in /usr/bin/*; do [[ ${b##*/} == plymouth-set-default-theme ]] || ln -s "$b" "$F/usrbin/${b##*/}"; done
+PATH=$F/sbin-partial:$F/usrbin "$REPO/install.sh" --system --root "$R" --accent mauve > "$F/partial" 2>&1 || rc=$?
 assert_eq 3 "$rc" "missing tool stops before any edit"
 cmp -s "$F/grub.before" "$R/etc/default/grub" || fail "grub default touched although a tool was missing"
 assert_contains "$F/partial" "plymouth-set-default-theme"
 
-rm -rf "$R/usr/share/sddm/themes/catppuccin-mocha-mauve"
-rm -f "$R/etc/sddm.conf.d/zz-torus.conf"
-PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve > /dev/null 2>&1
-[[ -e $R/etc/sddm.conf.d/zz-torus.conf ]] && fail "sddm theme selected although it is not installed"
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent blue > /dev/null 2>&1
+assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'accent="#89b4fa"'
 R2=$F/root2
 mkdir -p "$R2/etc/default" "$R2/boot/grub" "$R2/usr/share/sddm/themes/catppuccin-mocha-mauve"
 printf 'GRUB_DEFAULT=0\nGRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"\nGRUB_THEME="/boot/grub/themes/hollow-grub/theme.txt"\n' > "$R2/etc/default/grub"
@@ -109,6 +119,9 @@ assert_absent "$R2/etc/sddm.conf.d/zz-torus.conf"
 for f in "${inst[@]}"; do assert_absent "$R2/$f"; done
 assert_absent "$R2/usr/share/plymouth/themes/marc-os"
 assert_absent "$R2/boot/grub/themes/marc-os"
+assert_absent "$R2/usr/share/sddm/themes/torus"
+assert_absent "$R2/usr/local/lib/torus"
+assert_absent "$R2/etc/torus"
 assert_absent "$R2/var/lib/torus/original"
 assert_absent "$R2/var/lib/torus/installed.txt"
 assert_contains "$STUB_LOG" "plymouth-set-default-theme bgrt"

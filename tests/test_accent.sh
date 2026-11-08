@@ -60,6 +60,12 @@ assert_contains "$STUB_LOG" "bat cache --build"
 assert_contains "$STUB_LOG" "fc-cache"
 assert_contains "$STUB_LOG" "qsb "
 grep -q '/donut.frag.qsb' "$STUB_LOG" || fail "setup compiles the donut shader"
+grep -q '/torus.frag.qsb' "$STUB_LOG" || fail "setup compiles the torus shader"
+assert_link "$HOME/.config/hypr/hyprtoolkit.conf" "$S/theme/hyprtoolkit.conf"
+assert_contains "$HOME/.config/hypr/hyprtoolkit.conf" "accent = rgba(89b4faff)"
+rm "$HOME/.config/hypr/hyprtoolkit.conf"; echo mine > "$HOME/.config/hypr/hyprtoolkit.conf"
+"$T" setup > /dev/null
+assert_eq mine "$(cat "$HOME/.config/hypr/hyprtoolkit.conf")" "own hyprtoolkit.conf kept"
 assert_contains "$STUB_LOG" "systemctl --user enable torus-shell.service"
 assert_contains "$STUB_LOG" "systemctl --user mask dunst.service"
 

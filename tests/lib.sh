@@ -45,3 +45,15 @@ wait_for() {
   done
   return 1
 }
+
+mkedid() {
+  local out=$1 name=$2 i
+  mkdir -p "$(dirname "$out")"
+  {
+    printf '\x00\xff\xff\xff\xff\xff\xff\x00'
+    for i in $(seq 9 72); do printf '\x00'; done
+    printf '\x00\x00\x00\xfc\x00'
+    printf '%-13s' "$name" | sed 's/ /\n/' | head -c 13
+    for i in $(seq 91 128); do printf '\x00'; done
+  } > "$out"
+}
