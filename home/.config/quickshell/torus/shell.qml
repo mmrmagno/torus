@@ -17,6 +17,7 @@ import qs.dashboard
 import qs.overview
 import qs.switcher
 import qs.cheatsheet
+import qs.palette
 
 ShellRoot {
     Variants {
@@ -55,6 +56,7 @@ ShellRoot {
     AltTab {}
     CheatSheet {}
     ClipPanel {}
+    CommandPanel {}
     AiPanel {}
     Polkit {}
     Lock {}

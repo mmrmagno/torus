@@ -1,0 +1,296 @@
+pragma Singleton
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import Quickshell.Hyprland
+import qs
+
+Singleton {
+    id: root
+
+    property string query: ""
+    property var counts: ({})
+    property var calc: []
+    property var files: []
+    property var kb: []
+    property var apps: []
+    property var passItems: []
+    property string passState: ""
+    property real passLoaded: 0
+    property var passPick: null
+    readonly property int passClear: Number(Quickshell.env("TORUS_PASS_CLEAR") || 30)
+    property var windows: []
+    readonly property string home: Quickshell.env("HOME")
+    readonly property string mode: {
+        const c = query.charAt(0)
+        if (query.startsWith("p "))
+            return "pass"
+        return { "=": "calc", "/": "files", "?": "kb", "!": "ai", ":": "emoji" }[c] || "all"
+    }
+    readonly property string term: (mode === "all" ? query : query.slice(mode === "pass" ? 2 : 1)).trim()
+
+    readonly property var actions: [
+        { id: "a:night", glyph: "󰖔", title: "Night light", sub: NightLight.on ? "on, turn off" : "off, turn on", act: () => NightLight.toggle() },
+        { id: "a:dnd", glyph: "󰂛", title: "Do not disturb", sub: Store.dnd ? "on, turn off" : "off, turn on", act: () => Store.dnd = !Store.dnd },
+        { id: "a:focus25", glyph: "󰔟", title: "Focus 25 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(25) },
+        { id: "a:focus50", glyph: "󰔟", title: "Focus 50 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(50) },
+        { id: "a:focusstop", glyph: "󰓛", title: "Stop focus", sub: "timer running", hidden: !Focus.running, act: () => Focus.stop() },
+        { id: "a:living", glyph: "󰟪", title: "Living donut", sub: Store.livingDonut ? "on, turn off" : "off, turn on", act: () => Store.setLivingDonut(!Store.livingDonut) },
+        { id: "a:game", glyph: "󰊴", title: "Game mode", sub: "animations, blur and donut off", act: () => Quickshell.execDetached(["torus-gamemode"]) },
+        { id: "a:wallnext", glyph: "󰸉", title: "Next wallpaper", sub: "", act: () => Store.stepWallpaper(1) },
+        { id: "a:walldonut", glyph: "󰟪", title: "Donut wallpaper", sub: "", act: () => Store.setWallpaper("donut") },
+        { id: "a:accent", glyph: "󰏘", title: "Accent colour", sub: "pick", act: () => Quickshell.execDetached(["torus-menu", "accent"]) },
+        { id: "a:shot", glyph: "󰹑", title: "Screenshot area", sub: "", act: () => Quickshell.execDetached(["sh", "-c", "sleep 0.3; torus-shot s"]) },
+        { id: "a:record", glyph: "󰑋", title: "Record screen", sub: "start or stop", act: () => Quickshell.execDetached(["torus-record", "toggle"]) },
+        { id: "a:picker", glyph: "󰈊", title: "Colour picker", sub: "copies the colour", act: () => Quickshell.execDetached(["sh", "-c", "sleep 0.3; hyprpicker -a"]) },
+        { id: "a:clip", glyph: "󰅌", title: "Clipboard history", sub: "", act: () => Store.setOpen("clip", true) },
+        { id: "a:dash", glyph: "󰕮", title: "Dashboard", sub: "", act: () => Store.setOpen("dashboard", true) },
+        { id: "a:keys", glyph: "󰌌", title: "Keybind cheat sheet", sub: "", act: () => Store.setOpen("cheatsheet", true) },
+        { id: "a:lock", glyph: "󰌾", title: "Lock screen", sub: "", act: () => Quickshell.execDetached(["torus-lock"]) },
+        { id: "a:power", glyph: "󰐥", title: "Power menu", sub: "log out, reboot, power off", act: () => Store.setOpen("logout", true) }
+    ]
+
+    readonly property var results: {
+        const q = term
+        let out = []
+        if (!Store.isOpen("palette"))
+            return out
+        if (mode === "all") {
+            for (const a of actions)
+                if (!a.hidden)
+                    out.push(Object.assign({ kind: "action" }, a))
+            out = rank(out.concat(windows, apps), q)
+        } else if (mode === "calc") {
+            out = calc
+        } else if (mode === "files") {
+            out = files
+        } else if (mode === "kb") {
+            out = kb
+        } else if (mode === "ai") {
+            out = q === "" ? [] : [{ id: "ai", kind: "ask", glyph: "󰚩", title: "Ask: " + q, sub: "answer in the AI sidebar", act: () => { Store.setOpen("ai", true); Ai.ask(q) } }]
+        } else if (mode === "emoji") {
+            out = emojiFor(q)
+        } else if (mode === "pass") {
+            out = passResults(q)
+        }
+        return out.slice(0, 40)
+    }
+
+    function snapshot() {
+        const w = []
+        for (const t of Hyprland.toplevels.values) {
+            const app = t.wayland && t.wayland.appId ? t.wayland.appId : ""
+            const top = t
+            w.push({ id: "w", kind: "window", title: t.title || app, sub: app + " · workspace " + (t.workspace ? t.workspace.name : "?"), icon: iconFor(app), act: () => top.wayland && top.wayland.activate() })
+        }
+        const a = []
+        for (const e of DesktopEntries.applications.values) {
+            if (e.noDisplay)
+                continue
+            const entry = e
+            a.push({ id: "app:" + e.id, kind: "app", title: e.name, sub: e.genericName || e.comment || "", keys: (e.keywords || []).join(" "), icon: Quickshell.iconPath(e.icon, true), act: () => entry.execute() })
+        }
+        windows = w
+        apps = a
+    }
+
+    function passResults(q) {
+        if (passPick) {
+            const it = passPick
+            return [["password", "󰌾", "Password"], ["email", "󰇮", "Email"], ["username", "󰀄", "Username"], ["totp", "󰔟", "One-time code"]].map(f => ({
+                id: "pf", kind: "field", glyph: f[1], title: f[2], sub: it.title + " · copy, clears in " + passClear + " s",
+                act: () => copyField(it, f[0])
+            }))
+        }
+        if (passState === "error")
+            return [{ id: "ph", kind: "hint", glyph: "󰟵", title: "Proton Pass is locked", sub: "run pass-cli login in a terminal, then try again", act: () => {} }]
+        if (passItems.length === 0)
+            return [{ id: "ph", kind: "hint", glyph: "󰟵", title: "Loading your vaults…", sub: "names only, nothing is shown or saved", act: () => {} }]
+        const items = passItems.map(p => ({ id: "p", kind: "pass", keep: true, glyph: "󰟵", title: p.title, sub: p.vault, sid: p.sid, iid: p.iid, act: null }))
+        for (const it of items)
+            it.act = () => root.passPick = it
+        return q === "" ? items : rank(items, q)
+    }
+
+    function loadPass() {
+        if (passProc.running || (passState === "ready" && Date.now() - passLoaded < 300000))
+            return
+        passState = "loading"
+        passProc.running = true
+    }
+
+    function copyField(item, field) {
+        Quickshell.execDetached(["torus-pass", "copy", item.sid, item.iid, field, String(passClear)])
+    }
+
+    function iconFor(app) {
+        const e = app ? DesktopEntries.heuristicLookup(app) : null
+        return e ? Quickshell.iconPath(e.icon, true) : ""
+    }
+
+    function score(q, s) {
+        if (!s)
+            return 0
+        const t = s.toLowerCase()
+        if (t.startsWith(q))
+            return 100
+        const i = t.indexOf(q)
+        if (i > 0)
+            return /[\s\-_.]/.test(t.charAt(i - 1)) ? 70 : 40
+        let j = 0
+        for (let k = 0; k < t.length && j < q.length; k++)
+            if (t.charAt(k) === q.charAt(j))
+                j++
+        return j === q.length ? 10 : 0
+    }
+
+    function rank(items, q) {
+        const ql = q.toLowerCase()
+        const scored = []
+        for (const it of items) {
+            const base = ql === "" ? 1 : Math.max(score(ql, it.title), score(ql, it.sub) * 0.5, score(ql, it.keys) * 0.6)
+            if (base <= 0)
+                continue
+            const boost = Math.min(30, (counts[it.id] || 0) * 5)
+            const kind = it.kind === "window" ? 3 : (it.kind === "app" ? 2 : 1)
+            scored.push({ it: it, s: base + boost + kind })
+        }
+        scored.sort((a, b) => b.s - a.s || a.it.title.localeCompare(b.it.title))
+        return scored.map(x => x.it)
+    }
+
+    function emojiFor(q) {
+        const words = q.toLowerCase().split(/\s+/).filter(w => w)
+        const out = []
+        for (const line of emojiFile.text().split("\n")) {
+            if (!line || !words.every(w => line.toLowerCase().includes(w)))
+                continue
+            const ch = line.split(" ")[0]
+            out.push({ id: "e:" + ch, kind: "emoji", glyph: ch, title: line.slice(ch.length + 1).split(/\s+/).slice(0, 4).join(" "), sub: "copy", act: () => Quickshell.execDetached(["wl-copy", ch]) })
+            if (out.length >= 40)
+                break
+        }
+        return out
+    }
+
+    function run(item) {
+        if (!item)
+            return
+        if (item.keep) {
+            item.act()
+            return
+        }
+        if (item.kind === "app" || item.kind === "action") {
+            const c = Object.assign({}, counts)
+            c[item.id] = Math.min(50, (c[item.id] || 0) + 1)
+            counts = c
+            countsFile.setText(JSON.stringify(c))
+        }
+        Store.setOpen("palette", false)
+        item.act()
+    }
+
+    onModeChanged: if (mode === "pass") loadPass()
+    onTermChanged: {
+        passPick = null
+        calc = []
+        files = []
+        kb = []
+        debounce.restart()
+    }
+    Timer {
+        id: debounce
+        interval: 120
+        onTriggered: {
+            if (root.term.length === 0)
+                return
+            const t = root.term
+            if (root.mode === "calc") {
+                calcProc.asked = t
+                calcProc.exec(["qalc", "-t", "--", t])
+            } else if (root.mode === "files" && t.length >= 2) {
+                filesProc.asked = t
+                filesProc.exec(["fd", "-F", "--type", "f", "--max-results", "40", "--color", "never", "--", t, root.home])
+            } else if (root.mode === "kb" && t.length >= 2) {
+                kbProc.asked = t
+                kbProc.exec(["rg", "-i", "-F", "-n", "--max-count", "1", "--max-columns", "160", "--glob", "*.md", "--", t, root.home + "/dev/kb"])
+            }
+        }
+    }
+
+    Process {
+        id: calcProc
+        property string asked: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (calcProc.asked !== root.term || root.mode !== "calc")
+                    return
+                const r = text.trim()
+                const plain = r.replace(/\u2212/g, "-")
+                root.calc = r === "" ? [] : [{ id: "calc", kind: "calc", glyph: "󰃬", title: r, sub: "enter copies", act: () => Quickshell.execDetached(["wl-copy", plain]) }]
+            }
+        }
+    }
+
+    Process {
+        id: filesProc
+        property string asked: ""
+        stdout: StdioCollector {
+            onStreamFinished: if (filesProc.asked === root.term && root.mode === "files") root.files = text.split("\n").filter(l => l).slice(0, 40).map(p => ({
+                id: "f:" + p, kind: "file", glyph: "󰈔", title: p.split("/").pop(), sub: p.replace(root.home, "~"),
+                act: () => Quickshell.execDetached(["xdg-open", p])
+            }))
+        }
+    }
+
+    Process {
+        id: kbProc
+        property string asked: ""
+        stdout: StdioCollector {
+            onStreamFinished: if (kbProc.asked === root.term && root.mode === "kb") root.kb = text.split("\n").filter(l => l).slice(0, 40).map(l => {
+                const m = l.match(/^(.*?):(\d+):(.*)$/)
+                if (!m)
+                    return null
+                const rel = m[1].replace(root.home + "/dev/kb/", "")
+                return { id: "kb:" + rel, kind: "kb", glyph: "󰈙", title: m[3].trim() || rel, sub: rel + ":" + m[2], act: () => Quickshell.execDetached(["kitty", "-e", "nvim", "+" + m[2], m[1]]) }
+            }).filter(x => x)
+        }
+    }
+
+    Process {
+        id: passProc
+        command: ["torus-pass", "list"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const items = text.split("\n").filter(l => l).map(l => {
+                    const f = l.split("\t")
+                    return { sid: f[0], iid: f[1], vault: f[2], title: f[3] }
+                }).filter(p => p.title)
+                root.passItems = items
+                root.passState = items.length > 0 ? "ready" : "error"
+                root.passLoaded = Date.now()
+            }
+        }
+    }
+
+    FileView {
+        id: emojiFile
+        path: root.home + "/.local/share/torus/emoji.db"
+        blockLoading: true
+        printErrors: false
+    }
+
+    FileView {
+        id: countsFile
+        path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/torus/palette.json"
+        blockLoading: true
+        printErrors: false
+        onLoaded: {
+            try {
+                root.counts = JSON.parse(text())
+            } catch (e) {
+                root.counts = {}
+            }
+        }
+    }
+}

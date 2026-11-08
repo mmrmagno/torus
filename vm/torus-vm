@@ -29,8 +29,13 @@ qemu_base() {
   echo -drive if=pflash,format=raw,unit=0,readonly=on,file=$OVMF/OVMF_CODE.secboot.4m.fd
   echo -drive if=pflash,format=raw,unit=1,file=$vars
   echo -drive file=$disk,if=virtio,format=qcow2,discard=unmap
-  echo -device virtio-vga-gl,blob=true,hostmem=4G
-  echo -display egl-headless,rendernode=/dev/dri/renderD128
+  if [[ ${TORUS_VM_GPU:-soft} == host ]]; then
+    echo -device virtio-vga-gl,blob=true,hostmem=4G
+    echo -display egl-headless,rendernode=/dev/dri/renderD128
+  else
+    echo -device virtio-vga
+    echo -display none
+  fi
   echo -vnc 127.0.0.1:5
   echo -netdev user,id=n0,hostfwd=tcp:127.0.0.1:$PORT-:22 -device virtio-net-pci,netdev=n0
   echo -device virtio-rng-pci

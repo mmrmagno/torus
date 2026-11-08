@@ -567,6 +567,107 @@ check_night() {
   if [[ -z $bad ]]; then section night ok "toggles on (5500 K) and stays off"; else section night fail "$bad"; fi
 }
 
+check_palette() {
+  local bad="" r
+  "${QS[@]}" paletteQuery "=2*21" > /dev/null; sleep 1.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == calc:42* ]] || bad+="calc[$r] "
+  "${QS[@]}" paletteQuery "kitt" > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == *app:kitty* ]] || bad+="app[$r] "
+  "${QS[@]}" paletteQuery "night" > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == action:Night\ light* ]] || bad+="action[$r] "
+  mkdir -p ~/dev/kb/parity && echo "the parity needle lives here" > ~/dev/kb/parity/needle.md
+  "${QS[@]}" paletteQuery "?parity needle" > /dev/null; sleep 1.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == kb:*needle* ]] || bad+="kb[$r] "
+  rm -rf ~/dev/kb/parity
+  "${QS[@]}" paletteQuery ":grinning" > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == emoji:* ]] || bad+="emoji[$r] "
+  echo x > ~/parity-needle-file.txt
+  "${QS[@]}" paletteQuery "/parity-needle" > /dev/null; sleep 1.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == file:parity-needle-file.txt* ]] || bad+="files[$r] "
+  "${QS[@]}" paletteQuery "/" > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ -z $r ]] || bad+="stale-files[$r] "
+  rm -f ~/parity-needle-file.txt
+  "${QS[@]}" paletteQuery "=2+2" > /dev/null; sleep 1.5
+  "${QS[@]}" paletteQuery "=2+3" > /dev/null
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r != *calc:4* ]] || bad+="stale-calc "
+  "${QS[@]}" paletteQuery "=2-5" > /dev/null; sleep 1.5
+  "${QS[@]}" paletteRun 0 > /dev/null; sleep 0.5
+  [[ $(wl-paste -n 2>/dev/null) == "-3" ]] || bad+="calc-copy[$(wl-paste -n 2>/dev/null)] "
+  "${QS[@]}" paletteQuery "kitt" > /dev/null; sleep 0.3
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.3
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == false ]] || bad+="still-open "
+  [[ -z $("${QS[@]}" paletteResults 2>/dev/null | tail -n 1) ]] || bad+="results-while-closed "
+  grep -qE '"(w|f|kb):' "${XDG_STATE_HOME:-$HOME/.local/state}/torus/palette.json" 2>/dev/null && bad+="remembers-windows-or-files "
+  if [[ -z $bad ]]; then section palette ok "calc, apps, actions, kb, emoji, pass hint, closes"; else section palette fail "$bad"; fi
+}
+
+check_focus() {
+  local bad="" was l
+  was=$("${QS[@]}" dnd 2>/dev/null | tail -n 1)
+  "${QS[@]}" focusStart 0.05 > /dev/null; sleep 1
+  [[ $("${QS[@]}" dnd 2>/dev/null | tail -n 1) == true ]] || bad+="no-dnd "
+  [[ $("${QS[@]}" islandState 2>/dev/null | tail -n 1) == *focus* ]] || bad+="island[$("${QS[@]}" islandState 2>/dev/null | tail -n 1)] "
+  l=$("${QS[@]}" focusLeft 2>/dev/null | tail -n 1)
+  [[ $l =~ ^[0-9]+$ ]] && ((l > 0 && l <= 3)) || bad+="left[$l] "
+  sleep 3
+  [[ $("${QS[@]}" focusLeft 2>/dev/null | tail -n 1) == -1 ]] || bad+="did-not-finish "
+  [[ $("${QS[@]}" dnd 2>/dev/null | tail -n 1) == "$was" ]] || bad+="dnd-not-restored "
+  if [[ -z $bad ]]; then section focus ok "dnd on, island ring, finishes, dnd restored"; else section focus fail "$bad"; fi
+}
+
+check_switch() {
+  local bad="" side ws pids="" i sz cols rows w h sw sh
+  side=$(hyprctl monitors -j | jq -r '.[] | select(.transform == 1 or .transform == 3) | .name' | head -1)
+  [[ -n $side ]] || { section switch fail "no portrait screen"; return; }
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$side\" }))" > /dev/null
+  for i in $(seq 9); do hyprctl eval 'hl.exec_cmd("kitty --class parity-switch")' > /dev/null; done
+  for _ in $(seq 100); do [[ $(hyprctl clients -j | jq '[.[] | select(.class == "parity-switch")] | length') -ge 9 ]] && break; sleep 0.2; done
+  sleep 1
+  "${QS[@]}" altTab next > /dev/null; sleep 0.8
+  sz=$("${QS[@]}" altTabSize 2>/dev/null | tail -n 1)
+  IFS=: read -r cols rows w h dims <<< "$sz"
+  sw=${dims%x*}; sh=${dims#*x}
+  ((cols * rows >= 9)) || bad+="not-all-tiles[$sz] "
+  ((w <= sw && h <= sh)) || bad+="off-screen[$sz] "
+  "${QS[@]}" altTab apply > /dev/null; sleep 0.3
+  hyprctl clients -j | jq -r '.[] | select(.class == "parity-switch") | .pid' | xargs -r kill
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "1" }))' > /dev/null
+  "${QS[@]}" overviewToggle > /dev/null; sleep 1
+  wtype 3; sleep 0.8
+  ws=$(hyprctl activeworkspace -j | jq -r .id)
+  [[ $ws == 3 ]] || bad+="overview-key[$ws] "
+  [[ $("${QS[@]}" isOpen overview 2>/dev/null | tail -n 1) == false ]] || { bad+="overview-open "; "${QS[@]}" overviewToggle > /dev/null; }
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "1" }))' > /dev/null
+  if [[ -z $bad ]]; then section switch ok "alt-tab fits 9 windows on the portrait screen [$sz], overview number key"; else section switch fail "$bad"; fi
+}
+
+check_pass() {
+  local bad="" r stub=~/.local/bin/pass-cli
+  [[ -e $stub && ! -L $stub && $(head -c 40 "$stub") != *parity* ]] && { section pass fail "real pass-cli in the way"; return; }
+  printf '#!/usr/bin/env bash\n# parity stub\ncase "$1 $2" in\n  "vault list") echo "- [SID_A==]: Personal" ;;\n  "item list") echo "- [IID_1==]: github.com (state=active)" ;;\n  "item view") echo "parity-s3cret" ;;\n  "item totp") echo "totp: 654321" ;;\nesac\n' > "$stub"; chmod +x "$stub"
+  "${QS[@]}" paletteQuery "p git" > /dev/null; sleep 2
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == pass:github.com* ]] || bad+="list[$r] "
+  "${QS[@]}" paletteRun 0 > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == field:Password* ]] || bad+="fields[$r] "
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == true ]] || bad+="closed-too-early "
+  "${QS[@]}" paletteRun 0 > /dev/null; sleep 1.5
+  [[ $(wl-paste -n 2>/dev/null) == parity-s3cret ]] || bad+="not-copied "
+  cliphist list 2>/dev/null | grep -q parity-s3cret && bad+="in-clipboard-history "
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == false ]] || bad+="still-open "
+  rm -f "$stub"; wl-copy --clear
+  if [[ -z $bad ]]; then section pass ok "names listed, field step, copied sensitive, not in history"; else section pass fail "$bad"; fi
+}
+
 lock_cycle() {
   hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
   locked_is true || return 1
@@ -621,6 +722,10 @@ case ${1:-all} in
   donut) check_donut ;;
   spin) check_spin ;;
   night) check_night ;;
+  palette) check_palette ;;
+  focus) check_focus ;;
+  switch) check_switch ;;
+  pass) check_pass ;;
   notify) check_notify ;;
   island) check_island ;;
   widgets) check_widgets ;;
@@ -631,7 +736,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_polkit; check_media ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_focus; check_switch; check_pass; check_polkit; check_media ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

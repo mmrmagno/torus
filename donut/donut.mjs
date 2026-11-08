@@ -113,3 +113,27 @@ export function mix(a, p, b) {
 export function ramp(palette) {
   return RAMP_MIX.map(([a, p, b]) => mix(palette[a], p, palette[b]));
 }
+
+const DAY = [
+  [0, 'lavender'],
+  [5, 'blue'],
+  [7, 'peach'],
+  [11, 'sky'],
+  [16, 'mauve'],
+  [19, 'pink'],
+  [22, 'lavender'],
+  [24, 'lavender'],
+];
+
+export function living(palette, hour, art, on) {
+  if (!on) return palette;
+  const h = ((hour % 24) + 24) % 24;
+  let i = 0;
+  while (i < DAY.length - 2 && DAY[i + 1][0] <= h) i++;
+  const [h0, a] = DAY[i];
+  const [h1, b] = DAY[i + 1];
+  const tod = mix(palette[a], 1 - (h - h0) / (h1 - h0), palette[b]);
+  let accent = mix(palette.mauve, 0.55, tod);
+  if (/^#[0-9a-f]{6}$/i.test(art || '')) accent = mix(accent, 0.6, art);
+  return Object.assign({}, palette, { mauve: accent, lavender: mix(palette.lavender, 0.7, accent) });
+}

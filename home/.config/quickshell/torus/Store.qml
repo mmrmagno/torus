@@ -38,6 +38,12 @@ Singleton {
     property string polkitState: "none"
     property int cardsMade: 0
     property string wallpaper: "donut"
+    property bool livingDonut: true
+
+    function setLivingDonut(on) {
+        livingDonut = on
+        livingFile.setText(on ? "on\n" : "off\n")
+    }
     property var frames: ({})
     readonly property var wallpapers: {
         const out = ["donut"]
@@ -137,6 +143,14 @@ Singleton {
         nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
         showDirs: false
         sortField: FolderListModel.Name
+    }
+
+    FileView {
+        id: livingFile
+        path: root.stateDir + "/living-donut"
+        blockLoading: true
+        printErrors: false
+        onLoaded: root.livingDonut = text().trim() !== "off"
     }
 
     FileView {

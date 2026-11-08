@@ -85,6 +85,8 @@ bind(MOD .. " + J", hl.dsp.layout("togglesplit"), "[Layout Management|Dwindle] t
 bind(MOD .. " + A", "torus-menu drun", "[Launcher|Menus] application finder")
 bind(MOD .. " + TAB", "torus-menu window", "[Launcher|Menus] window switcher")
 bind(MOD .. " + SHIFT + E", "torus-menu files", "[Launcher|Menus] file finder")
+bind(MOD .. " + SPACE", ipc("paletteToggle"), "[Launcher|Menus] command palette")
+bind(MOD .. " + F12", ipc("focusToggle"), "[Utilities] focus timer 25 min")
 bind(MOD .. " + slash", ipc("cheatSheetToggle"), "[Launcher|Menus] keybind cheat sheet")
 bind(MOD .. " + comma", "torus-menu emoji", "[Launcher|Menus] emoji picker")
 bind(MOD .. " + period", "torus-menu glyph", "[Launcher|Menus] glyph picker")

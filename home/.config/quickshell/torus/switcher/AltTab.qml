@@ -33,8 +33,23 @@ PanelWindow {
 
     screen: Store.focusedScreen
     visible: Store.isOpen("alttab")
-    implicitWidth: Math.min((screen ? screen.width : 1200) - 80, windows.length * 252 + 32)
-    implicitHeight: 220
+    readonly property int count: Math.max(1, windows.length)
+    readonly property int maxW: (screen ? screen.width : 1200) - 80
+    readonly property int maxH: (screen ? screen.height : 800) - 160
+    readonly property int tileW: {
+        for (let w = 240; w > 120; w -= 10) {
+            const cols = Math.max(1, Math.floor((maxW - 20) / (w + 12)))
+            if (Math.ceil(count / cols) * (Math.round(w * 0.75) + 12) + 20 <= maxH)
+                return w
+        }
+        return 120
+    }
+    readonly property int tileH: Math.round(tileW * 0.75)
+    readonly property int cols: Math.max(1, Math.min(count, Math.floor((maxW - 20) / (tileW + 12))))
+    readonly property int rows: Math.ceil(count / cols)
+
+    implicitWidth: cols * (tileW + 12) - 12 + 32
+    implicitHeight: rows * (tileH + 12) - 12 + 32
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -58,10 +73,11 @@ PanelWindow {
         border.color: Qt.alpha(Theme.accent, 0.35)
         clip: true
 
-        Row {
+        Grid {
             id: row
             anchors.centerIn: parent
             spacing: 12
+            columns: root.cols
 
             Repeater {
                 model: root.windows
@@ -69,8 +85,8 @@ PanelWindow {
                     required property var modelData
                     required property int index
                     readonly property bool sel: index === root.selected
-                    width: 240
-                    height: 180
+                    width: root.tileW
+                    height: root.tileH
                     radius: 12
                     color: sel ? Qt.alpha(Theme.accent, 0.2) : Theme.surface0
                     border.width: sel ? 2 : 0

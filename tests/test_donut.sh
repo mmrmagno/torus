@@ -22,3 +22,19 @@ deno run --quiet --allow-read --allow-write --allow-run "$REPO/donut/render-fram
 assert_eq 3 "$(ls "$F/frames"/frame-*.png | wc -l)" "frame count"
 assert_eq 400 "$(magick identify -format %w "$F/frames/frame-0000.png")" "frame width"
 grep -q 'font_features="liga 0, calt 0"' "$REPO/donut/render-frames.ts" || fail "frames must disable ligatures"
+
+cat > "$F/living.ts" <<'T'
+import { living, ramp } from "REPO/home/.config/quickshell/torus/background/donut.mjs";
+const p = JSON.parse(Deno.readTextFileSync("REPO/theme/mocha.json"));
+const r = (o: Record<string, string>) => ramp(o).join(",");
+const off = r(living(p, 8, "", false));
+const morning = r(living(p, 8, "", true));
+const night = r(living(p, 22, "", true));
+const red = r(living(p, 22, "#ff0000", true));
+console.log([off === r(p), morning !== night, red !== night, living(p, 22, "#ff0000", true).base === p.base].join(" "));
+T
+sed -i "s#REPO#$REPO#g" "$F/living.ts"
+assert_eq "true true true true" "$(deno run --quiet --allow-read "$F/living.ts")" "living donut: off is plain, follows hour and art, keeps base"
+true
+grep -nE "\\{ *\\.\\.\\." "$REPO/donut/donut.mjs" && fail "donut.mjs uses object spread, which the QML JS engine rejects"
+true

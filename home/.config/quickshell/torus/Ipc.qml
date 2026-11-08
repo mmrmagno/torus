@@ -225,6 +225,48 @@ IpcHandler {
         return Lyrics.line
     }
 
+    function paletteToggle(): void {
+        Store.toggle("palette")
+    }
+
+    function paletteQuery(text: string): string {
+        Store.setOpen("palette", true)
+        Commands.query = text
+        return Commands.mode
+    }
+
+    function paletteResults(): string {
+        return Commands.results.slice(0, 5).map(r => r.kind + ":" + r.title).join("|")
+    }
+
+    function paletteRun(index: int): void {
+        Commands.run(Commands.results[index])
+    }
+
+    function altTabSize(): string {
+        const a = Store.altTabber
+        return a ? a.cols + ":" + a.rows + ":" + a.implicitWidth + ":" + a.implicitHeight + ":" + (a.screen ? a.screen.width + "x" + a.screen.height : "?") : ""
+    }
+
+    function focusToggle(): void {
+        if (Focus.running)
+            Focus.stop()
+        else
+            Focus.start(25)
+    }
+
+    function focusStart(minutes: real): void {
+        Focus.start(minutes)
+    }
+
+    function focusLeft(): int {
+        return Focus.running ? Focus.left : -1
+    }
+
+    function dnd(): bool {
+        return Store.dnd
+    }
+
     function nightLight(): bool {
         return NightLight.on
     }

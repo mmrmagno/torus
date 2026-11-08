@@ -14,7 +14,7 @@ PanelWindow {
     readonly property bool narrow: screen ? screen.width < 1400 : false
     readonly property bool focused: Store.focusedScreen === screen
     readonly property bool flashing: Island.state === "osd" || Island.state === "notification"
-    readonly property string resting: Island.recording ? "recording" : (narrow ? "" : (Island.player ? "media" : "idle"))
+    readonly property string resting: Island.recording ? "recording" : (Focus.running ? "focus" : (narrow ? "" : (Island.player ? "media" : "idle")))
     readonly property string mode: flashing && focused ? Island.state : resting
     readonly property bool lyricRow: mode === "media" && Lyrics.line !== ""
     readonly property int pillWidth: {
@@ -22,6 +22,7 @@ PanelWindow {
         case "osd": return 300
         case "notification": return 440
         case "recording": return 170
+        case "focus": return 150
         case "media": return lyricRow ? 440 : 380
         case "idle": return Math.min(360, Math.max(170, idleText.implicitWidth + 64))
         default: return 0
@@ -64,7 +65,9 @@ PanelWindow {
             cursorShape: Qt.PointingHandCursor
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             onClicked: mouse => {
-                if (root.mode === "notification")
+                if (root.mode === "focus" && mouse.button === Qt.RightButton)
+                    Focus.stop()
+                else if (root.mode === "notification")
                     Store.setOpen("center", true)
                 else if (root.mode === "recording")
                     Quickshell.execDetached(["torus-record", "toggle"])
@@ -262,6 +265,34 @@ PanelWindow {
                     elide: Text.ElideRight
                     textFormat: Text.PlainText
                 }
+            }
+        }
+
+        RowLayout {
+            visible: root.mode === "focus"
+            anchors.centerIn: parent
+            spacing: 8
+            Canvas {
+                id: ring
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                property real p: Focus.progress
+                onPChanged: requestPaint()
+                onPaint: {
+                    const c = getContext("2d")
+                    c.reset()
+                    c.lineWidth = 2.5
+                    c.strokeStyle = Theme.surface1
+                    c.beginPath(); c.arc(8, 8, 6, 0, 2 * Math.PI); c.stroke()
+                    c.strokeStyle = Theme.accent
+                    c.beginPath(); c.arc(8, 8, 6, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * (1 - p)); c.stroke()
+                }
+            }
+            Text {
+                text: "Focus " + String(Math.floor(Focus.left / 60)).padStart(2, "0") + ":" + String(Focus.left % 60).padStart(2, "0")
+                color: Theme.text
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSize
             }
         }
 

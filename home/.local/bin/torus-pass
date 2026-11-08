@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+case ${1:-} in
+  list)
+    vaults=$(pass-cli vault list < /dev/null 2> /dev/null) || exit 3
+    [[ -n $vaults ]] || exit 3
+    while IFS=$'\t' read -r sid vault; do
+      pass-cli item list --share-id "$sid" < /dev/null 2> /dev/null |
+        sed -n 's/^- \[\([^]]*\)\]: \(.*\) ([a-z_]*=[a-z_]*)$/\1\t\2/p' |
+        while IFS=$'\t' read -r iid title; do
+          printf '%s\t%s\t%s\t%s\n' "$sid" "$iid" "$vault" "$title"
+        done
+    done < <(sed -n 's/^- \[\([^]]*\)\]: \(.*\)$/\1\t\2/p' <<< "$vaults")
+    ;;
+  copy)
+    sid=$2 iid=$3 field=$4 secs=${5:-30}
+    if [[ $field == totp ]]; then
+      v=$(pass-cli item totp --share-id "$sid" --item-id "$iid" < /dev/null 2> /dev/null | grep -oE '[0-9]{6,8}' | tail -n 1) || v=""
+    else
+      v=$(pass-cli item view --share-id "$sid" --item-id "$iid" --field "$field" < /dev/null 2> /dev/null) || v=""
+    fi
+    if [[ -z $v ]]; then
+      notify-send -a torus "Proton Pass" "That item has no $field"
+      exit 1
+    fi
+    printf %s "$v" | wl-copy --sensitive
+    qs -c torus ipc call torus islandFlash osd "copied $field, clears in $secs s" > /dev/null 2>&1
+    sleep "$secs"
+    [[ $(wl-paste -n 2> /dev/null) == "$v" ]] && wl-copy --clear
+    exit 0
+    ;;
+  *)
+    echo "usage: torus-pass list | copy SHARE_ID ITEM_ID FIELD [SECONDS]" >&2
+    exit 2
+    ;;
+esac

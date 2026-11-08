@@ -45,6 +45,14 @@ PanelWindow {
         color: Qt.alpha(Theme.crust, 0.7)
         focus: true
         Keys.onEscapePressed: Store.setOpen("overview", false)
+        Keys.onPressed: event => {
+            const n = "1234567890".indexOf(event.text)
+            if (n < 0)
+                return
+            Store.setOpen("overview", false)
+            Hyprland.dispatch('hl.dsp.focus({ workspace = "' + (n + 1) + '" })')
+            event.accepted = true
+        }
         TapHandler { onTapped: Store.setOpen("overview", false) }
 
         Flow {
