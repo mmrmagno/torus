@@ -5,6 +5,7 @@ layout(std140, binding = 0) uniform buf {
     mat4 qt_Matrix;
     float qt_Opacity;
     vec2 grid;
+    float boost;
 };
 layout(binding = 1) uniform sampler2D levels;
 layout(binding = 2) uniform sampler2D atlas;
@@ -19,5 +20,6 @@ void main() {
         return;
     }
     vec2 f = fract(cell);
-    fragColor = texture(atlas, vec2((lvl + f.x) / 12.0, f.y)) * qt_Opacity;
+    vec4 c = texture(atlas, vec2((lvl + f.x) / 12.0, f.y));
+    fragColor = vec4(min(c.rgb * boost, vec3(c.a)), c.a) * qt_Opacity;
 }

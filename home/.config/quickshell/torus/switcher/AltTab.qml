@@ -53,7 +53,7 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         radius: 18
-        color: Qt.alpha(Theme.base, 0.92)
+        color: Qt.alpha(Theme.base, Theme.glass)
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
         clip: true

@@ -4,7 +4,13 @@ import Quickshell
 import qs.bar
 import qs.services
 import qs.notifications
-import qs.osd
+import qs.island
+import qs.lock
+import qs.widgets
+import qs.clip
+import qs.ai
+import qs.polkit
+import qs.corners
 import qs.session
 import qs.background
 import qs.dashboard
@@ -20,6 +26,8 @@ ShellRoot {
             required property var modelData
             Background { screen: scope.modelData }
             DonutLayer { screen: scope.modelData }
+            Widgets { screen: scope.modelData }
+            Corners { screen: scope.modelData }
         }
     }
 
@@ -31,13 +39,24 @@ ShellRoot {
         }
     }
 
+    Variants {
+        model: Quickshell.screens
+        DynamicIsland {
+            required property var modelData
+            screen: modelData
+        }
+    }
+
     Popups {}
     Center {}
-    Osd {}
     Logout {}
     Dashboard {}
     Overview {}
     AltTab {}
     CheatSheet {}
+    ClipPanel {}
+    AiPanel {}
+    Polkit {}
+    Lock {}
     Ipc {}
 }

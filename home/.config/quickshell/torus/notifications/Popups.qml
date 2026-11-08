@@ -23,6 +23,7 @@ PanelWindow {
     visible: Notifs.popups.length > 0 && !Store.isOpen("center")
     WlrLayershell.namespace: "torus-notifications"
     WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
     Column {
         id: column
@@ -30,7 +31,7 @@ PanelWindow {
         spacing: 8
 
         Repeater {
-            model: Notifs.popups
+            model: ScriptModel { values: Notifs.popups }
             NotifCard {
                 required property var modelData
                 notif: modelData

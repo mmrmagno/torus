@@ -35,7 +35,7 @@ say "install.sh (packages, links, setup)"
 "$VM" ssh 'export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus; ~/torus/install.sh' >> "$log" 2>&1
 say "install.sh --system"
 "$VM" ssh 'sudo ~/torus/install.sh --system' >> "$log" 2>&1
-"$VM" ssh 'mkdir -p ~/.config/uwsm && echo "export TORUS_VM=1" > ~/.config/uwsm/env-hyprland && sudo systemctl enable sddm > /dev/null 2>&1 && printf "source ~/.config/zsh/conf.d/torus.zsh\n" > ~/.zshrc && sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target > /dev/null 2>&1'
+"$VM" ssh 'mkdir -p ~/.config/uwsm && echo "export TORUS_VM=1" > ~/.config/uwsm/env-hyprland && sudo systemctl enable sddm > /dev/null 2>&1 && printf "source ~/.config/zsh/conf.d/torus.zsh\n" > ~/.zshrc && sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target > /dev/null 2>&1 && sudo pacman -S --needed --noconfirm mpv mpv-mpris ffmpeg wtype > /dev/null 2>&1'
 
 say "reboot 1: boot chain capture"
 (for i in $(seq -w 1 110); do timeout 3 gvnccapture -q 127.0.0.1:5 "$shots/boot/b$i.png" 2> /dev/null || true; sleep 0.4; done) &
@@ -50,11 +50,11 @@ say "reboot 2: session"
 "$VM" reboot
 for _ in $(seq 60); do gssh 'hyprctl monitors -j > /dev/null 2>&1' && break; sleep 3; done
 sleep 15
-gssh 'hyprctl output create headless SIDE > /dev/null; hyprctl eval "hl.monitor({ output = \"SIDE\", mode = \"1920x1080\", position = \"1280x0\", scale = 1, transform = 3 })" > /dev/null'
+gssh 'hyprctl eval "hl.monitor({ output = \"Virtual-1\", mode = \"1920x1080@60\", position = \"0x0\", scale = 1 })" > /dev/null; hyprctl output create headless SIDE > /dev/null; hyprctl eval "hl.monitor({ output = \"SIDE\", mode = \"1920x1080\", position = \"1920x0\", scale = 1, transform = 3 })" > /dev/null'
 sleep 5
 
 say "parity"
-gssh '~/torus/vm/parity.sh all' 2>&1 | tee -a "$log" | tee "$shots/parity.txt" || true
+gssh "LOCK_PW=$(printf %q "$(cat "$V/password")") ~/torus/vm/parity.sh all" 2>&1 | tee -a "$log" | tee "$shots/parity.txt" || true
 
 say "screenshots"
 gssh 'hyprctl clients -j | jq -r ".[].pid" | xargs -r kill; hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"Virtual-1\" }))" > /dev/null'
@@ -72,11 +72,21 @@ sleep 4
 grab apps Virtual-1
 qs_call overviewToggle; sleep 1.5; grab overview Virtual-1; qs_call overviewToggle
 qs_call altTab next; sleep 1; grab alttab Virtual-1; qs_call altTab apply
-gssh 'torus-lock' &
-sleep 4
+pw=$(printf %q "$(cat "$V/password")")
+gssh 'hyprctl clients -j | jq -r ".[].pid" | xargs -r kill; setsid -f mpv --no-video --really-quiet --start=40 /tmp/parity-tone.ogg < /dev/null > /dev/null 2>&1'
+sleep 7
+grab island-media Virtual-1
+grab widgets Virtual-1
+qs_call clipToggle; sleep 2; grab clipboard Virtual-1; qs_call clipToggle
+qs_call aiToggle; sleep 2; grab ai-offline Virtual-1; qs_call aiToggle
+gssh 'hyprctl eval "hl.exec_cmd(\"pkexec --disable-internal-agent true\")" > /dev/null'; sleep 3; grab polkit Virtual-1; gssh 'wtype -k Escape'
+sleep 1
+gssh 'hyprctl eval "hl.exec_cmd(\"torus-lock\")" > /dev/null'
+sleep 5
 "$VM" shot "$shots/lock.png" > /dev/null
-gssh 'pkill -USR1 -x hyprlock || true'
-sleep 4
+gssh "wtype $pw; wtype -k Return"
+sleep 3
+gssh 'pkill -x mpv; pkill -x pkexec; true'
 
 say "accent blue"
 gssh 'torus accent blue > /dev/null 2>&1'

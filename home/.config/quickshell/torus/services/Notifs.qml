@@ -25,6 +25,32 @@ Singleton {
     }
     readonly property var list: server.trackedNotifications.values
     readonly property int count: list.length
+    property var expanded: ({})
+    readonly property var groups: {
+        const order = []
+        const byApp = {}
+        for (let i = list.length - 1; i >= 0; i--) {
+            const n = list[i]
+            const k = n.appName || "unknown"
+            if (!byApp[k]) {
+                byApp[k] = { app: k, icon: n.appIcon, items: [] }
+                order.push(byApp[k])
+            }
+            byApp[k].items.push(n)
+        }
+        return order
+    }
+
+    function toggleGroup(app) {
+        const e = Object.assign({}, expanded)
+        e[app] = !e[app]
+        expanded = e
+    }
+
+    function clearGroup(app) {
+        for (const n of list.filter(x => (x.appName || "unknown") === app))
+            n.dismiss()
+    }
 
     onCountChanged: Store.notifCount = count
 
@@ -44,7 +70,7 @@ Singleton {
     Timer {
         interval: 250
         repeat: true
-        running: root.popups.length > 0
+        running: root.popups.length > 0 && Object.keys(root.deadlines).length > 0
         onTriggered: {
             const now = Date.now()
             for (const n of root.popups.slice())
@@ -60,12 +86,16 @@ Singleton {
         actionIconsSupported: true
         bodyMarkupSupported: true
         bodySupported: true
+        inlineReplySupported: true
         imageSupported: true
         persistenceSupported: true
 
         onNotification: n => {
             n.tracked = true
-            if (!Store.dnd || n.urgency === NotificationUrgency.Critical) {
+            const loud = n.urgency === NotificationUrgency.Critical || n.actions.length > 0
+            if (!loud && !Store.dnd)
+                Island.notify(n)
+            else if (loud && (!Store.dnd || n.urgency === NotificationUrgency.Critical)) {
                 if (n.urgency !== NotificationUrgency.Critical) {
                     const d = Object.assign({}, root.deadlines)
                     d[n.id] = Date.now() + root.lifetime(n)

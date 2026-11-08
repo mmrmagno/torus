@@ -31,7 +31,7 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         radius: 18
-        color: Qt.alpha(Theme.base, 0.92)
+        color: Qt.alpha(Theme.base, Theme.glass)
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
         focus: true
@@ -158,6 +158,7 @@ PanelWindow {
                         PanelButton { icon: "󰓅"; label: "Power"; onClicked: Quickshell.execDetached(["sh", "-c", "p=$(powerprofilesctl get); case $p in performance) n=balanced;; balanced) n=power-saver;; *) n=performance;; esac; powerprofilesctl set $n; notify-send -a torus \"Power profile\" $n"]) }
                         PanelButton { icon: "󰏘"; label: "Accent"; onClicked: Quickshell.execDetached(["torus-menu", "accent"]) }
                         PanelButton { icon: "󰸉"; label: "Wallpaper"; onClicked: Quickshell.execDetached(["torus-menu", "wallpaper"]) }
+                        PanelButton { icon: "󰖲"; label: "Widgets: " + Store.widgets; active: Store.widgets !== "off"; onClicked: Store.setWidgets("next") }
                     }
                 }
             }
@@ -184,6 +185,39 @@ PanelWindow {
             MediaCard {
                 Layout.fillWidth: true
                 Layout.columnSpan: content.columns
+            }
+
+            Card {
+                title: Island.recording ? "Recordings · recording now" : "Recordings"
+                Layout.fillWidth: true
+                Layout.columnSpan: content.columns
+                Layout.preferredHeight: 92
+                Row {
+                    anchors.fill: parent
+                    spacing: 8
+                    Text {
+                        visible: Recordings.count === 0
+                        text: "No recordings yet. SUPER+SHIFT+R starts one, SUPER+ALT+R keeps a replay buffer."
+                        color: Theme.overlay
+                        font.family: Theme.fontUi
+                        font.pixelSize: 11
+                    }
+                    Repeater {
+                        model: Recordings.latest
+                        PanelButton {
+                            required property var modelData
+                            icon: "󰕧"
+                            label: Qt.formatDateTime(modelData.date, "dd.MM hh:mm") + "  " + Math.round(modelData.size / 1048576) + " MB"
+                            onClicked: Quickshell.execDetached(["xdg-open", modelData.path])
+                        }
+                    }
+                    PanelButton {
+                        visible: Recordings.count > 0
+                        icon: "󰉋"
+                        label: "Folder"
+                        onClicked: Quickshell.execDetached(["xdg-open", Recordings.dir])
+                    }
+                }
             }
         }
     }

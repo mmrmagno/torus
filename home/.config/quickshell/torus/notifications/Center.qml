@@ -31,7 +31,7 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         radius: 14
-        color: Qt.alpha(Theme.base, 0.9)
+        color: Qt.alpha(Theme.base, Theme.glass)
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
         focus: true
@@ -73,10 +73,10 @@ PanelWindow {
                 Layout.fillHeight: true
                 clip: true
                 spacing: 8
-                model: Notifs.list
-                delegate: NotifCard {
+                model: ScriptModel { values: Notifs.groups.map(g => g.app) }
+                delegate: NotifGroup {
                     required property var modelData
-                    notif: modelData
+                    app: modelData
                     width: ListView.view.width
                 }
                 Text {

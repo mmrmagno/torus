@@ -22,7 +22,7 @@ torus = {
 dofile(dir .. "env.lua")
 dofile(dir .. "input.lua")
 dofile(dir .. "look.lua")
-dofile(dir .. "animations/" .. read(state .. "animations", "smooth") .. ".lua")
+dofile(dir .. "animations/" .. read(state .. "animations", "fancy") .. ".lua")
 pcall(dofile, state .. "theme/hypr-colors.lua")
 dofile(dir .. "rules.lua")
 dofile(dir .. "binds.lua")

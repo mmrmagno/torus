@@ -10,9 +10,9 @@ PanelWindow {
     readonly property bool compact: Store.barPreset === "compact"
     readonly property bool narrow: screen && screen.width < 1400
     readonly property var groups: ({
-        left: [["cpu", "memory", "cpuinfo", "gpuinfo"], ["idle", "clock"], ["workspaces"]],
-        center: [["taskbar"], ["media", "sunset"]],
-        right: [["backlight", "network", "audio", "mic", "updates", "keyhint"], ["privacy", "tray", "battery"], ["wallpaper", "accent", "barpreset", "clipboard", "menu", "notifications", "power"]]
+        left: [["cpu", "memory", "cpuinfo", "gpuinfo"], ["idle", "clock"], ["workspaces", "taskbar"]],
+        narrow: [["media"]],
+        right: [["sunset", "backlight", "network", "audio", "mic", "updates", "keyhint"], ["privacy", "record", "tray", "battery"], ["wallpaper", "accent", "barpreset", "clipboard", "menu", "notifications", "power"]]
     })
     property var loaders: []
     property var shown: ({})
@@ -108,12 +108,7 @@ PanelWindow {
     }
 
     Section {
-        anchors.horizontalCenter: parent.horizontalCenter
-        spec: bar.narrow ? [] : bar.groups.center
-    }
-
-    Section {
         anchors.right: parent.right
-        spec: bar.narrow ? bar.groups.center.concat(bar.groups.right) : bar.groups.right
+        spec: bar.narrow ? bar.groups.narrow.concat(bar.groups.right) : bar.groups.right
     }
 }

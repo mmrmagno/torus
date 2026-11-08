@@ -58,3 +58,4 @@ qt6-shadertools
 libqalculate
 cantarell-fonts
 ttf-cascadia-code-nerd
+cava

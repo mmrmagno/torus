@@ -5,6 +5,7 @@ After=graphical-session.target
 
 [Service]
 ExecStart=/bin/sh -c 'export HYPRLAND_INSTANCE_SIGNATURE="$${HYPRLAND_INSTANCE_SIGNATURE:-$$(ls -t "$XDG_RUNTIME_DIR/hypr" | head -1)}" WAYLAND_DISPLAY="$${WAYLAND_DISPLAY:-wayland-1}"; exec /usr/bin/qs -c torus'
+ExecStopPost=-/bin/sh -c 'systemctl --user is-active --quiet graphical-session.target && systemctl --user start --no-block hyprpolkitagent.service'
 Restart=on-failure
 RestartSec=1
 

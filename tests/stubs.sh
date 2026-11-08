@@ -83,6 +83,20 @@ mkscriptstubs() {
   for c in grim satty tesseract wl-copy notify-send qs hyprpicker gpu-screen-recorder steam xdg-open cliphist qalc kill; do
     printf '#!/usr/bin/env bash\necho "%s $*" >> "$STUB_LOG"\nexit 0\n' "$c" > "$b/$c"
   done
+  for c in hyprlock pidof; do
+    printf '#!/usr/bin/env bash\necho "%s $*" >> "$STUB_LOG"\nexit 1\n' "$c" > "$b/$c"
+  done
+  cat > "$b/qs" <<'S'
+#!/usr/bin/env bash
+echo "qs $*" >> "$STUB_LOG"
+[[ ${STUB_QS:-up} == down && $* == *" ipc "* ]] && exit 1
+[[ $* == *" ipc "* ]] && printf '  WARN: Detected locale "C"\nQt depends on a UTF-8 locale\n'
+case "$*" in
+  *"call torus isLocked") [[ -f $STUB_LOG.locked ]] && echo true || echo false ;;
+  *"call torus lock") [[ ${STUB_QS:-up} == deny ]] || : > "$STUB_LOG.locked"; echo locked ;;
+esac
+exit 0
+S
   printf '#!/usr/bin/env bash\necho "slurp $*" >> "$STUB_LOG"\necho "10,20 300x200"\n' > "$b/slurp"
   printf '#!/usr/bin/env bash\necho "pgrep $*" >> "$STUB_LOG"\nexit 1\n' > "$b/pgrep"
   printf '#!/usr/bin/env bash\necho "rofi $*" >> "$STUB_LOG"\ncat > "$STUB_LOG.rofi-in"\nprintf "%%s\\n" "${STUB_ROFI_PICK:-}"\n' > "$b/rofi"

@@ -2,15 +2,18 @@
 set -euo pipefail
 
 dir=${XDG_VIDEOS_DIR:-$HOME/Videos}
-mkdir -p "$dir"
+state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+mkdir -p "$dir" "$state"
 
 case ${1:-toggle} in
   toggle)
     if pgrep -f 'gpu-screen-recorder .*-o .*/torus-' > /dev/null; then
       pkill -INT -f 'gpu-screen-recorder .*-o .*/torus-'
+      : > "$state/recording"
       notify-send -a torus "Recording" "saved to $dir"
     else
-      setsid -f gpu-screen-recorder -w portal -f 60 -a default_output -o "$dir/torus-$(date +%Y%m%d-%H%M%S).mp4" > /dev/null 2>&1
+      setsid -f sh -c 'date +%s > "$1"; shift; gpu-screen-recorder "$@"; : > "$0"' "$state/recording" "$state/recording" \
+        -w portal -f 60 -a default_output -o "$dir/torus-$(date +%Y%m%d-%H%M%S).mp4" > /dev/null 2>&1
       notify-send -a torus -u low "Recording" "started, SUPER+SHIFT+R to stop"
     fi
     ;;

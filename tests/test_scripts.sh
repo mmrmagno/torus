@@ -50,11 +50,37 @@ wait_for "$STUB_LOG" '^steam steam://rungameid/213670' || fail "games: launch by
 : > "$STUB_LOG"; STUB_ROFI_PICK=blue "$B/torus-menu" accent || true
 grep -q '^rofi' "$STUB_LOG" || fail "accent menu: rofi"
 
+printf '#!/usr/bin/env bash\necho "gpu-screen-recorder $*" >> "$STUB_LOG"\nsleep 1\n' > "$F/bin/gpu-screen-recorder"
 : > "$STUB_LOG"; "$B/torus-record" toggle
+sleep 0.4
 grep -q '^gpu-screen-recorder .*-o .*/Videos/torus-.*\.mp4' "$STUB_LOG" || fail "record: start"
+[[ -s $XDG_STATE_HOME/torus/recording ]] || fail "record: marker while recording"
+sleep 1.5
+assert_file "$XDG_STATE_HOME/torus/recording"
+[[ ! -s $XDG_STATE_HOME/torus/recording ]] || fail "record: marker must clear when the recorder exits"
 
 : > "$STUB_LOG"; STUB_ROFI_PICK=sf_marc "$B/torus-menu" hyprlock
 assert_link "$XDG_STATE_HOME/torus/hyprlock-layout.conf" "$HOME/.config/hypr/hyprlock/sf_marc.conf"
+assert_eq hyprlock "$(cat "$XDG_STATE_HOME/torus/lock")" "hyprlock layout pick selects hyprlock"
+: > "$STUB_LOG"; "$B/torus-lock" || true
+grep -q '^hyprlock' "$STUB_LOG" || fail "lock: hyprlock mode runs hyprlock"
+grep -q 'call torus lock' "$STUB_LOG" && fail "lock: hyprlock mode must not ask the shell"
+
+: > "$STUB_LOG"; STUB_ROFI_PICK=torus "$B/torus-menu" hyprlock
+assert_eq shell "$(cat "$XDG_STATE_HOME/torus/lock")" "torus pick selects shell lock"
+: > "$STUB_LOG"; "$B/torus-lock" || true
+grep -q '^grim -l 0 -o DP-1 ' "$STUB_LOG" || fail "lock: screenshot per monitor"
+grep -q 'qs -c torus ipc call torus lock' "$STUB_LOG" || fail "lock: asks the shell"
+grep -q '^hyprlock' "$STUB_LOG" && fail "lock: hyprlock ran although the shell locked"
+: > "$STUB_LOG"; "$B/torus-lock" || true
+grep -q 'call torus lock' "$STUB_LOG" && fail "lock: already locked must not lock again"
+rm -f "$STUB_LOG.locked"
+: > "$STUB_LOG"; STUB_QS=down "$B/torus-lock" || true
+grep -q '^hyprlock' "$STUB_LOG" || fail "lock: falls back to hyprlock when the shell is down"
+: > "$STUB_LOG"; STUB_QS=deny "$B/torus-lock" || true
+grep -q '^hyprlock' "$STUB_LOG" || fail "lock: falls back to hyprlock when the shell never secures the session"
+
+grep -Eq '^\s*inhibit_sleep\s*=\s*3\s*$' "$REPO/home/.config/hypr/hypridle.conf" || fail "hypridle: suspend must wait for a confirmed lock"
 
 rc=0; "$B/torus-menu" nope > /dev/null 2>&1 || rc=$?
 assert_eq 2 "$rc" "unknown menu exit code"

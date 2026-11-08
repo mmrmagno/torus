@@ -12,6 +12,9 @@ Singleton {
     readonly property int fontSize: 12
     readonly property int radius: 10
     readonly property int gap: 6
+    readonly property real glassPill: 0.62
+    readonly property real glass: 0.7
+    readonly property real glassCard: 0.76
 
     function col(name) {
         return c[name] || "#ff00ff"

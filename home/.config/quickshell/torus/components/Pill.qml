@@ -10,7 +10,7 @@ Rectangle {
     implicitWidth: row.implicitWidth + pad * 2
     implicitHeight: parent ? parent.height : 28
     radius: Theme.radius
-    color: Qt.alpha(Theme.base, 0.82)
+    color: Qt.alpha(Theme.base, Theme.glassPill)
     border.width: 1
     border.color: Qt.alpha(Theme.surface1, 0.6)
 

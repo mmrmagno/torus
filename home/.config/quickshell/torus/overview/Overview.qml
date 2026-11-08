@@ -63,7 +63,7 @@ PanelWindow {
                     width: root.width * root.scale
                     height: root.height * root.scale
                     radius: 10
-                    color: Qt.alpha(Theme.base, 0.9)
+                    color: Qt.alpha(Theme.base, Theme.glassCard)
                     border.width: active ? 2 : 1
                     border.color: active ? Theme.accent : Theme.surface1
                     clip: true

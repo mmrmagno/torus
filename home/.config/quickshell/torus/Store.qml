@@ -30,6 +30,13 @@ Singleton {
     property bool gamemode: false
     property var altTabber: null
     property bool donutPaused: false
+    property bool locked: false
+    readonly property var widgetModes: ["landscape", "all", "off"]
+    property string widgets: "landscape"
+    property var widgetsOn: ({})
+    property bool lockSecure: false
+    property string polkitState: "none"
+    property int cardsMade: 0
     property string wallpaper: "donut"
     property var frames: ({})
     readonly property var wallpapers: {
@@ -94,6 +101,34 @@ Singleton {
             return
         barPreset = next
         presetFile.setText(next + "\n")
+    }
+
+    function setWidgets(name) {
+        let next = name
+        if (name === "next")
+            next = widgetModes[(widgetModes.indexOf(widgets) + 1) % widgetModes.length]
+        if (widgetModes.indexOf(next) < 0)
+            return
+        widgets = next
+        widgetsFile.setText(next + "\n")
+    }
+
+    function reportWidgets(screenName, on) {
+        const w = Object.assign({}, widgetsOn)
+        w[screenName] = on
+        widgetsOn = w
+    }
+
+    FileView {
+        id: widgetsFile
+        path: root.stateDir + "/widgets"
+        blockLoading: true
+        printErrors: false
+        onLoaded: {
+            const v = text().trim()
+            if (root.widgetModes.indexOf(v) >= 0)
+                root.widgets = v
+        }
     }
 
     FolderListModel {

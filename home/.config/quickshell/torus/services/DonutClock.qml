@@ -11,6 +11,7 @@ Singleton {
     readonly property int h: D.H
     readonly property string chars: D.CHARS
     property int index: 0
+    property real phase: 0
     property string url: encode(D.grid(1, 1))
     property int ticks: 0
     property int consumers: 0
@@ -56,7 +57,8 @@ Singleton {
         repeat: true
         running: root.running
         onTriggered: {
-            root.index = (root.index + 1) % D.LOOP
+            root.phase = (root.phase + 1 + Visualizer.bass * 1.6) % D.LOOP
+            root.index = Math.floor(root.phase)
             root.url = root.frame(root.index)
             root.ticks++
         }

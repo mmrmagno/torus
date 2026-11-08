@@ -13,10 +13,11 @@ Rectangle {
     property bool popup: false
     signal done
 
+    Component.onCompleted: Store.cardsMade++
     implicitWidth: 380
     implicitHeight: layout.implicitHeight + 24
     radius: Theme.radius
-    color: Qt.alpha(Theme.base, 0.92)
+    color: Qt.alpha(Theme.base, Theme.glassCard)
     border.width: notif && notif.urgency === NotificationUrgency.Critical ? 2 : 1
     border.color: notif && notif.urgency === NotificationUrgency.Critical ? Theme.red : Qt.alpha(Theme.accent, 0.5)
 
@@ -77,7 +78,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 visible: text !== ""
-                text: card.notif ? card.notif.body : ""
+                text: card.notif ? card.notif.body.replace(/<img\b[^>]*>/gi, "") : ""
                 color: Theme.subtext
                 font.family: Theme.fontUi
                 font.pixelSize: 12
@@ -109,6 +110,52 @@ Rectangle {
                         HoverHandler { id: actionHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: parent.modelData.invoke() }
                     }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                visible: card.notif && card.notif.hasInlineReply
+                radius: 8
+                color: Theme.surface0
+                border.width: reply.activeFocus ? 1 : 0
+                border.color: Theme.accent
+                TextInput {
+                    id: reply
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 34
+                    verticalAlignment: TextInput.AlignVCenter
+                    color: Theme.text
+                    font.family: Theme.fontUi
+                    font.pixelSize: 12
+                    clip: true
+                    onAccepted: send()
+                    function send() {
+                        if (text === "")
+                            return
+                        card.notif.sendInlineReply(text)
+                        text = ""
+                        card.done()
+                    }
+                    Text {
+                        visible: parent.text === "" && !parent.activeFocus
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: card.notif && card.notif.inlineReplyPlaceholder ? card.notif.inlineReplyPlaceholder : "Reply"
+                        color: Theme.overlay
+                        font: parent.font
+                    }
+                }
+                Text {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "󰒊"
+                    color: Theme.accent
+                    font.family: Theme.fontMono
+                    font.pixelSize: 14
+                    TapHandler { onTapped: reply.send() }
                 }
             }
         }

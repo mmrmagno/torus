@@ -35,6 +35,108 @@ IpcHandler {
         Store.toggle("center")
     }
 
+    function islandState(): string {
+        const out = []
+        for (const s in Island.modes)
+            out.push(s + ":" + Island.modes[s])
+        out.sort()
+        out.unshift("state:" + Island.state)
+        return out.join(";")
+    }
+
+    function lock(): string {
+        Store.locked = true
+        return "locked"
+    }
+
+    function donutClock(): string {
+        return DonutClock.consumers + ":" + DonutClock.ticks
+    }
+
+    function widgets(mode: string): string {
+        Store.setWidgets(mode)
+        return Store.widgets
+    }
+
+    function widgetsShown(): string {
+        return Object.keys(Store.widgetsOn).filter(k => Store.widgetsOn[k]).sort().join(" ")
+    }
+
+    function clipToggle(): void {
+        Store.toggle("clip")
+    }
+
+    function clipCount(): int {
+        return Clip.shown.length
+    }
+
+    function clipFilter(text: string): void {
+        Clip.filter = text
+    }
+
+    function clipCopy(index: int): void {
+        if (index >= 0 && index < Clip.shown.length)
+            Clip.copy(Clip.shown[index])
+    }
+
+    function aiToggle(): void {
+        Store.toggle("ai")
+    }
+
+    function aiRefresh(): void {
+        Ai.refresh()
+    }
+
+    function aiStatus(): string {
+        return Ai.status === "online" ? "online " + Ai.model + " " + Ai.models.join(",") : Ai.status
+    }
+
+    function aiAsk(text: string): void {
+        Ai.reset()
+        Ai.ask(text)
+    }
+
+    function aiError(): string {
+        return Ai.error
+    }
+
+    function aiLast(): string {
+        const m = Ai.messages
+        return m.length > 0 ? m[m.length - 1].content : ""
+    }
+
+    function polkitState(): string {
+        return Store.polkitState
+    }
+
+    function isLocked(): bool {
+        return Store.lockSecure
+    }
+
+    function recordingsCount(): int {
+        return Recordings.count
+    }
+
+    function islandFlash(kind: string, label: string): void {
+        Island.flash(kind, { icon: "󰋼", label: label, value: -1, summary: label, body: "" }, 3000)
+    }
+
+    function notifGroups(): string {
+        return Notifs.groups.map(g => g.app + ":" + g.items.length).join(";")
+    }
+
+    function notifCardsMade(): int {
+        return Store.cardsMade
+    }
+
+    function notifReplyable(): int {
+        return Notifs.list.filter(n => n.hasInlineReply).length
+    }
+
+    function clearNotifs(): void {
+        Notifs.clearAll()
+    }
+
     function popupCount(): int {
         return Notifs.popups.length
     }
@@ -109,6 +211,18 @@ IpcHandler {
 
     function fullscreenState(): string {
         return Object.keys(Fullscreen.full).sort().map(k => k + ":" + Fullscreen.full[k]).join(" ")
+    }
+
+    function visualizerFrames(): int {
+        return Visualizer.frames
+    }
+
+    function lyricsCount(): int {
+        return Lyrics.lines.length
+    }
+
+    function lyricsLine(): string {
+        return Lyrics.line
     }
 
     function isOpen(name: string): bool {

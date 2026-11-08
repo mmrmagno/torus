@@ -62,7 +62,7 @@ PanelWindow {
                     width: 128
                     height: 140
                     radius: 18
-                    color: hover.hovered ? Qt.alpha(Theme.accent, 0.25) : Qt.alpha(Theme.base, 0.9)
+                    color: hover.hovered ? Qt.alpha(Theme.accent, 0.25) : Qt.alpha(Theme.base, Theme.glassCard)
                     border.width: hover.hovered ? 2 : 1
                     border.color: hover.hovered ? Theme.accent : Theme.surface1
                     Behavior on color { ColorAnimation { duration: 120 } }

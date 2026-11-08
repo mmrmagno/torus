@@ -1,3 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
-pidof hyprlock > /dev/null || exec hyprlock "$@"
+
+state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+dir=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/torus-lock
+
+pidof hyprlock > /dev/null && exit 0
+mode=$(cat "$state/lock" 2> /dev/null || echo shell)
+
+if [[ $mode == shell ]]; then
+  [[ $(timeout 2 qs -c torus ipc call torus isLocked 2> /dev/null | tail -n 1) == true ]] && exit 0
+  mkdir -p -m 700 "$dir"
+  if command -v grim > /dev/null; then
+    for m in $(hyprctl monitors -j | jq -r '.[].name'); do
+      grim -l 0 -o "$m" "$dir/$m.png" 2> /dev/null || true
+    done
+  fi
+  if [[ $(timeout 3 qs -c torus ipc call torus lock 2> /dev/null | tail -n 1) == locked ]]; then
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      [[ $(timeout 2 qs -c torus ipc call torus isLocked 2> /dev/null | tail -n 1) == true ]] && exit 0
+      sleep 0.2
+    done
+  fi
+  rm -f "$dir"/*.png
+fi
+exec hyprlock "$@"

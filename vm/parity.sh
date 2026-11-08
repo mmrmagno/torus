@@ -42,7 +42,7 @@ check_binds() {
   fi
 }
 
-BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar media sunset network audio mic updates keyhint privacy tray wallpaper accent barpreset clipboard menu notifications power"
+BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates keyhint privacy record tray wallpaper accent barpreset clipboard menu notifications power"
 
 check_bar() {
   local out screens bad=""
@@ -50,7 +50,7 @@ check_bar() {
   screens=$(hyprctl monitors -j | jq -r '.[].name' | sort)
   for s in $screens; do
     local have want
-    have=$(tr ';' '\n' <<<"$out" | grep "^$s:" | cut -d: -f2 | tr ',' '\n' | sort -u)
+    have=$(tr ';' '\n' <<<"$out" | grep "^$s:" | cut -d: -f2 | tr ',' '\n' | grep -vx media | sort -u)
     want=$(tr ' ' '\n' <<<"$BAR_MODULES" | sort -u)
     [[ $have == "$want" ]] || bad+="$s missing [$(comm -23 <(echo "$want") <(echo "$have") | tr '\n' ' ')] extra [$(comm -13 <(echo "$want") <(echo "$have") | tr '\n' ' ')] "
   done
@@ -75,7 +75,7 @@ check_notify() {
   sleep 0.5
   osd=$("${QS[@]}" osdVisible 2>/dev/null)
   local timed
-  notify-send -t 3000 -a parity "timed" "three seconds"
+  timeout 5 notify-send -t 3000 -a parity -A ok=OK "timed" "three seconds" > /dev/null 2>&1 &
   sleep 1.2
   timed=$("${QS[@]}" popupCount 2>/dev/null)
   wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- > /dev/null 2>&1
@@ -84,6 +84,206 @@ check_notify() {
   else
     section notify fail "owner=$comm count=$count osd=$osd timed-popup=$timed"
   fi
+}
+
+island_on() {
+  local want=$1 i
+  for i in $(seq 1 30); do
+    [[ $("${QS[@]}" islandState 2>/dev/null) == *"$want"* ]] && return 0
+    sleep 0.2
+  done
+  return 1
+}
+
+check_island() {
+  local screens focused st plain bad="" rec
+  export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
+  screens=$(hyprctl monitors -j | jq -r '.[].name' | sort)
+  focused=$(hyprctl monitors -j | jq -r '.[] | select(.focused).name')
+  sleep 4
+  st=$("${QS[@]}" islandState 2>/dev/null)
+  for s in $screens; do [[ $st == *"$s:"* ]] || bad+="no-island-on-$s "; done
+  local before
+  before=$("${QS[@]}" popupCount 2>/dev/null)
+  notify-send -a parity "island" "plain notification"
+  island_on "$focused:notification" || bad+="no-notification-state "
+  plain=$("${QS[@]}" popupCount 2>/dev/null)
+  ((plain <= before)) || bad+="plain-notification-popped-up "
+  sleep 4.5
+  wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ > /dev/null 2>&1
+  island_on "$focused:osd" || bad+="no-osd-state "
+  wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- > /dev/null 2>&1
+  sleep 2
+  rec="${XDG_STATE_HOME:-$HOME/.local/state}/torus/recording"
+  date +%s > "$rec"
+  island_on "$focused:recording" || bad+="no-recording-state "
+  : > "$rec"
+  local vids="${XDG_VIDEOS_DIR:-$HOME/Videos}" n
+  mkdir -p "$vids"; : > "$vids/torus-parity.mp4"; sleep 1
+  n=$("${QS[@]}" recordingsCount 2>/dev/null)
+  ((n >= 1)) || bad+="recordings-list-empty "
+  rm -f "$vids/torus-parity.mp4"
+  island_on "$focused:idle" || island_on "$focused:hidden" || bad+="still-recording "
+  st=$("${QS[@]}" islandState 2>/dev/null)
+  if [[ -z $bad ]]; then section island ok "states notification, osd, recording, idle; now $st"; else section island fail "$bad now: $st"; fi
+}
+
+check_groups() {
+  local bad="" g r
+  export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
+  "${QS[@]}" clearNotifs > /dev/null 2>&1
+  for i in 1 2 3; do notify-send -a grouped "grouped $i" "body $i"; done
+  notify-send -a solo "solo" "alone"
+  gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications \
+    --method org.freedesktop.Notifications.Notify chat 0 "" "message" "reply to me" '["inline-reply", "Reply"]' '{}' 0 > /dev/null
+  sleep 1
+  g=$("${QS[@]}" notifGroups 2>/dev/null | tail -n 1)
+  [[ $g == "chat:1;solo:1;grouped:3" ]] || bad+="groups:[$g] "
+  r=$("${QS[@]}" notifReplyable 2>/dev/null | tail -n 1)
+  [[ $r == 1 ]] || bad+="replyable:[$r] "
+  "${QS[@]}" centerToggle > /dev/null 2>&1; sleep 1
+  local c1 c2
+  c1=$("${QS[@]}" notifCardsMade 2>/dev/null | tail -n 1)
+  notify-send -a another "another" "one more"; sleep 1
+  c2=$("${QS[@]}" notifCardsMade 2>/dev/null | tail -n 1)
+  ((c2 - c1 == 1)) || bad+="cards-rebuilt:$((c2 - c1)) "
+  "${QS[@]}" centerToggle > /dev/null 2>&1
+  "${QS[@]}" clearNotifs > /dev/null 2>&1
+  if [[ -z $bad ]]; then section groups ok "grouped by app newest first [$g], inline reply offered"; else section groups fail "$bad"; fi
+}
+
+check_clip() {
+  local bad="" n got img=/tmp/parity-clip.png
+  export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
+  magick -size 64x40 xc:'#cba6f7' "$img"
+  wl-copy --type image/png < "$img"; sleep 0.6
+  printf 'parity clip %s' "$$" | wl-copy; sleep 0.6
+  rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/torus/clip"
+  "${QS[@]}" clipToggle > /dev/null 2>&1; sleep 2
+  n=$("${QS[@]}" clipCount 2>/dev/null | tail -n 1)
+  ((n >= 2)) || bad+="count:[$n] "
+  ls "${XDG_CACHE_HOME:-$HOME/.cache}"/torus/clip/*.img > /dev/null 2>&1 || bad+="no-thumbnail "
+  "${QS[@]}" clipFilter "prtyclp$$" > /dev/null 2>&1; sleep 0.3
+  n=$("${QS[@]}" clipCount 2>/dev/null | tail -n 1)
+  [[ $n == 1 ]] || bad+="fuzzy:[$n] "
+  printf 'something else' | wl-copy; sleep 0.3
+  "${QS[@]}" clipCopy 0 > /dev/null 2>&1; sleep 0.8
+  got=$(wl-paste --no-newline 2>/dev/null)
+  [[ $got == "parity clip $$" ]] || bad+="copy:[$got] "
+  [[ $("${QS[@]}" isOpen clip 2>/dev/null | tail -n 1) == false ]] || bad+="still-open "
+  cliphist wipe
+  "${QS[@]}" clipToggle > /dev/null 2>&1; sleep 2; "${QS[@]}" clipToggle > /dev/null 2>&1
+  [[ -z $(ls -A "${XDG_CACHE_HOME:-$HOME/.cache}/torus/clip" 2>/dev/null) ]] || bad+="thumbnails-outlive-wipe "
+  if [[ -z $bad ]]; then section clip ok "history with image thumbnail, fuzzy filter, copy closes panel"; else section clip fail "$bad"; fi
+}
+
+check_ai() {
+  local bad="" st mock pid reply
+  command -v python3 > /dev/null || { section ai fail "python3 missing (mock server)"; return; }
+  "${QS[@]}" aiRefresh > /dev/null 2>&1; sleep 2
+  st=$("${QS[@]}" aiStatus 2>/dev/null | tail -n 1)
+  [[ $st == offline ]] || bad+="offline:[$st] "
+  mock=$(mktemp)
+  cat > "$mock" <<'PY'
+import http.server, json, time
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_GET(self):
+        body = json.dumps({"models": [{"name": "mock:1b"}, {"name": "mock:7b"}]}).encode()
+        self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body)
+    def do_POST(self):
+        req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        self.send_response(200); self.send_header("Content-Type", "application/x-ndjson"); self.end_headers()
+        last = req["messages"][-1]["content"]
+        for part in ["hello ", "from ", req["model"], " re: ", last]:
+            self.wfile.write((json.dumps({"message": {"role": "assistant", "content": part}, "done": False}) + "\n").encode()); self.wfile.flush(); time.sleep(0.1)
+        self.wfile.write((json.dumps({"done": True}) + "\n").encode())
+http.server.HTTPServer(("127.0.0.1", 11434), H).serve_forever()
+PY
+  python3 "$mock" 2> /dev/null & pid=$!
+  sleep 1
+  "${QS[@]}" aiRefresh > /dev/null 2>&1; sleep 2
+  st=$("${QS[@]}" aiStatus 2>/dev/null | tail -n 1)
+  [[ $st == "online mock:1b mock:1b,mock:7b" ]] || bad+="online:[$st] "
+  "${QS[@]}" aiAsk "ping" > /dev/null 2>&1; sleep 3
+  reply=$("${QS[@]}" aiLast 2>/dev/null | tail -n 1)
+  [[ $reply == "hello from mock:1b re: ping" ]] || bad+="reply:[$reply] "
+  "${QS[@]}" aiAsk "first" > /dev/null 2>&1; sleep 0.15; "${QS[@]}" aiAsk "second" > /dev/null 2>&1; sleep 3
+  reply=$("${QS[@]}" aiLast 2>/dev/null | tail -n 1)
+  [[ $reply == "hello from mock:1b re: second" ]] || bad+="race-reply:[$reply] "
+  reply=$("${QS[@]}" aiError 2>/dev/null | tail -n 1)
+  [[ -z $reply ]] || bad+="race-error:[$reply] "
+  kill "$pid" 2> /dev/null; rm -f "$mock"
+  "${QS[@]}" aiRefresh > /dev/null 2>&1
+  if [[ -z $bad ]]; then section ai ok "offline hint, models from /api/tags, streamed reply"; else section ai fail "$bad"; fi
+}
+
+check_polkit() {
+  local bad="" st i ok=/tmp/torus-pk-ok
+  [[ -n ${LOCK_PW:-} ]] || { section polkit fail "LOCK_PW not set"; return; }
+  st=$("${QS[@]}" polkitState 2>/dev/null | tail -n 1)
+  [[ $st == registered ]] || bad+="state:[$st] "
+  systemctl --user is-active --quiet hyprpolkitagent.service && bad+="hyprpolkitagent-still-running "
+  sudo rm -f "$ok"
+  hyprctl eval "hl.exec_cmd(\"pkexec --disable-internal-agent touch $ok\")" > /dev/null
+  for i in $(seq 40); do [[ $("${QS[@]}" polkitState 2>/dev/null | tail -n 1) == active ]] && break; sleep 0.25; done
+  [[ $("${QS[@]}" polkitState 2>/dev/null | tail -n 1) == active ]] || bad+="no-dialog "
+  sleep 1
+  type_pw "$LOCK_PW"
+  for i in $(seq 40); do [[ -e $ok ]] && break; sleep 0.25; done
+  [[ -e $ok ]] || bad+="pkexec-not-authorized "
+  sudo rm -f "$ok"
+  systemctl --user stop torus-shell.service; sleep 2
+  systemctl --user is-active --quiet hyprpolkitagent.service || bad+="no-fallback-agent "
+  systemctl --user start torus-shell.service; sleep 7
+  systemctl --user is-active --quiet hyprpolkitagent.service && bad+="fallback-not-stopped "
+  [[ $("${QS[@]}" polkitState 2>/dev/null | tail -n 1) == registered ]] || bad+="not-reregistered "
+  if [[ -z $bad ]]; then section polkit ok "shell agent registered, pkexec authorized through the dialog, hyprpolkitagent covers a stopped shell"; else section polkit fail "$bad"; fi
+}
+
+corners_on() { hyprctl layers -j | jq --arg m "$1" '[.[$m].levels[][] | select(.namespace == "torus-corner")] | length'; }
+
+check_corners() {
+  local bad="" main n s
+  for s in $(hyprctl monitors -j | jq -r '.[].name'); do
+    n=$(corners_on "$s"); [[ $n == 4 ]] || bad+="$s:$n "
+  done
+  main=$(hyprctl monitors -j | jq -r '.[0].name')
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
+  hyprctl eval 'hl.exec_cmd("kitty --class parity-corner")' > /dev/null
+  for _ in $(seq 100); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity-corner")' > /dev/null && break; sleep 0.2; done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity-corner" }))' > /dev/null 2>&1
+  for _ in $(seq 10); do
+    hyprctl clients -j | jq -e 'any(.[]; .class == "parity-corner" and .fullscreen > 0)' > /dev/null && break
+    hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen())' > /dev/null
+    sleep 0.5
+  done
+  sleep 1.5
+  n=$(corners_on "$main"); [[ $n == 0 ]] || bad+="fullscreen:$n "
+  hyprctl clients -j | jq -r '.[] | select(.class == "parity-corner") | .pid' | xargs -r kill
+  sleep 1.5
+  n=$(corners_on "$main"); [[ $n == 4 ]] || bad+="after:$n "
+  if [[ -z $bad ]]; then section corners ok "4 rounded corners per screen, hidden under fullscreen"; else section corners fail "$bad"; fi
+}
+
+check_widgets() {
+  local bad="" mons land port shown want
+  mons=$(hyprctl monitors -j)
+  land=$(jq -r '.[] | select(((.transform % 2) == 0 and .width >= .height) or ((.transform % 2) == 1 and .height >= .width)) | .name' <<<"$mons" | sort | xargs)
+  port=$(jq -r '.[].name' <<<"$mons" | sort | xargs)
+  "${QS[@]}" widgets landscape > /dev/null 2>&1; sleep 1
+  shown=$("${QS[@]}" widgetsShown 2>/dev/null | tail -n 1)
+  [[ $shown == "$land" ]] || bad+="landscape:[$shown]!=[$land] "
+  "${QS[@]}" widgets all > /dev/null 2>&1; sleep 1
+  shown=$("${QS[@]}" widgetsShown 2>/dev/null | tail -n 1)
+  [[ $shown == "$port" ]] || bad+="all:[$shown]!=[$port] "
+  "${QS[@]}" widgets off > /dev/null 2>&1; sleep 1
+  shown=$("${QS[@]}" widgetsShown 2>/dev/null | tail -n 1)
+  [[ -z $shown ]] || bad+="off:[$shown] "
+  want=$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/torus/widgets" 2>/dev/null)
+  [[ $want == off ]] || bad+="not-persisted "
+  "${QS[@]}" widgets landscape > /dev/null 2>&1
+  if [[ -z $bad ]]; then section widgets ok "landscape [$land], all, off, persisted"; else section widgets fail "$bad"; fi
 }
 
 frames() { "${QS[@]}" donutFrames "$1" 2>/dev/null; }
@@ -194,24 +394,131 @@ wait_lock() {
   for i in $(seq 30); do pgrep -x hyprlock > /dev/null && return 0; sleep 0.1; done
   return 1
 }
-
 unlock() {
   local i
   pkill -USR1 -x hyprlock
   for i in $(seq 40); do pgrep -x hyprlock > /dev/null || return 0; sleep 0.25; done
   return 1
 }
+locked_is() {
+  local want=$1 i
+  for i in $(seq 60); do
+    [[ $("${QS[@]}" isLocked 2>/dev/null) == "$want" ]] && return 0
+    sleep 0.25
+  done
+  return 1
+}
+type_pw() {
+  wtype "$1"
+  sleep 0.2
+  wtype -k Return
+}
 
 check_lock() {
-  local bad="" sid
+  local bad="" sid state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
   pgrep -x hypridle > /dev/null || { section lock fail "hypridle not running"; return; }
+  [[ -n ${LOCK_PW:-} ]] || { section lock fail "LOCK_PW not set"; return; }
+  command -v wtype > /dev/null || { section lock fail "wtype missing (VM fixture)"; return; }
+  rm -f "$state/lock"
   hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
-  if wait_lock; then sleep "${LOCK_HOLD:-1}"; unlock || bad+="keybind-unlock "; else bad+="keybind-path "; fi
+  if locked_is true; then
+    pgrep -x hyprlock > /dev/null && bad+="hyprlock-instead-of-shell "
+    [[ -n $(ls "$XDG_RUNTIME_DIR"/torus-lock/*.png 2>/dev/null) ]] || bad+="no-lock-screenshot "
+    local t1 t2
+    t1=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2); sleep 1; t2=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2)
+    ((t2 > t1)) || bad+="lock-donut-stopped($("${QS[@]}" donutClock 2>/dev/null)) "
+    sleep 31
+    t1=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2); sleep 1; t2=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2)
+    ((t2 == t1)) || bad+="lock-donut-never-sleeps "
+    wtype -k Shift_L; sleep 0.5
+    t1=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2); sleep 1; t2=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2)
+    ((t2 > t1)) || bad+="lock-donut-no-wake "
+    type_pw "not-the-password"
+    sleep 4
+    locked_is true || bad+="wrong-password-unlocked "
+    type_pw "$LOCK_PW"
+    locked_is false || bad+="shell-unlock "
+    [[ -z $(ls "$XDG_RUNTIME_DIR"/torus-lock/ 2>/dev/null) ]] || bad+="lock-files-left "
+  else
+    bad+="keybind-path "
+  fi
+  local keys=/tmp/parity-keys
+  rm -f "$keys"
+  hyprctl eval "hl.exec_cmd(\"kitty --class parity-keys sh -c 'cat > $keys'\")" > /dev/null
+  for _ in $(seq 100); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity-keys")' > /dev/null && break; sleep 0.2; done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity-keys" }))' > /dev/null 2>&1
+  sleep 1
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  if locked_is true; then
+    local qml loads
+    qml=$(readlink -f ~/.config/quickshell/torus/shell.qml)
+    loads=$(journalctl --user -u torus-shell --no-pager -o cat | grep -c "Configuration Loaded")
+    echo >> "$qml"
+    for _ in $(seq 25); do wtype "x"; sleep 0.12; done
+    sed -i '$ d' "$qml"
+    for _ in $(seq 25); do wtype "x"; sleep 0.12; done
+    sleep 2
+    (( $(journalctl --user -u torus-shell --no-pager -o cat | grep -c "Configuration Loaded") > loads )) || bad+="reload-not-triggered "
+    locked_is true || bad+="reload-unlocked "
+    wtype -k Escape
+    type_pw "$LOCK_PW"
+    locked_is false || bad+="reload-unlock "
+    sleep 0.5
+    [[ ! -s $keys ]] || bad+="keys-leaked-during-reload($(wc -c < "$keys")) "
+  else
+    bad+="reload-lock "
+  fi
+  hyprctl clients -j | jq -r '.[] | select(.class == "parity-keys") | .pid' | xargs -r kill
   sid=$(loginctl list-sessions --no-legend | awk '$4 == "seat0" {print $1; exit}')
   loginctl lock-session "$sid"
-  if wait_lock; then unlock || bad+="logind-unlock "; else bad+="logind-path "; fi
+  if locked_is true; then
+    pkill -9 -x qs
+    sleep 4
+    locked_is true || bad+="crash-unlocked "
+    sleep 2
+    type_pw "$LOCK_PW"
+    locked_is false || bad+="logind-unlock "
+  else
+    bad+="logind-path "
+  fi
+  hyprctl eval 'hl.exec_cmd("hyprlock")' > /dev/null
+  if wait_lock; then
+    sleep 1
+    "${QS[@]}" lock > /dev/null 2>&1
+    if locked_is true; then
+      sleep 1
+      type_pw "$LOCK_PW"
+      locked_is false || bad+="takeover-unlock "
+    else
+      bad+="no-takeover "
+    fi
+    pkill -x hyprlock
+  else
+    bad+="no-hyprlock "
+  fi
+  sleep 1
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  if locked_is true; then
+    hyprctl eval 'hl.exec_cmd("hyprlock")' > /dev/null
+    wait_lock && sleep 1
+    unlock || bad+="hyprlock-unlock "
+    sleep 1
+    locked_is true || bad+="shell-lock-lost-under-hyprlock "
+    systemctl --user restart torus-shell.service
+    sleep 5
+    locked_is true || bad+="restart-unlocked "
+    type_pw "$LOCK_PW"
+    locked_is false || bad+="unlock-after-hyprlock "
+  else
+    bad+="relock "
+  fi
+  systemctl --user stop torus-shell.service
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  if wait_lock; then sleep "${LOCK_HOLD:-1}"; unlock || bad+="fallback-unlock "; else bad+="no-hyprlock-fallback "; fi
+  systemctl --user start torus-shell.service
+  sleep 4
   if [[ -z $bad ]]; then
-    section lock ok "keybind and logind paths lock ($(basename "$(readlink ~/.local/state/torus/hyprlock-layout.conf)"))"
+    section lock ok "shell lock: keybind, wrong password, PAM unlock, logind, survives a config reload, a shell crash and a hyprlock takeover; hyprlock fallback ($(basename "$(readlink "$state/hyprlock-layout.conf")"))"
   else
     section lock fail "$bad"
   fi
@@ -226,15 +533,45 @@ warm_kitty() {
 
 warm_kitty
 
+check_media() {
+  local bad="" tone=/tmp/parity-tone.ogg f1 f2 n line
+  command -v mpv > /dev/null || { section media fail "mpv missing (VM fixture installs mpv mpv-mpris ffmpeg)"; return; }
+  [[ -f $tone ]] || ffmpeg -loglevel error -f lavfi -i "sine=frequency=110:duration=213" -f lavfi -i "sine=frequency=880:duration=213" -filter_complex "[0][1]amix=inputs=2,volume=4" -metadata artist="Rick Astley" -metadata title="Never Gonna Give You Up" -metadata album="Whenever You Need Somebody" -c:a libvorbis "$tone"
+  pkill -x mpv 2> /dev/null || true
+  mpv --no-video --really-quiet --start=40 "$tone" > /dev/null 2>&1 &
+  local mp=$!
+  sleep 6
+  f1=$("${QS[@]}" visualizerFrames); sleep 2; f2=$("${QS[@]}" visualizerFrames)
+  ((f2 > f1)) || bad+="visualizer-not-running "
+  pgrep -x cava > /dev/null || bad+="cava-not-running "
+  n=$("${QS[@]}" lyricsCount)
+  ((n > 0)) || bad+="no-lyrics "
+  [[ $("${QS[@]}" islandState) == *"state:media"* ]] || bad+="island-not-media "
+  line=$("${QS[@]}" lyricsLine)
+  [[ -n $line ]] || bad+="no-current-line "
+  kill "$mp" 2> /dev/null
+  sleep 3
+  pgrep -x cava > /dev/null && bad+="cava-still-running-when-idle "
+  if [[ -z $bad ]]; then section media ok "visualizer $f1>$f2, $n lyric lines, now: $line, cava stops when idle"; else section media fail "$bad"; fi
+}
+
 case ${1:-all} in
+  media) check_media ;;
   lock) check_lock ;;
   look) check_look ;;
   dashboard) check_dashboard ;;
   donut) check_donut ;;
   notify) check_notify ;;
+  island) check_island ;;
+  widgets) check_widgets ;;
+  groups) check_groups ;;
+  clip) check_clip ;;
+  ai) check_ai ;;
+  polkit) check_polkit ;;
+  corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_donut; check_dashboard; check_look; check_lock ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_polkit; check_media ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

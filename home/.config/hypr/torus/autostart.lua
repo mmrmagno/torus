@@ -3,7 +3,6 @@ local start = {
 	"sh -c 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE && systemctl --user restart torus-shell.service'",
 	"hypridle",
 	"hyprsunset",
-	"systemctl --user start hyprpolkitagent",
 	"wl-paste --type text --watch cliphist store",
 	"wl-paste --type image --watch cliphist store",
 	"wl-clip-persist --clipboard regular",

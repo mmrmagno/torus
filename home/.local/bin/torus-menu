@@ -87,18 +87,23 @@ case ${1:-drun} in
     [[ -n $pick ]] && torus accent "$pick"
     ;;
   animations)
-    pick=$(printf 'smooth\nsnappy\noff\n' | menu "animations") || exit 0
+    pick=$(printf 'fancy\nsmooth\nsnappy\noff\n' | menu "animations") || exit 0
     [[ -n $pick ]] || exit 0
     mkdir -p "$state"
     echo "$pick" > "$state/animations"
     hyprctl reload > /dev/null
     ;;
   hyprlock)
-    pick=$(printf 'marc-os\nsf_marc\n' | menu "lock screen") || exit 0
+    pick=$(printf 'torus\nmarc-os\nsf_marc\n' | menu "lock screen") || exit 0
     [[ -n $pick ]] || exit 0
     mkdir -p "$state"
-    echo "$pick" > "$state/hyprlock"
-    ln -sfn "$HOME/.config/hypr/hyprlock/$pick.conf" "$state/hyprlock-layout.conf"
+    if [[ $pick == torus ]]; then
+      echo shell > "$state/lock"
+    else
+      echo hyprlock > "$state/lock"
+      echo "$pick" > "$state/hyprlock"
+      ln -sfn "$HOME/.config/hypr/hyprlock/$pick.conf" "$state/hyprlock-layout.conf"
+    fi
     ;;
   *)
     echo "usage: torus-menu drun|window|files|emoji|glyph|calc|websearch|clipboard|clipmanager|games|style|wallpaper|accent|animations|hyprlock" >&2
