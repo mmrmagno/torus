@@ -29,7 +29,7 @@ chmod +x "$F/bin/xrandr"
 printf 'Q27G2WG4 3 2560 410\nVG27AQ1A 0 0 1467\n' > "$F/monitors"
 
 PATH=$F/bin:$PATH TORUS_SDDM_MONITORS=$F/monitors TORUS_SDDM_NEXT=/bin/true "$X"
-assert_contains "$F/calls" "xrandr --output DisplayPort-1 --rotate left --pos 2560x410"
+assert_contains "$F/calls" "xrandr --output DisplayPort-1 --rotate right --pos 2560x410"
 assert_contains "$F/calls" "xrandr --output DisplayPort-0 --rotate normal --pos 0x1467"
 grep -q 'HDMI-A-0' "$F/calls" && fail "unknown monitor must be left alone"
 
@@ -41,5 +41,5 @@ PATH=$F/bin:$PATH TORUS_SDDM_MONITORS=$F/missing TORUS_SDDM_NEXT=/bin/true "$X"
   printf '\tEDID: \n'; hexblock "$F/b"
 } > "$F/prop"
 PATH=$F/bin:$PATH TORUS_SDDM_MONITORS=$F/monitors TORUS_SDDM_NEXT=/bin/true "$X"
-assert_contains "$F/calls" "xrandr --output DisplayPort-1 --rotate left --pos 2560x410"
+assert_contains "$F/calls" "xrandr --output DisplayPort-1 --rotate right --pos 2560x410"
 true

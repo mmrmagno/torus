@@ -11,12 +11,22 @@ menu() {
   rofi -dmenu -i -p "$1" -theme "$theme" "${@:2}"
 }
 
+if pgrep -x rofi > /dev/null; then
+  pkill -x rofi
+  exit 0
+fi
+
 case ${1:-drun} in
   drun) exec rofi -show drun -show-icons -theme "$theme" ;;
   window) exec rofi -show window -show-icons -theme "$theme" ;;
   files)
-    list=$(cd "$HOME" && { find . -maxdepth 4 -name '.*' -prune -o -type f -print 2> /dev/null || true; } | sed 's|^\./||')
-    pick=$(menu "files" <<< "$list") || exit 0
+    pick=$(cd "$HOME" && {
+      if command -v fd > /dev/null; then
+        fd --type f --max-depth 8 --color never . 2> /dev/null
+      else
+        find . -mindepth 1 -maxdepth 4 -name '.*' -prune -o -type f -print 2> /dev/null | sed 's|^\./||'
+      fi
+    } | menu "files" -async-pre-read 64) || exit 0
     [[ -n $pick ]] && xdg-open "$HOME/$pick"
     ;;
   emoji)

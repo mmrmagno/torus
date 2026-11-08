@@ -26,9 +26,9 @@ if [[ -r $conf ]]; then
     read -r _ transform x y < <(awk -v n="$name" '$1 == n' "$conf")
     [[ -n ${transform:-} ]] || continue
     case $transform in
-      1) rot=right ;;
+      1) rot=left ;;
       2) rot=inverted ;;
-      3) rot=left ;;
+      3) rot=right ;;
       *) rot=normal ;;
     esac
     xrandr --output "$out" --rotate "$rot" --pos "${x}x${y}"

@@ -82,5 +82,26 @@ grep -q '^hyprlock' "$STUB_LOG" || fail "lock: falls back to hyprlock when the s
 
 grep -Eq '^\s*inhibit_sleep\s*=\s*3\s*$' "$REPO/home/.config/hypr/hypridle.conf" || fail "hypridle: suspend must wait for a confirmed lock"
 
+mkdir -p "$HOME/Documents/taxes" "$HOME/.secret"
+echo x > "$HOME/Documents/taxes/2026.pdf"; echo x > "$HOME/.secret/key"
+printf '#!/usr/bin/env bash\necho "xdg-open $*" >> "$STUB_LOG"\n' > "$F/bin/xdg-open"; chmod +x "$F/bin/xdg-open"
+: > "$STUB_LOG"; STUB_ROFI_PICK="Documents/taxes/2026.pdf" "$B/torus-menu" files
+grep -qx "Documents/taxes/2026.pdf" "$STUB_LOG.rofi-in" || fail "files: home files listed: $(head -3 "$STUB_LOG.rofi-in")"
+grep -q "secret" "$STUB_LOG.rofi-in" && fail "files: hidden folders listed"
+grep -q "^xdg-open $HOME/Documents/taxes/2026.pdf" "$STUB_LOG" || fail "files: pick opens the file"
+printf '#!/usr/bin/env bash\necho "fd $*" >> "$STUB_LOG"\necho "Music/song.flac"\n' > "$F/bin/fd"; chmod +x "$F/bin/fd"
+: > "$STUB_LOG"; STUB_ROFI_PICK="Music/song.flac" "$B/torus-menu" files
+grep -q '^fd --type f' "$STUB_LOG" || fail "files: fd used when installed"
+grep -qx "Music/song.flac" "$STUB_LOG.rofi-in" || fail "files: fd results listed"
+rm "$F/bin/fd"
+
+printf '#!/usr/bin/env bash\n[[ ${STUB_ROFI_RUNNING:-} == 1 && " $* " == *" rofi "* ]]\n' > "$F/bin/pgrep"; chmod +x "$F/bin/pgrep"
+printf '#!/usr/bin/env bash\necho "pkill $*" >> "$STUB_LOG"\n' > "$F/bin/pkill"; chmod +x "$F/bin/pkill"
+: > "$STUB_LOG"; STUB_ROFI_RUNNING=1 "$B/torus-menu" drun < /dev/null
+grep -q '^pkill -x rofi' "$STUB_LOG" || fail "menu key closes an open rofi"
+grep -q '^rofi' "$STUB_LOG" && fail "menu key must not open a second rofi"
+: > "$STUB_LOG"; "$B/torus-menu" drun < /dev/null
+grep -q '^rofi -show drun' "$STUB_LOG" || fail "menu opens when rofi is closed"
+
 rc=0; "$B/torus-menu" nope > /dev/null 2>&1 || rc=$?
 assert_eq 2 "$rc" "unknown menu exit code"
