@@ -18,6 +18,7 @@ Singleton {
     property string passState: ""
     property real passLoaded: 0
     property var passPick: null
+    property var passFields: null
     readonly property int passClear: Number(Quickshell.env("TORUS_PASS_CLEAR") || 30)
     property var windows: []
     readonly property string home: Quickshell.env("HOME")
@@ -97,7 +98,11 @@ Singleton {
     function passResults(q) {
         if (passPick) {
             const it = passPick
-            return [["password", "󰌾", "Password"], ["email", "󰇮", "Email"], ["username", "󰀄", "Username"], ["totp", "󰔟", "One-time code"]].map(f => ({
+            if (passFields === null)
+                return [{ id: "ph", kind: "hint", glyph: "󰔟", title: "Checking " + it.title + "…", sub: "looking up which fields it has", act: () => {} }]
+            if (passFields.length === 0)
+                return [{ id: "ph", kind: "hint", glyph: "󰟵", title: it.title, sub: "nothing to copy in this item", act: () => {} }]
+            return [["password", "󰌾", "Password"], ["email", "󰇮", "Email"], ["username", "󰀄", "Username"], ["totp", "󰔟", "One-time code"]].filter(f => passFields.indexOf(f[0]) >= 0).map(f => ({
                 id: "pf", kind: "field", glyph: f[1], title: f[2], sub: it.title + " · copy, clears in " + passClear + " s",
                 act: () => copyField(it, f[0])
             }))
@@ -108,8 +113,15 @@ Singleton {
             return [{ id: "ph", kind: "hint", glyph: "󰟵", title: "Loading your vaults…", sub: "names only, nothing is shown or saved", act: () => {} }]
         const items = passItems.map(p => ({ id: "p", kind: "pass", keep: true, glyph: "󰟵", title: p.title, sub: p.vault, sid: p.sid, iid: p.iid, act: null }))
         for (const it of items)
-            it.act = () => root.passPick = it
+            it.act = () => root.openPassItem(it)
         return q === "" ? items : rank(items, q)
+    }
+
+    function openPassItem(it) {
+        passFields = null
+        passPick = it
+        fieldsProc.asked = it.iid
+        fieldsProc.exec(["torus-pass", "fields", it.sid, it.iid])
     }
 
     function loadPass() {
@@ -193,6 +205,7 @@ Singleton {
     onModeChanged: if (mode === "pass") loadPass()
     onTermChanged: {
         passPick = null
+        passFields = null
         calc = []
         files = []
         kb = []
@@ -254,6 +267,14 @@ Singleton {
                 const rel = m[1].replace(root.home + "/dev/kb/", "")
                 return { id: "kb:" + rel, kind: "kb", glyph: "󰈙", title: m[3].trim() || rel, sub: rel + ":" + m[2], act: () => Quickshell.execDetached(["kitty", "-e", "nvim", "+" + m[2], m[1]]) }
             }).filter(x => x)
+        }
+    }
+
+    Process {
+        id: fieldsProc
+        property string asked: ""
+        stdout: StdioCollector {
+            onStreamFinished: if (root.passPick && root.passPick.iid === fieldsProc.asked) root.passFields = text.split("\n").filter(l => l)
         }
     }
 

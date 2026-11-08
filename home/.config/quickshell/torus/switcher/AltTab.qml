@@ -8,12 +8,20 @@ PanelWindow {
     id: root
 
     property int selected: 0
+    property real releasedAt: 0
     readonly property var windows: Hyprland.toplevels.values.slice().sort((a, b) => ((a.lastIpcObject || {}).focusHistoryID || 0) - ((b.lastIpcObject || {}).focusHistoryID || 0))
 
     function step(dir) {
         if (windows.length === 0)
             return
         if (!Store.isOpen("alttab")) {
+            if (Date.now() - releasedAt < 400) {
+                releasedAt = 0
+                const w = windows.length > 1 ? windows[1] : null
+                if (w && w.wayland)
+                    w.wayland.activate()
+                return
+            }
             Hyprland.refreshToplevels()
             selected = windows.length > 1 ? 1 : 0
             Store.setOpen("alttab", true)
@@ -23,8 +31,10 @@ PanelWindow {
     }
 
     function apply() {
-        if (!Store.isOpen("alttab"))
+        if (!Store.isOpen("alttab")) {
+            releasedAt = Date.now()
             return
+        }
         const w = windows[selected]
         Store.setOpen("alttab", false)
         if (w && w.wayland)

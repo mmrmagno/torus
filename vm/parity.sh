@@ -646,6 +646,11 @@ check_switch() {
   after=$(hyprctl activewindow -j | jq -r .address)
   [[ $before == "$after" ]] || bad+="cancel-switched "
   [[ $("${QS[@]}" isOpen alttab 2>/dev/null | tail -n 1) == false ]] || bad+="cancel-left-open "
+  before=$(hyprctl activewindow -j | jq -r .address)
+  "${QS[@]}" altTab apply > /dev/null; "${QS[@]}" altTab next > /dev/null; sleep 0.4
+  after=$(hyprctl activewindow -j | jq -r .address)
+  [[ $before != "$after" ]] || bad+="quick-tap-no-switch "
+  [[ $("${QS[@]}" isOpen alttab 2>/dev/null | tail -n 1) == false ]] || { bad+="quick-tap-left-open "; "${QS[@]}" altTab apply > /dev/null; }
   hyprctl clients -j | jq -r '.[] | select(.class == "parity-switch") | .pid' | xargs -r kill
   hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "1" }))' > /dev/null
   "${QS[@]}" overviewToggle > /dev/null; sleep 1

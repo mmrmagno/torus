@@ -22,7 +22,7 @@ case "$1 $2" in
       *"--field email"*) echo "me@example.org" ;;
       *) echo "Error: Field does not exist: username" >&2; exit 1 ;;
     esac ;;
-  "item totp") printf 'totp: 123456\n' ;;
+  "item totp") [[ -n ${STUB_NO_TOTP:-} ]] && { echo "Error: no TOTP" >&2; exit 1; }; printf 'totp: 123456\n' ;;
 esac
 S
 printf '#!/usr/bin/env bash\necho "wl-copy $*" >> "$STUB_LOG"\nif [[ $1 == --clear ]]; then : > "$CLIP"; else cat > "$CLIP"; fi\n' > "$F/bin/wl-copy"
@@ -61,6 +61,11 @@ echo "kept" > "$CLIP"
 "$T" copy SID_A== IID_1== email 1
 wait
 assert_eq "something else" "$(cat "$CLIP")" "a newer copy is never cleared"
+
+: > "$STUB_LOG"
+assert_eq "$(printf 'password\nemail\ntotp')" "$("$T" fields SID_A== IID_1==)" "fields: only the ones the item has"
+grep -q 's3cret\|me@example' "$STUB_LOG" && fail "fields must not log values"
+STUB_NO_TOTP=1 assert_eq "$(printf 'password\nemail')" "$(STUB_NO_TOTP=1 "$T" fields SID_A== IID_1==)" "fields: no totp when the item has none"
 
 rc=0; STUB_LOCKED=1 "$T" list > "$F/locked" 2>&1 || rc=$?
 assert_eq 3 "$rc" "locked pass-cli exits 3"

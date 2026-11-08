@@ -21,6 +21,20 @@ case ${1:-} in
     wait
     cat "$tmp"/* 2> /dev/null
     ;;
+  fields)
+    sid=$2 iid=$3
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    for f in password email username; do
+      pass-cli item view --share-id "$sid" --item-id "$iid" --field "$f" < /dev/null > /dev/null 2>&1 && touch "$tmp/$f" &
+    done
+    pass-cli item totp --share-id "$sid" --item-id "$iid" < /dev/null 2> /dev/null | grep -qE '[0-9]{6,8}' && touch "$tmp/totp" &
+    wait
+    for f in password email username totp; do
+      [[ -e $tmp/$f ]] && echo "$f"
+    done
+    exit 0
+    ;;
   copy)
     sid=$2 iid=$3 field=$4 secs=${5:-30}
     if [[ $field == totp ]]; then
