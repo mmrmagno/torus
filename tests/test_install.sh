@@ -56,8 +56,8 @@ assert_file "$R/usr/share/sddm/themes/torus-background.png"
 assert_contains "$R/etc/sddm.conf.d/zz-torus.conf" "Current=catppuccin-mocha-mauve"
 assert_contains "$R/usr/share/sddm/themes/catppuccin-mocha-mauve/theme.conf.user" "torus-background.png"
 ls "$R/var/lib/torus/attic/"*/etc/default/grub > /dev/null || fail "original grub default kept in attic"
-order=$(grep -oE '^(plymouth-set-default-theme|grub-mkconfig|mkinitcpio|sbctl sign-all|sbctl verify)' "$STUB_LOG" | head -5 | tr '\n' '|')
-assert_eq "plymouth-set-default-theme|grub-mkconfig|mkinitcpio|sbctl sign-all|sbctl verify|" "$order" "system command order"
+order=$(grep -oE '^(plymouth-set-default-theme marc-os|grub-mkconfig|mkinitcpio|sbctl sign-all|sbctl verify)' "$STUB_LOG" | head -5 | tr '\n' '|')
+assert_eq "plymouth-set-default-theme marc-os|grub-mkconfig|mkinitcpio|sbctl sign-all|sbctl verify|" "$order" "system command order"
 grep -q 'grub-install' "$STUB_LOG" && fail "grub-install must never run"
 rc=0
 STUB_UNSIGNED=1 PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve > /dev/null 2>&1 || rc=$?
@@ -83,4 +83,36 @@ rm -rf "$R/usr/share/sddm/themes/catppuccin-mocha-mauve"
 rm -f "$R/etc/sddm.conf.d/zz-torus.conf"
 PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve > /dev/null 2>&1
 [[ -e $R/etc/sddm.conf.d/zz-torus.conf ]] && fail "sddm theme selected although it is not installed"
+R2=$F/root2
+mkdir -p "$R2/etc/default" "$R2/boot/grub" "$R2/usr/share/sddm/themes/catppuccin-mocha-mauve"
+printf 'GRUB_DEFAULT=0\nGRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"\nGRUB_THEME="/boot/grub/themes/hollow-grub/theme.txt"\n' > "$R2/etc/default/grub"
+printf 'MODULES=()\nHOOKS=(base udev autodetect modconf block filesystems fsck)\n' > "$R2/etc/mkinitcpio.conf"
+cp "$R2/etc/default/grub" "$F/g2.before"; cp "$R2/etc/mkinitcpio.conf" "$F/m2.before"
+printf '#!/usr/bin/env bash\necho "plymouth-set-default-theme $*" >> "$STUB_LOG"\n(($#)) || echo bgrt\n' > "$F/sbin/plymouth-set-default-theme"
+rc=0; PATH=$F/sbin:$PATH "$REPO/install.sh" --system --undo --root "$R2" > /dev/null 2>&1 || rc=$?
+assert_eq 10 "$rc" "undo without originals"
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R2" --accent mauve > /dev/null
+O=$R2/var/lib/torus/original
+assert_contains "$O/etc/default/grub" "hollow-grub"
+assert_contains "$O/absent.txt" "etc/sddm.conf.d/zz-torus.conf"
+assert_eq bgrt "$(cat "$O/plymouth-theme")" "previous plymouth theme saved"
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R2" --accent mauve > /dev/null
+assert_contains "$O/etc/default/grub" "hollow-grub"
+assert_eq "$(sort -u "$R2/var/lib/torus/installed.txt" | wc -l)" "$(wc -l < "$R2/var/lib/torus/installed.txt")" "installed list has no duplicates"
+mapfile -t inst < "$R2/var/lib/torus/installed.txt"
+((${#inst[@]} > 90)) || fail "installed list too short: ${#inst[@]}"
+: > "$STUB_LOG"
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --undo --root "$R2" > /dev/null
+cmp -s "$F/g2.before" "$R2/etc/default/grub" || fail "grub default not byte-identical after undo"
+cmp -s "$F/m2.before" "$R2/etc/mkinitcpio.conf" || fail "mkinitcpio.conf not byte-identical after undo"
+assert_absent "$R2/etc/sddm.conf.d/zz-torus.conf"
+for f in "${inst[@]}"; do assert_absent "$R2/$f"; done
+assert_absent "$R2/usr/share/plymouth/themes/marc-os"
+assert_absent "$R2/boot/grub/themes/marc-os"
+assert_absent "$R2/var/lib/torus/original"
+assert_absent "$R2/var/lib/torus/installed.txt"
+assert_contains "$STUB_LOG" "plymouth-set-default-theme bgrt"
+order=$(grep -oE '^(grub-mkconfig|mkinitcpio -P|sbctl sign-all)' "$STUB_LOG" | tr '\n' '|')
+assert_eq "grub-mkconfig|mkinitcpio -P|sbctl sign-all|" "$order" "undo regenerates and signs"
+grep -q 'grub-install' "$STUB_LOG" && fail "grub-install must never run"
 true

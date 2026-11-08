@@ -27,6 +27,9 @@ ln -s "$T/home/.config/hypr" "$H/.config/hypr"
 "$REPO/backup/restore.sh" "$dir" --home "$H" --root "$R" --files-only > "$F/log"
 assert_contains "$F/log" "restore verified: 3 files"
 assert_eq "font_size 9" "$(cat "$H/.config/kitty/kitty.conf")" "kitty.conf restored"
+kept=$(find "$H/.local/share/torus/attic" -path '*-replaced/.config/kitty/kitty.conf' 2> /dev/null | head -n 1 || true)
+assert_eq "font_size 20" "$(cat "$kept" 2> /dev/null)" "replaced file kept in the attic"
+assert_contains "$F/log" "replaced files kept in"
 assert_file "$H/.config/Proton Pass/x"
 assert_link "$H/.local/bin/claude" /opt/claude
 assert_eq 'GRUB_TIMEOUT=5' "$(cat "$R/etc/default/grub")" "grub restored"
@@ -41,6 +44,12 @@ rc=0
 assert_eq 5 "$rc" "verify-only detects drift"
 assert_contains "$F/log" "home/.config/kitty/kitty.conf"
 assert_eq "font_size 20" "$(cat "$H/.config/kitty/kitty.conf")" "verify-only changes nothing"
+
+mkdir -p "$F/elsewhere/home/.config/quickshell"
+ln -s "$F/elsewhere/home/.config/quickshell" "$H/.config/quickshell"
+env -u TORUS_DIR "$REPO/backup/restore.sh" "$dir" --home "$H" --root "$R" --files-only --torus "$F/elsewhere" > "$F/log"
+assert_absent "$H/.config/quickshell"
+echo "font_size 20" > "$H/.config/kitty/kitty.conf"
 
 tb=$dir/torus-backup-20260101-000000.tar.zst
 printf '\x00' | dd of="$tb" bs=1 seek=100 conv=notrunc status=none

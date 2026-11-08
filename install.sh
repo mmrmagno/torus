@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")" && pwd)
-home=$HOME no_packages=0 dry_run=0 system=0 root="" accent=""
+home=$HOME no_packages=0 dry_run=0 system=0 undo=0 root="" accent=""
 
 while (($#)); do
   case $1 in
@@ -10,6 +10,7 @@ while (($#)); do
     --no-packages) no_packages=1; shift ;;
     --dry-run) dry_run=1; shift ;;
     --system) system=1; shift ;;
+    --undo) undo=1; shift ;;
     --root) root=$2; shift 2 ;;
     --accent) accent=$2; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 1 ;;
@@ -34,6 +35,18 @@ system_install() {
     exit 3
   fi
   local stamp attic tmp f i
+  local O=$R/var/lib/torus/original list=$R/var/lib/torus/installed.txt
+  local sddm_user=usr/share/sddm/themes/catppuccin-mocha-$accent/theme.conf.user
+  if [[ ! -d $O ]]; then
+    mkdir -p "$O"
+    : > "$O/absent.txt"
+    for f in etc/default/grub etc/mkinitcpio.conf etc/sddm.conf.d/zz-torus.conf "$sddm_user"; do
+      if [[ -f $R/$f ]]; then install -D -m 644 "$R/$f" "$O/$f"; else echo "$f" >> "$O/absent.txt"; fi
+    done
+    plymouth-set-default-theme 2> /dev/null > "$O/plymouth-theme" || true
+  fi
+  mkdir -p "$(dirname "$list")"
+  touch "$list"
   stamp=$(date +%Y%m%d-%H%M%S)
   attic=$R/var/lib/torus/attic/$stamp
   for f in etc/default/grub etc/mkinitcpio.conf etc/sddm.conf.d/zz-torus.conf; do
@@ -41,6 +54,7 @@ system_install() {
   done
   while IFS= read -r -d '' f; do
     install -D -m 644 "$REPO/system/$f" "$R/$f"
+    echo "$f" >> "$list"
   done < <(cd "$REPO/system" && find . -type f -printf '%P\0')
 
   tmp=$(mktemp -d)
@@ -54,12 +68,15 @@ system_install() {
   "${render[@]}" "$tmp/sddm" 1 360 transparent > /dev/null
   for i in $(seq 0 $((${TORUS_PLY_FRAMES:-90} - 1))); do
     install -D -m 644 "$tmp/ply/frame-$(printf %04d "$i").png" "$R/usr/share/plymouth/themes/marc-os/frame-$i.png"
+    echo "usr/share/plymouth/themes/marc-os/frame-$i.png" >> "$list"
   done
   magick "$tmp/grub/frame-0000.png" -depth 8 "PNG32:$tmp/grub/donut.png"
   install -D -m 644 "$tmp/grub/donut.png" "$R/boot/grub/themes/marc-os/donut.png"
   mkdir -p "$R/usr/share/sddm/themes"
   magick -size 1920x1080 xc:'#1e1e2e' "$tmp/sddm/frame-0000.png" -gravity north -geometry +0+40 -composite "$R/usr/share/sddm/themes/torus-background.png"
   rm -rf "$tmp"
+  printf '%s\n' boot/grub/themes/marc-os/donut.png usr/share/sddm/themes/torus-background.png >> "$list"
+  sort -u -o "$list" "$list"
 
   if [[ -d $R/usr/share/sddm/themes/catppuccin-mocha-$accent ]]; then
     mkdir -p "$R/etc/sddm.conf.d"
@@ -101,10 +118,50 @@ system_install() {
   echo "torus: system theming done (accent $accent), original files in $attic"
 }
 
+system_undo() {
+  local R=${root:-/}
+  R=${R%/}
+  local O=$R/var/lib/torus/original list=$R/var/lib/torus/installed.txt f prev
+  [[ -d $O ]] || { echo "torus: nothing to undo, $O does not exist" >&2; exit 10; }
+  if [[ -f $list ]]; then
+    while IFS= read -r f; do
+      [[ -n $f ]] && rm -f "$R/$f"
+    done < "$list"
+  fi
+  rm -rf "$R/usr/share/plymouth/themes/marc-os" "$R/boot/grub/themes/marc-os"
+  while IFS= read -r -d '' f; do
+    [[ $f == absent.txt || $f == plymouth-theme ]] && continue
+    install -D -m 644 "$O/$f" "$R/$f"
+  done < <(cd "$O" && find . -type f -printf '%P\0')
+  while IFS= read -r f; do
+    [[ -n $f ]] && rm -f "$R/$f"
+  done < "$O/absent.txt"
+  prev=$(cat "$O/plymouth-theme" 2> /dev/null || true)
+  [[ -n $prev ]] && plymouth-set-default-theme "$prev"
+  grub-mkconfig -o "$R/boot/grub/grub.cfg"
+  mkinitcpio -P
+  if command -v sbctl > /dev/null; then
+    sbctl sign-all
+    local unsigned
+    unsigned=$(sbctl verify 2>&1 | grep 'is not signed' | grep -v ' /boot/grub/' || true)
+    if [[ -n $unsigned ]]; then
+      printf '%s\n' "$unsigned" >&2
+      echo "torus: unsigned files under /boot, do not reboot until fixed" >&2
+      exit 6
+    fi
+  fi
+  rm -rf "$O" "$list"
+  echo "torus: system files are back to how they were before torus"
+}
+
 if ((system)); then
   if [[ -z $root ]] && [[ $EUID -ne 0 || -z ${SUDO_USER:-} ]]; then
-    echo "run with sudo: sudo $0 --system" >&2
+    echo "run with sudo: sudo $0 --system$( ((undo)) && echo " --undo")" >&2
     exit 2
+  fi
+  if ((undo)); then
+    system_undo
+    exit 0
   fi
   system_install
   exit 0

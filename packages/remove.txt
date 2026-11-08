@@ -1,0 +1,7 @@
+waybar
+swaync
+dunst
+wlogout
+awww
+hyde-cli-git
+hyprquery-git

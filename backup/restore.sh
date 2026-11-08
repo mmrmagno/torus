@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-dir="" home="" root="" files_only=0 dry_run=0 verify_only=0
+dir="" home="" root="" torus="" files_only=0 dry_run=0 verify_only=0
 while (($#)); do
   case $1 in
     --home) home=$2; shift 2 ;;
     --root) root=$2; shift 2 ;;
+    --torus) torus=$2; shift 2 ;;
     --files-only) files_only=1; shift ;;
     --dry-run) dry_run=1; shift ;;
     --verify-only) verify_only=1; shift ;;
@@ -13,7 +14,7 @@ while (($#)); do
     *) dir=$1; shift ;;
   esac
 done
-[[ -n $dir ]] || { echo "usage: $0 <backup-dir> [--home DIR] [--root DIR] [--files-only] [--dry-run] [--verify-only]" >&2; exit 1; }
+[[ -n $dir ]] || { echo "usage: $0 <backup-dir> [--home DIR] [--root DIR] [--torus DIR] [--files-only] [--dry-run] [--verify-only]" >&2; exit 1; }
 dir=$(cd "$dir" && pwd)
 
 if [[ -z $home || -z $root ]] && [[ $EUID -ne 0 || -z ${SUDO_USER:-} || ${SUDO_USER:-} == root ]]; then
@@ -24,7 +25,7 @@ user=${SUDO_USER:-$(id -un)}
 [[ -n $home ]] || home=$(getent passwd "$user" | cut -d: -f6)
 [[ -n $root ]] || root=/
 root=${root%/}
-torus=${TORUS_DIR:-$home/dev/priv/torus}
+[[ -n $torus ]] || torus=${TORUS_DIR:-$home/dev/priv/torus}
 
 tarball=$(find "$dir" -maxdepth 1 -name 'torus-backup-*.tar.zst' | head -1)
 [[ -n $tarball ]] || { echo "no tarball in $dir" >&2; exit 4; }
@@ -120,7 +121,17 @@ if [[ -d $home ]]; then
     find "$home" -xdev -type l -lname "$torus/*" -print0 2>/dev/null | xargs -0 -r rm -f
   fi
 fi
-run rsync -a --ignore-times "$U/home/" "$home/"
+keep=$home/.local/share/torus/attic/$(date +%Y%m%d-%H%M%S)-replaced
+as_user mkdir -p "$keep"
+run rsync -a --checksum --backup --backup-dir="$keep" "$U/home/" "$home/"
+if ((!dry_run)); then
+  if rmdir "$keep" 2> /dev/null; then
+    :
+  else
+    [[ $EUID -eq 0 ]] && chown -R "$user": "$keep"
+    echo "replaced files kept in $keep"
+  fi
+fi
 run rsync -a --ignore-times "$U/system/" "$root/"
 while IFS=$'\t' read -r path target; do
   case $path in
