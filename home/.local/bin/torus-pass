@@ -5,13 +5,21 @@ case ${1:-} in
   list)
     vaults=$(pass-cli vault list < /dev/null 2> /dev/null) || exit 3
     [[ -n $vaults ]] || exit 3
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    n=0
     while IFS=$'\t' read -r sid vault; do
-      pass-cli item list --share-id "$sid" < /dev/null 2> /dev/null |
-        sed -n 's/^- \[\([^]]*\)\]: \(.*\) ([a-z_]*=[a-z_]*)$/\1\t\2/p' |
-        while IFS=$'\t' read -r iid title; do
-          printf '%s\t%s\t%s\t%s\n' "$sid" "$iid" "$vault" "$title"
-        done
+      n=$((n + 1))
+      {
+        pass-cli item list --share-id "$sid" < /dev/null 2> /dev/null |
+          sed -n 's/^- \[\([^]]*\)\]: \(.*\) (state=Active)$/\1\t\2/p' |
+          while IFS=$'\t' read -r iid title; do
+            printf '%s\t%s\t%s\t%s\n' "$sid" "$iid" "$vault" "$title"
+          done > "$tmp/$(printf %04d "$n")"
+      } &
     done < <(sed -n 's/^- \[\([^]]*\)\]: \(.*\)$/\1\t\2/p' <<< "$vaults")
+    wait
+    cat "$tmp"/* 2> /dev/null
     ;;
   copy)
     sid=$2 iid=$3 field=$4 secs=${5:-30}

@@ -45,8 +45,13 @@ PanelWindow {
         color: Qt.alpha(Theme.crust, 0.7)
         focus: true
         Keys.onEscapePressed: Store.setOpen("overview", false)
+        Component.onCompleted: forceActiveFocus()
         Keys.onPressed: event => {
-            const n = "1234567890".indexOf(event.text)
+            let n = "1234567890".indexOf(event.text)
+            if (n < 0 && event.key >= Qt.Key_1 && event.key <= Qt.Key_9)
+                n = event.key - Qt.Key_1
+            if (n < 0 && event.key === Qt.Key_0)
+                n = 9
             if (n < 0)
                 return
             Store.setOpen("overview", false)

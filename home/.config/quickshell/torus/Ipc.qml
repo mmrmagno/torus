@@ -197,6 +197,8 @@ IpcHandler {
             return
         if (dir === "apply")
             Store.altTabber.apply()
+        else if (dir === "cancel")
+            Store.setOpen("alttab", false)
         else
             Store.altTabber.step(dir)
     }

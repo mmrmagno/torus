@@ -67,6 +67,7 @@ bind("ALT + TAB", ipc("altTab", "next"), "[Window Management|Alt-tab] cycle next
 bind("ALT + SHIFT + TAB", ipc("altTab", "prev"), "[Window Management|Alt-tab] cycle previous", { transparent = true })
 bind("ALT + ALT_R", ipc("altTab", "apply"), "[Window Management|Alt-tab] switch", { release = true, transparent = true })
 bind("ALT + ALT_L", ipc("altTab", "apply"), "[Window Management|Alt-tab] switch", { release = true, transparent = true })
+bind("ALT + ESCAPE", ipc("altTab", "cancel"), "[Window Management|Alt-tab] cancel", { transparent = true })
 
 bind(MOD .. " + SHIFT + RIGHT", hl.dsp.window.resize({ x = 30, y = 0, relative = true }), "[Window Management|Resize] right", repeating)
 bind(MOD .. " + SHIFT + LEFT", hl.dsp.window.resize({ x = -30, y = 0, relative = true }), "[Window Management|Resize] left", repeating)

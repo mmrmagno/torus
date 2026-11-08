@@ -13,8 +13,8 @@ echo "pass-cli $*" >> "$STUB_LOG"
 case "$1 $2" in
   "vault list") printf -- '- [SID_A==]: Personal\n- [SID_B==]: Work Stuff\n' ;;
   "item list")
-    [[ $4 == SID_A== ]] && printf -- '- [IID_1==]: github.com (state=active)\n- [IID_2==]: Steam (old) (state=active)\n'
-    [[ $4 == SID_B== ]] && printf -- '- [IID_3==]: vpn.example.org (state=active)\n'
+    [[ $4 == SID_A== ]] && printf -- '- [IID_1==]: github.com (state=Active)\n- [IID_2==]: Steam (old) (state=Active)\n- [IID_9==]: deleted.com (state=Trashed)\n'
+    [[ $4 == SID_B== ]] && printf -- '- [IID_3==]: vpn.example.org (state=Active)\n'
     ;;
   "item view")
     case "$*" in

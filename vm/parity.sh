@@ -638,6 +638,14 @@ check_switch() {
   ((cols * rows >= 9)) || bad+="not-all-tiles[$sz] "
   ((w <= sw && h <= sh)) || bad+="off-screen[$sz] "
   "${QS[@]}" altTab apply > /dev/null; sleep 0.3
+  local before after
+  before=$(hyprctl activewindow -j | jq -r .address)
+  "${QS[@]}" altTab next > /dev/null; sleep 0.4
+  "${QS[@]}" altTab cancel > /dev/null; sleep 0.2
+  "${QS[@]}" altTab apply > /dev/null; sleep 0.3
+  after=$(hyprctl activewindow -j | jq -r .address)
+  [[ $before == "$after" ]] || bad+="cancel-switched "
+  [[ $("${QS[@]}" isOpen alttab 2>/dev/null | tail -n 1) == false ]] || bad+="cancel-left-open "
   hyprctl clients -j | jq -r '.[] | select(.class == "parity-switch") | .pid' | xargs -r kill
   hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "1" }))' > /dev/null
   "${QS[@]}" overviewToggle > /dev/null; sleep 1
