@@ -27,13 +27,39 @@ Column {
     Row {
         width: parent.width
         Text {
-            width: parent.width - 60
+            width: parent.width - 112
+            anchors.verticalCenter: parent.verticalCenter
             text: Qt.formatDate(root.shown, "MMMM yyyy")
             color: Theme.text
             font.family: Theme.fontUi
             font.pixelSize: 14
             font.weight: Font.DemiBold
         }
+        Rectangle {
+            id: todayBtn
+            readonly property bool away: Qt.formatDate(root.picked, "yyyyMMdd") !== Qt.formatDate(root.today, "yyyyMMdd") || root.shown.getMonth() !== root.today.getMonth() || root.shown.getFullYear() !== root.today.getFullYear()
+            width: 46
+            height: 20
+            radius: 10
+            anchors.verticalCenter: parent.verticalCenter
+            color: todayHover.hovered && away ? Theme.accent : Theme.surface0
+            opacity: away ? 1 : 0.45
+            Text {
+                anchors.centerIn: parent
+                text: "today"
+                color: todayHover.hovered && todayBtn.away ? Theme.crust : Theme.text
+                font.family: Theme.fontUi
+                font.pixelSize: 10
+            }
+            HoverHandler { id: todayHover; cursorShape: todayBtn.away ? Qt.PointingHandCursor : Qt.ArrowCursor }
+            TapHandler {
+                onTapped: {
+                    root.shown = new Date(root.today.getFullYear(), root.today.getMonth(), 1)
+                    root.picked = root.today
+                }
+            }
+        }
+        Item { width: 6; height: 1 }
         Text { text: "󰅁"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 16; width: 30
             TapHandler { onTapped: root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() - 1, 1) } }
         Text { text: "󰅂"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 16; width: 30
@@ -57,7 +83,7 @@ Column {
                 readonly property bool isPicked: modelData > 0 && Qt.formatDate(day, "yyyyMMdd") === Qt.formatDate(root.picked, "yyyyMMdd")
                 readonly property bool busy: modelData > 0 && Agenda.onDay(day).length > 0
                 width: 34
-                height: 26
+                height: 24
                 radius: 8
                 color: isToday ? Theme.accent : (isPicked ? Theme.surface1 : (cellHover.hovered && modelData > 0 ? Theme.surface0 : "transparent"))
                 Text {
@@ -108,25 +134,37 @@ Column {
         }
 
         Repeater {
-            model: root.dayEvents.slice(0, 5)
+            model: root.dayEvents.slice(0, 3)
             Row {
                 required property var modelData
                 width: parent.width
                 spacing: 8
-                Rectangle { width: 3; height: 28; radius: 2; color: Theme.peach }
-                Column {
-                    width: parent.width - 11
-                    Text { width: parent.width; text: modelData.title; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 12; elide: Text.ElideRight }
-                    Text {
-                        width: parent.width
-                        text: (modelData.allDay ? "all day" : modelData.start.slice(11) + " - " + modelData.end.slice(11)) + (modelData.place ? "  ·  " + modelData.place : "")
-                        color: Theme.subtext
-                        font.family: Theme.fontMono
-                        font.pixelSize: 10
-                        elide: Text.ElideRight
-                    }
+                Rectangle { width: 3; height: 14; radius: 2; color: Theme.peach; anchors.verticalCenter: parent.verticalCenter }
+                Text {
+                    text: modelData.allDay ? "all day" : modelData.start.slice(11)
+                    color: Theme.subtext
+                    font.family: Theme.fontMono
+                    font.pixelSize: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    width: parent.width - x
+                    text: modelData.title
+                    color: Theme.text
+                    font.family: Theme.fontUi
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
+        }
+
+        Text {
+            visible: root.dayEvents.length > 3
+            text: "+" + (root.dayEvents.length - 3) + " more"
+            color: Theme.overlay
+            font.family: Theme.fontUi
+            font.pixelSize: 10
         }
     }
 }

@@ -46,6 +46,7 @@ PanelWindow {
         Keys.onEscapePressed: Store.setOpen("dashboard", false)
 
         GridLayout {
+            readonly property int calRow: Math.max(250, cal.implicitHeight + 28)
             id: content
             anchors.fill: parent
             anchors.margins: 16
@@ -192,14 +193,14 @@ PanelWindow {
 
             Card {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.max(250, cal.implicitHeight + 28)
+                Layout.preferredHeight: content.calRow
                 Calendar { id: cal; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top }
             }
 
             Card {
                 title: "quick settings"
                 Layout.fillWidth: true
-                Layout.preferredHeight: 250
+                Layout.preferredHeight: content.calRow
                 Column {
                     anchors.fill: parent
                     spacing: 10
@@ -244,7 +245,7 @@ PanelWindow {
             Card {
                 title: "marc @ os"
                 Layout.fillWidth: true
-                Layout.preferredHeight: 250
+                Layout.preferredHeight: content.calRow
                 Column {
                     anchors.fill: parent
                     spacing: 3

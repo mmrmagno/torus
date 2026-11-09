@@ -21,7 +21,7 @@ PanelWindow {
         switch (mode) {
         case "osd": return 300
         case "notification": return 440
-        case "shot": return 400
+        case "shot": return 460
         case "recording": return 170
         case "focus": return 150
         case "media": return lyricRow ? 440 : 380
@@ -270,6 +270,7 @@ PanelWindow {
         }
 
         RowLayout {
+            id: shotRow
             visible: root.mode === "shot"
             anchors.fill: parent
             anchors.margins: 10
@@ -279,13 +280,13 @@ PanelWindow {
             HoverHandler { onHoveredChanged: Island.hold(hovered) }
 
             ClippingRectangle {
-                Layout.preferredWidth: 128
-                Layout.preferredHeight: 72
+                Layout.preferredWidth: 112
+                Layout.preferredHeight: 63
                 radius: 10
                 color: Theme.crust
                 Image {
                     anchors.fill: parent
-                    source: parent.parent.path ? "file://" + parent.parent.path : ""
+                    source: shotRow.path ? "file://" + shotRow.path : ""
                     sourceSize.width: 256
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
