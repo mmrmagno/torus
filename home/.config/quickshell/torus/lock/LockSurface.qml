@@ -75,7 +75,8 @@ Item {
             Layout.preferredWidth: implicitWidth
             Layout.preferredHeight: implicitHeight
             live: Store.locked && root.lock.awake
-            cellH: Math.max(6, Math.round(root.side * 0.3 / DonutClock.h))
+            shape: Store.wallpaper === "xwing" ? "xwing" : "torus"
+            cellH: Math.max(4, Math.round(root.side * 0.3 / (Store.wallpaper === "xwing" ? DonutClock.h * 2 : DonutClock.h)))
         }
 
         Text {
