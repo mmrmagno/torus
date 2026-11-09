@@ -19,6 +19,7 @@ case "$1 $2" in
   "item view")
     case "$*" in
       *"--field password"*) echo "s3cret-xyz" ;;
+      *"--field private_key"*) [[ $6 == IID_K== ]] && echo "-----BEGIN KEY-----" || { echo "Error: Field does not exist" >&2; exit 1; } ;;
       *"--field email"*) echo "me@example.org" ;;
       *) echo "Error: Field does not exist: username" >&2; exit 1 ;;
     esac ;;
@@ -65,6 +66,7 @@ assert_eq "something else" "$(cat "$CLIP")" "a newer copy is never cleared"
 : > "$STUB_LOG"
 assert_eq "$(printf 'password\nemail\ntotp')" "$("$T" fields SID_A== IID_1==)" "fields: only the ones the item has"
 grep -q 's3cret\|me@example' "$STUB_LOG" && fail "fields must not log values"
+assert_eq "$(printf 'password\nemail\nprivate_key\ntotp')" "$("$T" fields SID_A== IID_K==)" "fields: ssh key field found"
 STUB_NO_TOTP=1 assert_eq "$(printf 'password\nemail')" "$(STUB_NO_TOTP=1 "$T" fields SID_A== IID_1==)" "fields: no totp when the item has none"
 
 rc=0; STUB_LOCKED=1 "$T" list > "$F/locked" 2>&1 || rc=$?

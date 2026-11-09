@@ -23,18 +23,17 @@ case ${1:-} in
     ;;
   fields)
     sid=$2 iid=$3
-    has() {
-      local try
-      for try in 1 2; do
-        "$@" && return 0
-        sleep 0.4
-      done
-      return 1
-    }
-    for f in password email username note; do
-      has pass-cli item view --share-id "$sid" --item-id "$iid" --field "$f" < /dev/null > /dev/null 2>&1 && echo "$f"
+    names=(password email username urls note number cvv cardholder_name expiration_date private_key public_key)
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    for f in "${names[@]}"; do
+      { pass-cli item view --share-id "$sid" --item-id "$iid" --field "$f" < /dev/null > /dev/null 2>&1 && touch "$tmp/$f"; } &
     done
-    has sh -c 'pass-cli item totp --share-id "$1" --item-id "$2" < /dev/null 2> /dev/null | grep -qE "[0-9]{6,8}"' _ "$sid" "$iid" && echo totp
+    { pass-cli item totp --share-id "$sid" --item-id "$iid" < /dev/null 2> /dev/null | grep -qE '[0-9]{6,8}' && touch "$tmp/totp"; } &
+    wait
+    for f in "${names[@]}" totp; do
+      [[ -e $tmp/$f ]] && echo "$f"
+    done
     exit 0
     ;;
   copy)

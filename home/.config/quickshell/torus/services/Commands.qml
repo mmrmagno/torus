@@ -100,13 +100,17 @@ Singleton {
             const it = passPick
             if (passFields === null)
                 return [{ id: "ph", kind: "hint", glyph: "󰔟", title: "Checking " + it.title + "…", sub: "looking up which fields it has", act: () => {} }]
-            const open = { id: "po", kind: "app", glyph: "󰟵", title: "Open Proton Pass", sub: "for cards, keys and custom fields", act: () => Quickshell.execDetached(["proton-pass"]) }
+            const open = { id: "po", kind: "app", glyph: "󰟵", title: "Open Proton Pass", sub: "for anything else in this item", act: () => Quickshell.execDetached(["proton-pass"]) }
             if (passFields.length === 0)
-                return [open]
-            return [["password", "󰌾", "Password"], ["email", "󰇮", "Email"], ["username", "󰀄", "Username"], ["totp", "󰔟", "One-time code"], ["note", "󰎚", "Note"]].filter(f => passFields.indexOf(f[0]) >= 0).map(f => ({
+                return [{ id: "pn", kind: "field", glyph: "󰈚", title: "Name", sub: it.title + " · copy", act: () => Quickshell.execDetached(["wl-copy", "--", it.title]) }, open]
+            const labels = [["password", "󰌾", "Password"], ["email", "󰇮", "Email"], ["username", "󰀄", "Username"], ["totp", "󰔟", "One-time code"],
+                ["urls", "󰖟", "Website"], ["number", "󰆛", "Card number"], ["cvv", "󰆛", "CVV"], ["cardholder_name", "󰀄", "Cardholder"],
+                ["expiration_date", "󰃭", "Expiry"], ["private_key", "󰌆", "Private key"], ["public_key", "󰌆", "Public key"], ["note", "󰎚", "Note"]]
+            const name = { id: "pn", kind: "field", glyph: "󰈚", title: "Name", sub: it.title + " · copy", act: () => Quickshell.execDetached(["wl-copy", "--", it.title]) }
+            return labels.filter(f => passFields.indexOf(f[0]) >= 0).map(f => ({
                 id: "pf", kind: "field", glyph: f[1], title: f[2], sub: it.title + " · copy, clears in " + passClear + " s",
                 act: () => copyField(it, f[0])
-            })).concat([open])
+            })).concat([name, open])
         }
         if (passState === "error")
             return [{ id: "ph", kind: "hint", glyph: "󰟵", title: "Proton Pass is locked", sub: "run pass-cli login in a terminal, then try again", act: () => {} }]
