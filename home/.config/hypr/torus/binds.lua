@@ -73,6 +73,9 @@ bind(MOD .. " + Down", hl.dsp.focus({ direction = "d" }), "[Window Management|Ch
 
 local function alttab(dir)
 	return function()
+		if _G.torus_guard_release then
+			_G.torus_guard_release()
+		end
 		if dir == "next" or dir == "prev" then
 			alttab_held = true
 		elseif not alttab_held then
