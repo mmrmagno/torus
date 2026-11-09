@@ -13,6 +13,7 @@ right_format = """$kubernetes$golang$python$nodejs$rust$deno$lua$terraform$docke
 style = "bold lavender"
 truncation_length = 4
 truncate_to_repo = true
+read_only = ""
 
 [git_branch]
 symbol = " "
