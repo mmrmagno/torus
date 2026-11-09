@@ -12,6 +12,7 @@ import qs.polkit
 import qs.corners
 import qs.session
 import qs.studio
+import qs.capture
 import qs.background
 import qs.dashboard
 import qs.overview
@@ -55,6 +56,7 @@ ShellRoot {
     Logout {}
     SessionPanel {}
     ThemeStudio {}
+    CaptureStudio {}
     Dashboard {}
     Overview {}
     AltTab {}

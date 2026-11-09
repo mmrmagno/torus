@@ -1,5 +1,7 @@
 local MOD = "SUPER"
 
+local alttab_held = false
+
 local function ipc(fn, arg)
 	return "qs -c torus ipc call torus " .. fn .. (arg and (" " .. arg) or "")
 end
@@ -49,7 +51,13 @@ bind(MOD .. " + ALT + F4", hl.dsp.window.kill(), "[Window Management] kill focus
 bind(MOD .. " + Delete", hl.dsp.exit(), "[Window Management] exit hyprland session")
 bind(MOD .. " + W", hl.dsp.window.float({ action = "toggle" }), "[Window Management] toggle float")
 bind(MOD .. " + G", hl.dsp.group.toggle(), "[Window Management] toggle group")
-bind("ALT + P", hl.dsp.window.pseudo(), "[Window Management] toggle pseudotiling")
+bind("ALT + P", function()
+	if alttab_held then
+		hl.exec_cmd(ipc("altTabType", "p"))
+	else
+		hl.dispatch(hl.dsp.window.pseudo())
+	end
+end, "[Window Management] toggle pseudotiling")
 bind("SHIFT + F11", cycle_fullscreen, "[Window Management] cycle fullscreen")
 bind(MOD .. " + SHIFT + F", hl.dsp.window.pin(), "[Window Management] toggle pin")
 bind("CTRL + ALT + DELETE", ipc("logoutToggle"), "[Window Management] logout menu")
@@ -62,8 +70,6 @@ bind(MOD .. " + Left", hl.dsp.focus({ direction = "l" }), "[Window Management|Ch
 bind(MOD .. " + Right", hl.dsp.focus({ direction = "r" }), "[Window Management|Change focus] focus right")
 bind(MOD .. " + Up", hl.dsp.focus({ direction = "u" }), "[Window Management|Change focus] focus up")
 bind(MOD .. " + Down", hl.dsp.focus({ direction = "d" }), "[Window Management|Change focus] focus down")
-
-local alttab_held = false
 
 local function alttab(dir)
 	return function()
@@ -143,11 +149,14 @@ bind("XF86MonBrightnessDown", "torus-bright down || brightnessctl -q set 5%-", "
 bind(MOD .. " + K", "hyprctl switchxkblayout all next", "[Utilities] next keyboard layout", locked)
 bind(MOD .. " + ALT + G", "torus-gamemode", "[Utilities] game mode", locked)
 bind(MOD .. " + SHIFT + G", "torus-menu games", "[Utilities] game launcher")
-bind(MOD .. " + SHIFT + P", "hyprpicker -an", "[Utilities] color picker", locked)
+bind(MOD .. " + SHIFT + P", "torus-pick", "[Utilities] color picker", locked)
 bind(MOD .. " + P", "torus-shot s", "[Utilities] screenshot area", locked)
 bind(MOD .. " + CTRL + P", "torus-shot sf", "[Utilities] freeze and screenshot area", locked)
 bind(MOD .. " + ALT + P", "torus-shot m", "[Utilities] screenshot monitor", locked)
 bind("Print", "torus-shot p", "[Utilities] screenshot all monitors", locked)
+bind(MOD .. " + CTRL + ALT + P", "torus-shot p", "[Utilities] screenshot all monitors", locked)
+bind(MOD .. " + Print", ipc("captureToggle"), "[Utilities] capture studio")
+bind(MOD .. " + SHIFT + C", ipc("captureToggle"), "[Utilities] capture studio")
 bind(MOD .. " + CTRL + S", "torus-shot sc", "[Utilities] OCR to clipboard", locked)
 bind(MOD .. " + SHIFT + R", "torus-record toggle", "[Utilities] start or stop recording")
 bind(MOD .. " + ALT + R", "torus-record replay-save", "[Utilities] save replay")

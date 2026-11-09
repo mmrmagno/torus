@@ -63,9 +63,20 @@ while IFS= read -r line; do
 done < "$SCOPE"
 
 : > "$S/meta/missing-includes.txt"
+copy() {
+  local what=$1 rc=0
+  shift
+  rsync "$@" || rc=$?
+  # 24: source files vanished while copying (live caches); everything else is real
+  if ((rc == 24)); then
+    echo "$what" >> "$S/meta/vanished.txt"
+  elif ((rc != 0)); then
+    exit "$rc"
+  fi
+}
 for p in "${home_paths[@]}"; do
   if [[ -e $home/$p || -L $home/$p ]]; then
-    rsync -a --relative "${home_excludes[@]}" "$home/./$p" "$S/home/"
+    copy "home $p" -a --relative "${home_excludes[@]}" "$home/./$p" "$S/home/"
   else
     echo "home $p" >> "$S/meta/missing-includes.txt"
   fi
@@ -73,7 +84,7 @@ done
 for p in "${system_paths[@]}"; do
   rel=${p#/}
   if [[ -e $root/$rel || -L $root/$rel ]]; then
-    rsync -a --relative "$root/./$rel" "$S/system/"
+    copy "system $p" -a --relative "$root/./$rel" "$S/system/"
   else
     echo "system $p" >> "$S/meta/missing-includes.txt"
   fi

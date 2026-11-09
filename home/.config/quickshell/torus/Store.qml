@@ -124,6 +124,7 @@ Singleton {
     property var closedAt: ({})
 
     property string themeSection: ""
+    property bool stayAwake: false
     property var screenOf: ({})
     property var pendingScreen: null
 

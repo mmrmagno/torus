@@ -62,3 +62,20 @@ rc=0
 "$REPO/backup/backup.sh" --out "$F/guard" >/dev/null 2>&1 || rc=$?
 assert_eq 2 "$rc" "non-root exit code"
 assert_absent "$F/guard"
+
+mkdir -p "$F/vbin"
+cat > "$F/vbin/rsync" <<'S'
+#!/usr/bin/env bash
+/usr/bin/rsync "$@" || exit $?
+if [[ " $* " == *"/home/./"* && ! -e $VANISH_ONCE ]]; then
+  : > "$VANISH_ONCE"
+  exit 24
+fi
+exit 0
+S
+chmod +x "$F/vbin/rsync"
+rc=0
+out=$(VANISH_ONCE=$F/vanished-once PATH=$F/vbin:$PATH TORUS_STAMP=20260102-000000 "$REPO/backup/backup.sh" --home "$H" --root "$R" --out "$F/out" --skip-lists --keep-stage 2>&1) || rc=$?
+assert_eq 0 "$rc" "vanished files during copy do not abort the backup"
+[[ -e $F/vanished-once ]] || fail "stub never reported vanished files"
+grep -qs '^home ' "$F/out"/*20260102*/stage/meta/vanished.txt || fail "vanished copy recorded in meta/vanished.txt"

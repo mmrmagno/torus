@@ -46,6 +46,7 @@ Singleton {
     readonly property var actions: [
         { id: "a:night", glyph: "󰖔", title: "Night light", sub: NightLight.on ? "on, turn off" : "off, turn on", act: () => NightLight.toggle() },
         { id: "a:nightauto", glyph: "󰖚", title: NightLight.auto ? "Stop the night light schedule" : "Night light at sunset", sub: NightLight.auto ? "on at " + NightLight.sunset + ", off at " + NightLight.sunrise : "on at " + NightLight.sunset + ", off at " + NightLight.sunrise + ", follows your weather location", keys: "night light schedule sunset sunrise auto", act: () => NightLight.setAuto(!NightLight.auto) },
+        { id: "a:awake", glyph: Store.stayAwake ? "󰅶" : "󰾪", title: "Stay awake", sub: Store.stayAwake ? "on, the screens never sleep; turn off" : "off, keep the screens from sleeping", keys: "coffee caffeine idle sleep inhibit awake", act: () => Store.stayAwake = !Store.stayAwake },
         { id: "a:dnd", glyph: "󰂛", title: "Do not disturb", sub: Store.dnd ? "on, turn off" : "off, turn on", act: () => Store.dnd = !Store.dnd },
         { id: "a:focus25", glyph: "󰔟", title: "Focus 25 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(25) },
         { id: "a:focus50", glyph: "󰔟", title: "Focus 50 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(50) },
@@ -58,6 +59,7 @@ Singleton {
         { id: "a:walldonut", glyph: "󰟪", title: "Donut wallpaper", sub: "", act: () => Store.setWallpaper("donut") },
         { id: "a:accent", glyph: "󰏘", title: "Theme", sub: "flavor, accent color, wallpaper, animations", keys: "accent color flavour flavor latte light dark mocha wallpaper animations", act: () => Store.setOpen("theme", true) },
         { id: "a:shot", glyph: "󰹑", title: "Screenshot area", sub: "", act: () => Quickshell.execDetached(["sh", "-c", "sleep 0.3; torus-shot s"]) },
+        { id: "a:capture", glyph: "󰄀", title: "Capture studio", sub: "screenshots, recordings, recent captures (SUPER+Print)", keys: "screenshot record recording capture gallery video", act: () => Store.setOpen("capture", true) },
         { id: "a:record", glyph: "󰑋", title: "Record screen", sub: "start or stop", act: () => Quickshell.execDetached(["torus-record", "toggle"]) },
         { id: "a:picker", glyph: "󰈊", title: "Color picker", sub: "pick from the screen, copies hex, # lists past picks", keys: "color color pick eyedropper hex", act: () => Quickshell.execDetached(["sh", "-c", "sleep 0.3; torus-pick"]) },
         { id: "a:clip", glyph: "󰅌", title: "Clipboard history", sub: "", act: () => Store.setOpen("clip", true) },

@@ -26,8 +26,16 @@ case ${1:-toggle} in
       notify-send -a torus -u low "Replay" "buffer started, SUPER+ALT+R again saves the last 60 s"
     fi
     ;;
+  replay-stop)
+    if pkill -INT -f 'gpu-screen-recorder .*-r '; then
+      notify-send -a torus -u low "Replay" "stopped, nothing is buffered anymore"
+    fi
+    ;;
+  replay-status)
+    pgrep -f 'gpu-screen-recorder .*-r ' > /dev/null && echo on || echo off
+    ;;
   *)
-    echo "usage: torus-record toggle|replay-save" >&2
+    echo "usage: torus-record toggle|replay-save|replay-stop|replay-status" >&2
     exit 2
     ;;
 esac

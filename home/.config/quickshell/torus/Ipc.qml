@@ -223,6 +223,11 @@ IpcHandler {
         Store.toggle("cheatsheet")
     }
 
+    function altTabType(text: string): void {
+        if (Store.altTabber && Store.isOpen("alttab"))
+            Store.altTabber.type(Store.altTabber.query + text)
+    }
+
     function altTab(dir: string): void {
         if (!Store.altTabber)
             return
@@ -283,6 +288,18 @@ IpcHandler {
 
     function brightnessOsd(value: int): void {
         Island.flash("osd", { icon: "󰃟", label: value + "%", value: value / 100 }, 1600)
+    }
+
+    function stayAwake(on: bool): void {
+        Store.stayAwake = on
+    }
+
+    function stayAwakeState(): bool {
+        return Store.stayAwake
+    }
+
+    function captureToggle(): void {
+        Store.toggle("capture")
     }
 
     function themeToggle(): void {

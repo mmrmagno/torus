@@ -12,7 +12,7 @@ keys() { python3 "$here/qmp-keys.py" "$qmp" "$1"; sleep 0.7; }
 active() { vm 'hyprctl activewindow -j | jq -r .address'; }
 open() { vm 'qs -c torus ipc call torus isOpen alttab 2>/dev/null | tail -n 1'; }
 
-vm 'for i in 1 2 3; do hyprctl eval "hl.exec_cmd(\"kitty --class alttab-keys\")" > /dev/null; done; sleep 3' > /dev/null
+vm 'for t in alpha beta gamma; do hyprctl eval "hl.exec_cmd(\"kitty --class alttab-keys --title k-$t\")" > /dev/null; sleep 0.6; done; sleep 3' > /dev/null
 fail=0
 check() {
   local label=$1 seq=$2 want=$3 before after state
@@ -24,5 +24,9 @@ for i in 1 2 3; do check "alt released before tab #$i" "alt+ 15 tab+ 15 alt- 10 
 for i in 1 2 3; do check "zero-gap tap #$i" "alt+ 5 tab+ 0 tab- 0 alt-" switched; done
 check "held, one tab" "alt+ 30 tab+ 40 tab- 400 alt-" switched
 check "escape cancels" "alt+ 30 tab+ 40 tab- 300 esc+ 30 esc- 100 alt-" same
+vm 'hyprctl eval "hl.dispatch(hl.dsp.focus({ window = \"title:k-alpha\" }))"' > /dev/null
+keys "alt+ 40 tab+ 40 tab- 400 g+ 30 g- 60 a+ 30 a- 60 m+ 30 m- 400 alt-"
+title=$(vm 'hyprctl activewindow -j | jq -r .title')
+if [[ $title == k-gamma && $(open) == false ]]; then echo "ok   typing filters to gamma"; else echo "FAIL typing filter (focused $title)"; fail=1; fi
 vm 'hyprctl clients -j | jq -r ".[] | select(.class == \"alttab-keys\") | .pid" | xargs -r kill' > /dev/null
 exit $fail

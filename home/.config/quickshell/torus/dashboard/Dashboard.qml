@@ -328,6 +328,11 @@ PanelWindow {
                         label: "Folder"
                         onClicked: Quickshell.execDetached(["xdg-open", Recordings.dir])
                     }
+                    PanelButton {
+                        icon: "󰄀"
+                        label: "Studio"
+                        onClicked: { Store.setOpen("dashboard", false); Store.setOpen("capture", true) }
+                    }
                 }
             }
         }

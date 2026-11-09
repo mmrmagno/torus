@@ -28,3 +28,11 @@ rc=0
 "$REPO/backup/offsite.sh" push "$dir" --dest "$F/remote2" --recipient "$F/nope" > /dev/null 2>&1 || rc=$?
 assert_eq 2 "$rc" "missing recipient exit code"
 assert_absent "$F/remote2"
+
+mkdir -p "$F/failbin"
+printf '#!/usr/bin/env bash\n[[ $1 == version ]] && { echo "rclone v1.70.0"; exit 0; }\n[[ $1 == copy ]] && exit 1\nexit 0\n' > "$F/failbin/rclone"
+chmod +x "$F/failbin/rclone"
+rc=0
+PATH=$F/failbin:$PATH "$REPO/backup/offsite.sh" push "$dir" --dest "$F/remote3" --recipient "$F/recipient" > /dev/null 2>&1 || rc=$?
+[[ $rc != 0 ]] || fail "failed upload must fail"
+assert_absent "$dir/.offsite"

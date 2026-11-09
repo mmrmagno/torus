@@ -36,7 +36,8 @@ push() {
   tarball=$(find "$dir" -maxdepth 1 -name 'torus-backup-*.tar.zst' | head -1)
   [[ -n $tarball ]] || { echo "no tarball in $dir" >&2; exit 1; }
   local name=${tarball##*/} up=$dir/.offsite
-  trap 'rm -rf "$up"' RETURN
+  OFFSITE_UP=$up
+  trap 'rm -rf "${OFFSITE_UP:-}"' EXIT
   mkdir -p "$up"
   age -R "$recipient" -o "$up/$name.age" "$tarball"
   cp "$tarball.sha256" "$up/"

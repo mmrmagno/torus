@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+shots=${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots
+videos=${XDG_VIDEOS_DIR:-$HOME/Videos}
+thumbs=${XDG_CACHE_HOME:-$HOME/.cache}/torus/thumbs
+limit=${1:-24}
+mkdir -p "$thumbs"
+
+{
+  find "$shots" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) -printf 'image\t%T@\t%s\t%p\n' 2> /dev/null
+  find "$videos" -maxdepth 1 -type f \( -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.webm' \) -printf 'video\t%T@\t%s\t%p\n' 2> /dev/null
+} | sort -t $'\t' -k2,2nr | head -n "$limit" | while IFS=$'\t' read -r kind mtime size path; do
+  thumb=$path
+  if [[ $kind == video ]]; then
+    thumb=$thumbs/$(printf '%s' "$path" | md5sum | cut -d' ' -f1).jpg
+    if [[ ! -s $thumb ]] && command -v ffmpeg > /dev/null; then
+      ffmpeg -v error -y -ss 1 -i "$path" -frames:v 1 -vf scale=320:-2 "$thumb" < /dev/null 2> /dev/null ||
+        ffmpeg -v error -y -i "$path" -frames:v 1 -vf scale=320:-2 "$thumb" < /dev/null 2> /dev/null || thumb=""
+    fi
+    [[ -s $thumb ]] || thumb=""
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\n' "$kind" "${mtime%.*}" "$size" "$path" "$thumb"
+done

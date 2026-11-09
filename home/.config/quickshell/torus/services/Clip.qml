@@ -19,7 +19,7 @@ Singleton {
         const taken = {}
         for (const p of pins)
             taken[p.file] = true
-        const all = pinned.concat(entries.filter(e => !taken[Qt.md5(e.line) + ".pin"]))
+        const all = pinned.map(p => Object.assign(p, classify(p))).concat(entries.filter(e => !taken[Qt.md5(e.line) + ".pin"])).filter(e => kindFilter === "all" || e.kind === kindFilter || (kindFilter === "text" && (e.kind === "email" || e.kind === "path")))
         if (q === "")
             return all
         return all.filter(e => {
@@ -99,6 +99,30 @@ Singleton {
         }
     }
 
+    property string kindFilter: "all"
+
+    function classify(e) {
+        if (e.image)
+            return { kind: "image" }
+        const t = e.text.trim()
+        let m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(t)
+        if (m && (t.startsWith("#") || /[a-f]/i.test(m[1]) && /[0-9]/.test(m[1])))
+            return { kind: "color", color: "#" + m[1] }
+        m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(t)
+        if (m)
+            return { kind: "color", color: Qt.rgba(m[1] / 255, m[2] / 255, m[3] / 255, 1).toString() }
+        m = /^(https?):\/\/([^\/\s]+)(\S*)$/i.exec(t)
+        if (m)
+            return { kind: "link", host: m[2].replace(/^www\./, ""), rest: m[3] }
+        if (/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(t))
+            return { kind: "email" }
+        if (/^(~|\/)[^\s]*$/.test(t) && t.length > 1)
+            return { kind: "path" }
+        if (/[{};]|=>|\(\)|^\s*(const|let|var|function|def|import|export|return|if|for|fn|pub|package|class|#include|SELECT|sudo|git|cd|ls|echo)\b/.test(t))
+            return { kind: "code" }
+        return { kind: "text" }
+    }
+
     function parse() {
         const out = []
         for (const line of raw.split("\n")) {
@@ -108,7 +132,9 @@ Singleton {
             const id = line.slice(0, tab)
             const preview = line.slice(tab + 1)
             const m = preview.match(/^\[\[ binary data .* (png|jpg|jpeg|webp|bmp|gif) (\d+)x(\d+) \]\]$/)
-            out.push({ id: id, line: line, text: m ? "image " + m[2] + "x" + m[3] : preview, image: m ? "file://" + thumbs + "/" + Qt.md5(line) + ".img" : "" })
+            const e = { id: id, line: line, text: m ? "image " + m[2] + "x" + m[3] : preview, image: m ? "file://" + thumbs + "/" + Qt.md5(line) + ".img" : "" }
+            Object.assign(e, classify(e))
+            out.push(e)
         }
         entries = out
     }

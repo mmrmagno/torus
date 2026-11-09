@@ -20,6 +20,25 @@ PanelWindow {
         return Hyprland.toplevels.values.slice().sort((a, b) => rank(a) - rank(b))
     }
 
+    property string query: ""
+    readonly property var shown: {
+        const q = query.toLowerCase()
+        if (q === "")
+            return windows
+        return windows.filter(t => {
+            const app = t.wayland && t.wayland.appId ? t.wayland.appId : ""
+            const e = app ? DesktopEntries.heuristicLookup(app) : null
+            return ((t.title || "") + " " + app + " " + (e ? e.name : "")).toLowerCase().includes(q)
+        })
+    }
+    onShownChanged: if (selected >= shown.length) selected = Math.max(0, shown.length - 1)
+
+    function type(text) {
+        query = text
+        const cur = Hyprland.activeToplevel
+        selected = shown.length > 1 && cur && shown[0].address === cur.address ? 1 : 0
+    }
+
     function noteFocus() {
         const t = Hyprland.activeToplevel
         if (t && t.address)
@@ -43,13 +62,15 @@ PanelWindow {
                 return
             }
             Hyprland.refreshToplevels()
+            query = ""
             selected = windows.length > 1 ? 1 : 0
             revealed = false
             reveal.restart()
             Store.setOpen("alttab", true)
             return
         }
-        selected = (selected + (dir === "prev" ? -1 : 1) + windows.length) % windows.length
+        const n = Math.max(1, shown.length)
+        selected = (selected + (dir === "prev" ? -1 : 1) + n) % n
     }
 
     function apply() {
@@ -57,14 +78,16 @@ PanelWindow {
             releasedAt = Date.now()
             return
         }
-        const w = windows[selected]
+        const w = shown[selected]
         Store.setOpen("alttab", false)
+        query = ""
         Store.focusWindow(w)
     }
 
     screen: Store.focusedScreen
     visible: Store.isOpen("alttab") && revealed
-    readonly property int count: Math.max(1, windows.length)
+    readonly property int count: Math.max(1, shown.length)
+    readonly property int head: 30
     readonly property int maxW: (screen ? screen.width : 1200) - 80
     readonly property int maxH: (screen ? screen.height : 800) - 160
     readonly property int tileW: {
@@ -80,11 +103,12 @@ PanelWindow {
     readonly property int rows: Math.ceil(count / cols)
 
     implicitWidth: cols * (tileW + 12) - 12 + 32
-    implicitHeight: rows * (tileH + 12) - 12 + 32
+    implicitHeight: rows * (tileH + 12) - 12 + 32 + head
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     Component.onCompleted: {
         Store.altTabber = root
@@ -113,6 +137,7 @@ PanelWindow {
         Component.onCompleted: {
             opacity = 1
             scale = 1
+            forceActiveFocus()
         }
         Behavior on opacity { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
@@ -120,15 +145,58 @@ PanelWindow {
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
         clip: true
+        focus: true
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Backspace) {
+                root.type(root.query.slice(0, -1))
+            } else if (event.key === Qt.Key_Escape) {
+                root.query = ""
+                Store.setOpen("alttab", false)
+            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                root.apply()
+            } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Up) {
+                root.step("prev")
+            } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Down) {
+                root.step("next")
+            } else if (event.key >= Qt.Key_A && event.key <= Qt.Key_Z) {
+                root.type(root.query + String.fromCharCode(event.key + 32))
+            } else if ((event.key >= Qt.Key_0 && event.key <= Qt.Key_9) || event.key === Qt.Key_Space || event.key === Qt.Key_Minus || event.key === Qt.Key_Period) {
+                root.type(root.query + String.fromCharCode(event.key))
+            } else {
+                return
+            }
+            event.accepted = true
+        }
+
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: 12
+            spacing: Theme.sp3
+            Text {
+                text: "󰍉"
+                color: root.query !== "" ? Theme.accent : Theme.overlay
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fsMd
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: root.query !== "" ? root.query + (root.shown.length === 0 ? "  ·  no match" : "") : "type to filter"
+                color: root.query !== "" ? (root.shown.length === 0 ? Theme.red : Theme.text) : Theme.overlay
+                font.family: root.query !== "" ? Theme.fontMono : Theme.fontUi
+                font.pixelSize: Theme.fsMd
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
 
         Grid {
             id: row
             anchors.centerIn: parent
+            anchors.verticalCenterOffset: root.head / 2
             spacing: Theme.sp6
             columns: root.cols
 
             Repeater {
-                model: root.windows
+                model: root.shown
                 Rectangle {
                     required property var modelData
                     required property int index
