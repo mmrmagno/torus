@@ -6,6 +6,7 @@ import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 import Quickshell.Bluetooth
+import Quickshell.Services.UPower
 import qs
 
 Singleton {
@@ -65,6 +66,44 @@ Singleton {
         }
         node.audio.volume = Math.max(0, Math.min(1, node.audio.volume + delta))
         flash("osd", { icon: "󰎆", label: name + "  " + Math.round(node.audio.volume * 100) + "%", value: node.audio.volume })
+    }
+
+    readonly property var battery: UPower.displayDevice
+    readonly property bool hasBattery: battery !== null && battery.isLaptopBattery
+    readonly property bool charging: hasBattery && (battery.state === UPowerDeviceState.Charging || battery.state === UPowerDeviceState.FullyCharged || battery.state === UPowerDeviceState.PendingCharge)
+    property int warnedAt: 100
+
+    function batteryCheck() {
+        if (!hasBattery)
+            return
+        const pct = Math.round(battery.percentage * 100)
+        if (charging) {
+            warnedAt = 100
+            return
+        }
+        for (const level of [5, 15]) {
+            if (pct <= level && warnedAt > level) {
+                warnedAt = level
+                flash("osd", { icon: level === 5 ? "󰂃" : "󰁺", label: "Battery " + pct + "%" + (level === 5 ? ", plug in now" : ", running low"), value: battery.percentage }, 6000)
+                if (level === 5)
+                    Quickshell.execDetached(["notify-send", "-u", "critical", "-a", "torus", "-i", "battery-caution", "Battery at " + pct + "%", "Plug in the charger, the laptop will sleep soon"])
+                return
+            }
+        }
+    }
+
+    onChargingChanged: {
+        if (!hasBattery || !armed)
+            return
+        flash("osd", { icon: charging ? "󰂄" : "󰁹", label: (charging ? "Charging " : "On battery ") + Math.round(battery.percentage * 100) + "%", value: battery.percentage }, 2200)
+        batteryCheck()
+    }
+
+    Connections {
+        target: root.battery
+        function onPercentageChanged() {
+            root.batteryCheck()
+        }
     }
 
     property bool caps: false

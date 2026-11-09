@@ -6,7 +6,7 @@ map=${XDG_RUNTIME_DIR:-/tmp}/torus/ddc.map
 step=5
 
 buses() {
-  if [[ ! -s $map ]]; then
+  if [[ ! -e $map ]]; then
     mkdir -p "$(dirname "$map")"
     ddcutil detect --terse 2> /dev/null | awk '
       /I2C bus:/ { split($NF, p, "-"); bus = p[2] }

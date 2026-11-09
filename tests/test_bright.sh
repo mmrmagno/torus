@@ -40,4 +40,10 @@ assert_eq "0" "$(awk '$1 == 7 {print $2}' "$VCP")" "down clamps to 0"
 
 rc=0; PATH=/usr/bin:/bin "$T" list > /dev/null 2>&1 || rc=$?
 [[ -x /usr/bin/ddcutil ]] || assert_eq 3 "$rc" "no ddcutil exits 3"
+mkdir -p "$F/run2"
+printf '#!/usr/bin/env bash\necho "ddcutil $*" >> "$STUB_LOG"\n' > "$F/bin/ddcutil"
+printf '#!/usr/bin/env bash\necho '"'"'[{"name":"eDP-1","focused":true}]'"'"'\n' > "$F/bin/hyprctl"
+: > "$STUB_LOG"
+for _ in 1 2 3; do XDG_RUNTIME_DIR=$F/run2 "$T" up > /dev/null 2>&1 || true; done
+assert_eq 1 "$(grep -c 'ddcutil.*detect' "$STUB_LOG")" "laptop panel without DDC: detect runs once, not on every key press"
 true

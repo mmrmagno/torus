@@ -7,6 +7,9 @@ hl.config({
 		follow_mouse = 1,
 		touchpad = {
 			natural_scroll = false,
+			tap_to_click = true,
+			disable_while_typing = true,
+			clickfinger_behavior = true,
 		},
 	},
 	dwindle = {
@@ -43,3 +46,5 @@ hl.config({
 		no_hardware_cursors = torus.vm,
 	},
 })
+
+hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })

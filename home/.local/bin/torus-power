@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+ps=${TORUS_POWER_SUPPLY:-/sys/class/power_supply}
+
+on_ac() {
+  local d
+  for d in "$ps"/*; do
+    [[ $(cat "$d/type" 2> /dev/null) == Mains ]] && [[ $(cat "$d/online" 2> /dev/null) == 1 ]] && return 0
+  done
+  return 1
+}
+
+has_battery() {
+  local d
+  for d in "$ps"/*; do
+    [[ $(cat "$d/type" 2> /dev/null) == Battery ]] && return 0
+  done
+  return 1
+}
+
+case ${1:-status} in
+  on-battery) has_battery && ! on_ac ;;
+  status)
+    if ! has_battery; then echo none
+    elif on_ac; then echo ac
+    else echo battery
+    fi
+    ;;
+  *) echo "usage: torus-power on-battery | status" >&2; exit 2 ;;
+esac
