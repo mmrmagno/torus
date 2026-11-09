@@ -46,7 +46,7 @@ Singleton {
     }
     property var frames: ({})
     readonly property var wallpapers: {
-        const out = ["donut"]
+        const out = ["donut", "xwing"]
         for (let i = 0; i < walls.count; i++)
             out.push("still:" + walls.get(i, "filePath"))
         return out
@@ -57,7 +57,7 @@ Singleton {
     }
 
     function setWallpaper(mode) {
-        if (mode !== "donut" && !mode.startsWith("still:"))
+        if (mode !== "donut" && mode !== "xwing" && !mode.startsWith("still:"))
             return
         wallpaper = mode
         wallFile.setText(mode + "\n")
@@ -169,7 +169,7 @@ Singleton {
         printErrors: false
         onLoaded: {
             const v = text().trim()
-            if (v === "donut" || v.startsWith("still:"))
+            if (v === "donut" || v === "xwing" || v.startsWith("still:"))
                 root.wallpaper = v
         }
     }

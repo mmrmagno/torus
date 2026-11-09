@@ -192,8 +192,8 @@ PanelWindow {
 
             Card {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 250
-                Calendar { anchors.fill: parent }
+                Layout.preferredHeight: Math.max(250, cal.implicitHeight + 28)
+                Calendar { id: cal; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top }
             }
 
             Card {

@@ -75,6 +75,36 @@ IpcHandler {
         Clip.filter = text
     }
 
+    function agendaRefresh(): void {
+        Agenda.refresh()
+    }
+
+    function agendaToday(): string {
+        return Agenda.onDay(new Date()).map(e => e.start.slice(11) + " " + e.title).join("|")
+    }
+
+    function notifRepeatMax(): int {
+        let m = 0
+        for (const k in Notifs.repeats)
+            m = Math.max(m, Notifs.repeats[k])
+        return m
+    }
+
+    function quietSet(from: int, to: int): bool {
+        Notifs.quietFrom = from
+        Notifs.quietTo = to
+        Notifs.checkQuiet()
+        return Notifs.quietActive
+    }
+
+    function clipPin(index: int): void {
+        Clip.togglePin(Clip.shown[index])
+    }
+
+    function clipPinned(): string {
+        return Clip.pins.map(p => p.text).join("|")
+    }
+
     function clipCopy(index: int): void {
         if (index >= 0 && index < Clip.shown.length)
             Clip.copy(Clip.shown[index])

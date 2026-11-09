@@ -17,4 +17,5 @@ hl.on("hyprland.start", function()
 		hl.exec_cmd(cmd)
 	end
 	hl.exec_cmd("hyprctl setcursor Bibata-Modern-Ice 24")
+	hl.exec_cmd("sh -c 'sleep 8; torus-session restore'")
 end)

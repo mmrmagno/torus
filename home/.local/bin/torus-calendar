@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+DAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+
+
+def local():
+    return datetime.now().astimezone().tzinfo
+
+
+def unfold(text):
+    out = []
+    for line in text.replace("\r\n", "\n").split("\n"):
+        if line.startswith((" ", "\t")) and out:
+            out[-1] += line[1:]
+        elif line:
+            out.append(line)
+    return out
+
+
+def unescape(v):
+    return v.replace("\\n", " ").replace("\\N", " ").replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\")
+
+
+def prop(line):
+    head, _, value = line.partition(":")
+    name, *params = head.split(";")
+    p = {}
+    for x in params:
+        k, _, v = x.partition("=")
+        p[k.upper()] = v
+    return name.upper(), p, value
+
+
+def when(value, params):
+    if params.get("VALUE") == "DATE" or (len(value) == 8 and value.isdigit()):
+        d = datetime.strptime(value[:8], "%Y%m%d")
+        return d.replace(tzinfo=local()), True
+    dt = datetime.strptime(value.rstrip("Z")[:15], "%Y%m%dT%H%M%S")
+    if value.endswith("Z"):
+        return dt.replace(tzinfo=timezone.utc), False
+    if "TZID" in params:
+        try:
+            return dt.replace(tzinfo=ZoneInfo(params["TZID"])), False
+        except Exception:
+            pass
+    return dt.replace(tzinfo=local()), False
+
+
+def events(lines):
+    cur = None
+    for line in lines:
+        if line == "BEGIN:VEVENT":
+            cur = {"exdate": []}
+        elif line == "END:VEVENT" and cur is not None:
+            yield cur
+            cur = None
+        elif cur is not None:
+            name, params, value = prop(line)
+            if name in ("DTSTART", "DTEND", "RECURRENCE-ID"):
+                cur[name], cur[name + "_DAY"] = when(value, params)
+            elif name == "EXDATE":
+                for v in value.split(","):
+                    cur["exdate"].append(when(v, params)[0])
+            elif name in ("SUMMARY", "LOCATION", "RRULE", "UID", "STATUS"):
+                cur[name] = value
+
+
+def occurrences(start, rule, end):
+    r = dict(x.split("=", 1) for x in rule.split(";") if "=" in x)
+    freq = r.get("FREQ", "")
+    step = int(r.get("INTERVAL", "1"))
+    count = int(r["COUNT"]) if "COUNT" in r else None
+    until = when(r["UNTIL"], {})[0] if "UNTIL" in r else None
+    byday = [DAYS.index(d[-2:]) for d in r.get("BYDAY", "").split(",") if d[-2:] in DAYS]
+    n = 0
+    k = 0
+    while k < 5000:
+        if freq == "WEEKLY" and byday:
+            week = start - timedelta(days=start.weekday()) + timedelta(weeks=k * step)
+            batch = sorted(week + timedelta(days=d) for d in byday)
+        elif freq == "DAILY":
+            batch = [start + timedelta(days=k * step)]
+        elif freq == "WEEKLY":
+            batch = [start + timedelta(weeks=k * step)]
+        elif freq == "MONTHLY":
+            m = start.month - 1 + k * step
+            try:
+                batch = [start.replace(year=start.year + m // 12, month=m % 12 + 1)]
+            except ValueError:
+                batch = []
+        elif freq == "YEARLY":
+            try:
+                batch = [start.replace(year=start.year + k * step)]
+            except ValueError:
+                batch = []
+        else:
+            return
+        k += 1
+        for dt in batch:
+            if dt < start:
+                continue
+            if (until and dt > until) or (count is not None and n >= count) or dt >= end:
+                return
+            n += 1
+            yield dt
+
+
+def parse(text, frm, days):
+    tz = local()
+    lo = datetime.combine(frm, time(0)).replace(tzinfo=tz)
+    hi = lo + timedelta(days=days)
+    evs = list(events(unfold(text)))
+    moved = {}
+    for e in evs:
+        if "RECURRENCE-ID" in e and "UID" in e:
+            moved.setdefault(e["UID"], []).append(e["RECURRENCE-ID"])
+    out = []
+    for e in evs:
+        if "DTSTART" not in e or e.get("STATUS") == "CANCELLED" and "RECURRENCE-ID" not in e:
+            continue
+        start = e["DTSTART"]
+        allday = e.get("DTSTART_DAY", False)
+        length = (e["DTEND"] - start) if "DTEND" in e else (timedelta(days=1) if allday else timedelta(hours=1))
+        skip = e["exdate"] + ([] if "RECURRENCE-ID" in e else moved.get(e.get("UID"), []))
+        starts = occurrences(start, e["RRULE"], hi) if "RRULE" in e and "RECURRENCE-ID" not in e else [start]
+        for s in starts:
+            if any(abs((s - x).total_seconds()) < 60 for x in skip):
+                continue
+            if e.get("STATUS") == "CANCELLED":
+                continue
+            f = s + length
+            if f <= lo or s >= hi:
+                continue
+            out.append((s.astimezone(tz), f.astimezone(tz), allday, unescape(e.get("SUMMARY", "event")), unescape(e.get("LOCATION", ""))))
+    out.sort(key=lambda x: (x[0], x[3]))
+    return ["%s\t%s\t%d\t%s\t%s" % (s.strftime("%Y-%m-%dT%H:%M"), f.strftime("%Y-%m-%dT%H:%M"), a, t.replace("\t", " "), l.replace("\t", " ")) for s, f, a, t, l in out]
+
+
+def main():
+    args = sys.argv[1:]
+    cmd = args[0] if args else "fetch"
+    opts = dict(zip(args[1::2], args[2::2]))
+    frm = date.fromisoformat(opts.get("--from", date.today().isoformat()))
+    days = int(opts.get("--days", "14"))
+    if cmd == "parse":
+        print("\n".join(parse(sys.stdin.read(), frm, days)))
+        return 0
+    if cmd == "fetch":
+        conf = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "torus", "calendar.url")
+        cache = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "torus", "calendar.tsv")
+        try:
+            with open(conf) as f:
+                url = f.read().strip()
+        except OSError:
+            return 3
+        try:
+            text = subprocess.run(["curl", "-sfL", "--max-time", "20", "--", url], capture_output=True, text=True, check=True).stdout
+        except subprocess.CalledProcessError:
+            return 4
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        tmp = cache + ".tmp"
+        with open(tmp, "w") as f:
+            f.write("\n".join(parse(text, frm, days)) + "\n")
+        os.replace(tmp, cache)
+        return 0
+    print("usage: torus-calendar fetch | parse [--from YYYY-MM-DD] [--days N]", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

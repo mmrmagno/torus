@@ -1,0 +1,6 @@
+[Unit]
+Description=torus: save open windows for session restore
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/torus-session save

@@ -89,7 +89,7 @@ case ${1:-drun} in
   wallpaper)
     pick=$(qs -c torus ipc call torus wallpaperList | sed 's|^still:||' | menu "wallpaper") || exit 0
     [[ -z $pick ]] && exit 0
-    [[ $pick == donut ]] || pick="still:$pick"
+    [[ $pick == donut || $pick == xwing ]] || pick="still:$pick"
     qs -c torus ipc call torus wallpaper "$pick" > /dev/null
     ;;
   accent)

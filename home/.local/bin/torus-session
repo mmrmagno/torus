@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+file=$state/session.tsv
+proc=${TORUS_PROC:-/proc}
+skip='^(cs2|gamescope|steam_app_[0-9]+|org\.quickshell|hyprland-share-picker|polkit.*|.*polkit-agent.*)$'
+
+cwd_of() {
+  local pid=$1 n=$2 kids
+  kids=$(for k in $(cat "$proc/$pid"/task/*/children 2> /dev/null); do [[ $(cat "$proc/$k/comm" 2> /dev/null) == kitten ]] || echo "$k"; done)
+  set -- $kids
+  ((n < $#)) || n=0
+  shift "$n" 2> /dev/null || true
+  [[ -n ${1:-} ]] && readlink "$proc/$1/cwd" 2> /dev/null
+}
+
+desktop_id() {
+  local class=$1 d f
+  for d in "${XDG_DATA_HOME:-$HOME/.local/share}" ${XDG_DATA_DIRS//:/ }; do
+    for f in "$d"/applications/*.desktop; do
+      [[ -f $f ]] || continue
+      if [[ ${f##*/} == "$class.desktop" ]] || grep -qix "StartupWMClass=$class" "$f"; then
+        basename "$f" .desktop
+        return
+      fi
+    done
+  done
+}
+
+case ${1:-save} in
+  save)
+    mkdir -p "$state"
+    declare -A seen=() used=()
+    tmp=$(mktemp)
+    while IFS=$'\t' read -r class pid ws; do
+      [[ $class =~ $skip ]] && continue
+      if [[ $class == kitty ]]; then
+        n=${used[$pid]:-0}
+        used[$pid]=$((n + 1))
+        printf 'kitty\t%s\t%s\n' "$ws" "$(cwd_of "$pid" "$n")"
+      elif [[ -z ${seen[$class]:-} ]]; then
+        seen[$class]=1
+        printf '%s\t%s\t\n' "$class" "$ws"
+      fi
+    done < <(hyprctl clients -j | jq -r '.[] | select(.mapped and .workspace.id > 0) | [.class, .pid, .workspace.id] | @tsv') > "$tmp"
+    mv "$tmp" "$file"
+    ;;
+  restore)
+    [[ $(cat "$state/session-restore" 2> /dev/null) == off ]] && exit 0
+    [[ -s $file ]] || exit 0
+    mv "$file" "$state/session.restored.tsv"
+    while IFS=$'\t' read -r class ws dir; do
+      if [[ $class == kitty ]]; then
+        cmd="kitty${dir:+ --directory $dir}"
+      else
+        id=$(desktop_id "$class")
+        if [[ -n $id ]]; then
+          cmd="gtk-launch $id"
+        elif command -v "${class,,}" > /dev/null; then
+          cmd=${class,,}
+        else
+          continue
+        fi
+      fi
+      cmd=${cmd//\\/\\\\}
+      cmd=${cmd//\"/\\\"}
+      hyprctl eval "hl.exec_cmd(\"[workspace $ws silent] $cmd\")" > /dev/null
+    done < "$state/session.restored.tsv"
+    ;;
+  *)
+    echo "usage: torus-session save | restore" >&2
+    exit 2
+    ;;
+esac

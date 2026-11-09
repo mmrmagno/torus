@@ -338,7 +338,7 @@ check_donut() {
   ((a5 > a4)) || ok=0
   [[ -z $side ]] || ((b3 > b2)) || ok=0
   local cpumax=${DONUT_CPU_MAX:-10}
-  journalctl -b --no-pager 2> /dev/null | grep -q kms_swrast && cpumax=${DONUT_CPU_MAX:-70}
+  grep -qs -e kms_swrast -e llvmpipe "$XDG_RUNTIME_DIR"/hypr/*/hyprland.log && cpumax=${DONUT_CPU_MAX:-70}
   awk -v c="$cpu" -v max="$cpumax" 'BEGIN { exit !(c < max) }' || ok=0
   awk -v s="$sd" 'BEGIN { exit !(s > 0.03) }' || ok=0
   local detail="visible (contrast $sd), main $a1>$a2 then fullscreen $a2=$a3 then closed $a4>$a5, side $b1>$b2>$b3, qs cpu ${cpu}% of one core"
@@ -490,7 +490,7 @@ check_lock() {
     if locked_is true; then
       sleep 3
       type_pw "$LOCK_PW"
-      locked_is false || bad+="takeover-unlock "
+      locked_is false || { sleep 2; type_pw "$LOCK_PW"; locked_is false; } || bad+="takeover-unlock "
     else
       bad+="no-takeover "
     fi
@@ -724,6 +724,110 @@ check_panels() {
   if [[ -z $bad ]]; then section panels ok "network panel sees the wired link, update centre lists updates and arch news [$r]"; else section panels fail "$bad"; fi
 }
 
+check_pins() {
+  local bad="" r
+  printf 'parity pinned text' | wl-copy; sleep 1
+  "${QS[@]}" clipToggle > /dev/null; sleep 1.5
+  "${QS[@]}" clipPin 0 > /dev/null; sleep 1
+  [[ $("${QS[@]}" clipPinned 2>/dev/null | tail -n 1) == *"parity pinned text"* ]] || bad+="not-pinned "
+  "${QS[@]}" clipToggle > /dev/null
+  cliphist wipe; printf 'something else' | wl-copy; sleep 1
+  "${QS[@]}" clipToggle > /dev/null; sleep 1.5
+  "${QS[@]}" clipCopy 0 > /dev/null; sleep 0.8
+  r=$(wl-paste -n 2>/dev/null)
+  [[ $r == "parity pinned text" ]] || bad+="pin-lost[$r] "
+  "${QS[@]}" clipToggle > /dev/null; sleep 1
+  "${QS[@]}" clipPin 0 > /dev/null; sleep 0.5
+  [[ -z $("${QS[@]}" clipPinned 2>/dev/null | tail -n 1) ]] || bad+="unpin-failed "
+  "${QS[@]}" clipToggle > /dev/null
+  if [[ -z $bad ]]; then section pins ok "pinned entry survives a history wipe and copies back"; else section pins fail "$bad"; fi
+}
+
+check_smart() {
+  local bad="" was h r
+  "${QS[@]}" clearNotifs > /dev/null
+  for _ in 1 2 3; do notify-send -a parity "Build failed" "job 42"; sleep 0.4; done; sleep 1
+  r=$("${QS[@]}" notifCount 2>/dev/null | tail -n 1)
+  [[ $r == 1 ]] || bad+="not-collapsed[$r] "
+  [[ $("${QS[@]}" notifRepeatMax 2>/dev/null | tail -n 1) == 3 ]] || bad+="no-x3 "
+  "${QS[@]}" paletteQuery "n build" > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == notification:Build\ failed* ]] || bad+="history[$r] "
+  "${QS[@]}" paletteToggle > /dev/null
+  h=$(date +%-H)
+  "${QS[@]}" quietSet $(( (h + 2) % 24 )) $(( (h + 3) % 24 )) > /dev/null
+  was=$("${QS[@]}" dnd 2>/dev/null | tail -n 1)
+  [[ $("${QS[@]}" quietSet "$h" $(( (h + 1) % 24 )) 2>/dev/null | tail -n 1) == true ]] || bad+="quiet-not-active "
+  [[ $("${QS[@]}" dnd 2>/dev/null | tail -n 1) == true ]] || bad+="quiet-no-dnd "
+  "${QS[@]}" quietSet $(( (h + 2) % 24 )) $(( (h + 3) % 24 )) > /dev/null
+  [[ $("${QS[@]}" dnd 2>/dev/null | tail -n 1) == "$was" ]] || bad+="dnd-not-restored "
+  "${QS[@]}" quietSet $(( ($(date +%-H) + 2) % 24 )) $(( ($(date +%-H) + 3) % 24 )) > /dev/null
+  "${QS[@]}" clearNotifs > /dev/null
+  if [[ -z $bad ]]; then section smart ok "repeats collapse to x3, history search, quiet hours toggle and restore dnd"; else section smart fail "$bad"; fi
+}
+
+check_session() {
+  local bad="" ws pid child dir
+  hyprctl clients -j | jq -r '.[] | select(.class == "kitty") | .pid' | xargs -r kill; sleep 1
+  hyprctl eval 'hl.exec_cmd("[workspace 3 silent] kitty --directory /tmp")' > /dev/null
+  for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "kitty")' > /dev/null && break; sleep 0.2; done
+  sleep 1
+  torus-session save
+  grep -qP '^kitty\t3\t/tmp$' ~/.local/state/torus/session.tsv || bad+="saved[$(tr '\t' ' ' < ~/.local/state/torus/session.tsv | head -2)] "
+  hyprctl clients -j | jq -r '.[] | select(.class == "kitty") | .pid' | xargs -r kill; sleep 1
+  torus-session restore
+  for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "kitty")' > /dev/null && break; sleep 0.2; done
+  sleep 1.5
+  ws=$(hyprctl clients -j | jq -r '.[] | select(.class == "kitty") | .workspace.id' | head -1)
+  pid=$(hyprctl clients -j | jq -r '.[] | select(.class == "kitty") | .pid' | head -1)
+  child=$(for k in $(cat /proc/$pid/task/*/children 2>/dev/null); do [[ $(cat /proc/$k/comm) == kitten ]] || echo "$k"; done | head -1)
+  dir=$(readlink /proc/$child/cwd 2>/dev/null)
+  [[ $ws == 3 ]] || bad+="workspace[$ws] "
+  [[ $dir == /tmp ]] || bad+="folder[$dir] "
+  [[ ! -e ~/.local/state/torus/session.tsv ]] || bad+="not-consumed "
+  hyprctl clients -j | jq -r '.[] | select(.class == "kitty") | .pid' | xargs -r kill
+  if [[ -z $bad ]]; then section session ok "kitty saved and restored on workspace 3 in /tmp"; else section session fail "$bad"; fi
+}
+
+check_rules() {
+  local bad="" r i
+  hyprctl eval 'hl.exec_cmd("kitty --class parity.rule")' > /dev/null
+  for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity.rule")' > /dev/null && break; sleep 0.2; done
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == true ]] && "${QS[@]}" paletteToggle > /dev/null && sleep 0.5
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity.rule" }))' > /dev/null; sleep 0.5
+  [[ $(hyprctl activewindow -j | jq -r .class) == parity.rule ]] || bad+="not-focused "
+  "${QS[@]}" paletteQuery "rule" > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  i=$(tr '|' '\n' <<< "$r" | grep -n 'Window rules: parity.rule' | cut -d: -f1)
+  [[ -n $i ]] || bad+="no-rules-entry[$r] "
+  if [[ -n $i ]]; then
+    "${QS[@]}" paletteRun $((i - 1)) > /dev/null; sleep 0.4
+    r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+    [[ $r == rule:Always\ float* ]] || bad+="options[$r] "
+    "${QS[@]}" paletteRun 0 > /dev/null; sleep 1
+    torus-rules list | grep -qP '^parity\.rule\tfloat' || bad+="not-saved "
+  fi
+  torus-rules remove parity.rule
+  pkill -f "kitty --class [p]arity.rule"
+  if [[ -z $bad ]]; then section rules ok "palette rule for the focused window saved"; else section rules fail "$bad"; fi
+}
+
+check_calendar() {
+  local bad="" ics=$HOME/.cache/parity.ics r st start end
+  start=$(date -u -d '+5 min' +%Y%m%dT%H%M00Z); end=$(date -u -d '+35 min' +%Y%m%dT%H%M00Z)
+  printf 'BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART:%s\nDTEND:%s\nSUMMARY:Parity sync\nLOCATION:Room 1\nEND:VEVENT\nEND:VCALENDAR\n' "$start" "$end" > "$ics"
+  mkdir -p ~/.config/torus; echo "file://$ics" > ~/.config/torus/calendar.url
+  local h; h=$(date +%-H); "${QS[@]}" quietSet $(( (h + 2) % 24 )) $(( (h + 3) % 24 )) > /dev/null
+  "${QS[@]}" agendaRefresh > /dev/null; sleep 3
+  r=$("${QS[@]}" agendaToday 2>/dev/null | tail -n 1)
+  [[ $r == *"Parity sync"* ]] || bad+="agenda[$r] "
+  for _ in $(seq 40); do st=$("${QS[@]}" islandState 2>/dev/null | tail -n 1); [[ $st == *notification* ]] && break; sleep 1; done
+  [[ $st == *notification* ]] || bad+="no-heads-up "
+  rm -f ~/.config/torus/calendar.url "$ics" ~/.cache/torus/calendar.tsv
+  "${QS[@]}" quietSet $(( ($(date +%-H) + 2) % 24 )) $(( ($(date +%-H) + 3) % 24 )) > /dev/null
+  if [[ -z $bad ]]; then section calendar ok "ics feed parsed, agenda shows today, island heads-up before the event"; else section calendar fail "$bad"; fi
+}
+
 lock_cycle() {
   hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
   locked_is true || return 1
@@ -770,6 +874,10 @@ check_spin() {
   if [[ -z $bad ]]; then section spin ok "$detail"; else section spin fail "$bad $detail"; fi
 }
 
+h=$(date +%-H)
+"${QS[@]}" quietSet $(( (h + 2) % 24 )) $(( (h + 3) % 24 )) > /dev/null 2>&1
+trap '"${QS[@]}" quietSet 0 6 > /dev/null 2>&1' EXIT
+
 case ${1:-all} in
   media) check_media ;;
   lock) check_lock ;;
@@ -785,6 +893,11 @@ case ${1:-all} in
   mixer) check_mixer ;;
   shot) check_shot ;;
   panels) check_panels ;;
+  pins) check_pins ;;
+  smart) check_smart ;;
+  session) check_session ;;
+  rules) check_rules ;;
+  calendar) check_calendar ;;
   notify) check_notify ;;
   island) check_island ;;
   widgets) check_widgets ;;
@@ -795,7 +908,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_polkit; check_media ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

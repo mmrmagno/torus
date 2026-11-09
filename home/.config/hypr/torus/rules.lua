@@ -220,3 +220,9 @@ local layers = any({ "torus-.*", "rofi", "selection" })
 hl.layer_rule({ name = "torus_layer_blur", match = { namespace = any({ "torus-bar", "torus-panel", "torus-notifications", "torus-osd", "torus-logout", "rofi" }) }, blur = true })
 hl.layer_rule({ name = "torus_layer_ignore_alpha", match = { namespace = layers }, ignore_alpha = 0 })
 hl.layer_rule({ name = "torus_layer_no_anim", match = { namespace = "selection" }, no_anim = true })
+
+hl.window_rule({
+	name = "torus_games_keep_cursor",
+	match = { class = "^(cs2|gamescope|steam_app_[0-9]+)$", fullscreen = true },
+	confine_pointer = true,
+})

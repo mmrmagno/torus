@@ -78,6 +78,8 @@ PanelWindow {
                                 Clip.copy(Clip.shown[list.currentIndex])
                             else if (event.key === Qt.Key_Delete && Clip.shown.length > 0)
                                 Clip.remove(Clip.shown[list.currentIndex])
+                            else if (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier) && Clip.shown.length > 0)
+                                Clip.togglePin(Clip.shown[list.currentIndex])
                             else
                                 return
                             event.accepted = true
@@ -85,7 +87,7 @@ PanelWindow {
                         Text {
                             visible: parent.text === ""
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "filter clipboard, enter copies, del removes"
+                            text: "filter clipboard · enter copies · ctrl+p pins · del removes"
                             color: Theme.overlay
                             font: parent.font
                         }
@@ -123,6 +125,13 @@ PanelWindow {
                         anchors.margins: 8
                         anchors.leftMargin: 12
                         spacing: 12
+                        Text {
+                            visible: row.modelData.pinned === true
+                            text: "󰐃"
+                            color: Theme.peach
+                            font.family: Theme.fontMono
+                            font.pixelSize: 14
+                        }
                         Image {
                             visible: row.modelData.image !== ""
                             Layout.preferredWidth: 110

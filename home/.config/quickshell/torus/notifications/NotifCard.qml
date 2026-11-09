@@ -61,6 +61,15 @@ Rectangle {
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
+                Rectangle {
+                    readonly property int times: card.notif ? (Notifs.repeats[card.notif.id] || 1) : 1
+                    visible: times > 1
+                    width: timesText.implicitWidth + 12
+                    height: 18
+                    radius: 9
+                    color: Qt.alpha(Theme.accent, 0.2)
+                    Text { id: timesText; anchors.centerIn: parent; text: "×" + parent.times; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 10; font.weight: Font.Bold }
+                }
                 Text {
                     text: card.notif ? card.notif.appName : ""
                     color: Theme.overlay

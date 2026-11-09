@@ -1,10 +1,13 @@
 import QtQuick
 import Quickshell
 import qs
+import qs.services
 
 Column {
     id: root
     property date shown: new Date()
+    property date picked: new Date()
+    readonly property var dayEvents: Agenda.onDay(picked)
     readonly property var today: clock.date
     spacing: 6
 
@@ -47,18 +50,81 @@ Column {
         Repeater {
             model: root.cells()
             Rectangle {
+                id: cell
                 required property int modelData
+                readonly property date day: new Date(root.shown.getFullYear(), root.shown.getMonth(), Math.max(1, modelData))
                 readonly property bool isToday: modelData === root.today.getDate() && root.shown.getMonth() === root.today.getMonth() && root.shown.getFullYear() === root.today.getFullYear()
+                readonly property bool isPicked: modelData > 0 && Qt.formatDate(day, "yyyyMMdd") === Qt.formatDate(root.picked, "yyyyMMdd")
+                readonly property bool busy: modelData > 0 && Agenda.onDay(day).length > 0
                 width: 34
                 height: 26
                 radius: 8
-                color: isToday ? Theme.accent : "transparent"
+                color: isToday ? Theme.accent : (isPicked ? Theme.surface1 : (cellHover.hovered && modelData > 0 ? Theme.surface0 : "transparent"))
                 Text {
                     anchors.centerIn: parent
-                    text: parent.modelData > 0 ? parent.modelData : ""
-                    color: parent.isToday ? Theme.crust : Theme.text
+                    anchors.verticalCenterOffset: cell.busy ? -2 : 0
+                    text: cell.modelData > 0 ? cell.modelData : ""
+                    color: cell.isToday ? Theme.crust : Theme.text
                     font.family: Theme.fontUi
                     font.pixelSize: 12
+                }
+                Rectangle {
+                    visible: cell.busy
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 3
+                    width: 4
+                    height: 4
+                    radius: 2
+                    color: cell.isToday ? Theme.crust : Theme.peach
+                }
+                HoverHandler { id: cellHover }
+                TapHandler { onTapped: if (cell.modelData > 0) root.picked = cell.day }
+            }
+        }
+    }
+
+    Column {
+        width: parent.width
+        spacing: 4
+        topPadding: 6
+
+        Text {
+            visible: !Agenda.configured
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: "No calendar yet: put your private iCal address in ~/.config/torus/calendar.url"
+            color: Theme.overlay
+            font.family: Theme.fontUi
+            font.pixelSize: 11
+        }
+
+        Text {
+            visible: Agenda.configured && root.dayEvents.length === 0
+            text: "Nothing on " + Qt.formatDate(root.picked, "ddd d MMM")
+            color: Theme.overlay
+            font.family: Theme.fontUi
+            font.pixelSize: 11
+        }
+
+        Repeater {
+            model: root.dayEvents.slice(0, 5)
+            Row {
+                required property var modelData
+                width: parent.width
+                spacing: 8
+                Rectangle { width: 3; height: 28; radius: 2; color: Theme.peach }
+                Column {
+                    width: parent.width - 11
+                    Text { width: parent.width; text: modelData.title; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 12; elide: Text.ElideRight }
+                    Text {
+                        width: parent.width
+                        text: (modelData.allDay ? "all day" : modelData.start.slice(11) + " - " + modelData.end.slice(11)) + (modelData.place ? "  ·  " + modelData.place : "")
+                        color: Theme.subtext
+                        font.family: Theme.fontMono
+                        font.pixelSize: 10
+                        elide: Text.ElideRight
+                    }
                 }
             }
         }

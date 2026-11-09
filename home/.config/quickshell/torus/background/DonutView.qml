@@ -8,6 +8,9 @@ Item {
 
     property bool live: true
     property bool throttle: false
+    property string shape: "torus"
+    readonly property int gridW: shape === "xwing" ? DonutClock.w * 2 : DonutClock.w
+    readonly property int gridH: shape === "xwing" ? DonutClock.h * 2 : DonutClock.h
     property real cellH: 16
     property real t: 0
     property real acc: 0
@@ -16,8 +19,8 @@ Item {
     readonly property string shaderDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/torus/shaders/"
     signal frame
 
-    implicitWidth: cellW * DonutClock.w
-    implicitHeight: cellH * DonutClock.h
+    implicitWidth: cellW * gridW
+    implicitHeight: cellH * gridH
 
     FrameAnimation {
         id: anim
@@ -66,11 +69,11 @@ Item {
 
     ShaderEffect {
         id: levelPass
-        width: DonutClock.w
-        height: DonutClock.h
-        property point grid: Qt.point(DonutClock.w, DonutClock.h)
+        width: view.gridW
+        height: view.gridH
+        property point grid: Qt.point(view.gridW, view.gridH)
         property point ab: Qt.point((1 + view.t * DonutClock.speedA) % (2 * Math.PI), (1 + view.t * DonutClock.speedB) % (2 * Math.PI))
-        fragmentShader: "file://" + view.shaderDir + "torus.frag.qsb"
+        fragmentShader: "file://" + view.shaderDir + view.shape + ".frag.qsb"
     }
 
     ShaderEffectSource {
@@ -78,9 +81,9 @@ Item {
         sourceItem: levelPass
         hideSource: true
         smooth: false
-        textureSize: Qt.size(DonutClock.w, DonutClock.h)
-        width: DonutClock.w
-        height: DonutClock.h
+        textureSize: Qt.size(view.gridW, view.gridH)
+        width: view.gridW
+        height: view.gridH
         visible: false
     }
 
@@ -88,7 +91,7 @@ Item {
         anchors.fill: parent
         property variant levels: levelTex
         property variant atlas: atlasTex
-        property point grid: Qt.point(DonutClock.w, DonutClock.h)
+        property point grid: Qt.point(view.gridW, view.gridH)
         property real boost: 1 + Visualizer.bass * 0.45
         fragmentShader: "file://" + view.shaderDir + "donut.frag.qsb"
     }

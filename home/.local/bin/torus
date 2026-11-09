@@ -110,6 +110,7 @@ cmd_setup() {
   local inc=$HOME/.config/torus/delta.gitconfig
   git config --global --get-all include.path 2> /dev/null | grep -qxF "$inc" || git config --global --add include.path "$inc"
   systemctl --user enable torus-shell.service > /dev/null 2>&1 || true
+  systemctl --user enable --now torus-session-save.timer > /dev/null 2>&1 || true
   systemctl --user mask dunst.service > /dev/null 2>&1 || true
   echo "torus: setup done (accent $accent)"
 }

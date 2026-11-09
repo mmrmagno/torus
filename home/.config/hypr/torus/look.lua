@@ -1,4 +1,7 @@
 hl.config({
+	render = {
+		cm_auto_hdr = 0,
+	},
 	general = {
 		border_size = 2,
 		gaps_in = 3,

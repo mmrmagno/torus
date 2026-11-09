@@ -11,7 +11,7 @@ PopupWindow {
     required property Item anchorItem
     property var root_menu: null
     property var stack: []
-    signal closed
+    signal dismissed
 
     readonly property var current: stack.length > 0 ? stack[stack.length - 1] : root_menu
 
@@ -27,7 +27,7 @@ PopupWindow {
     HyprlandFocusGrab {
         active: root.visible
         windows: [root]
-        onCleared: root.closed()
+        onCleared: root.dismissed()
     }
 
     QsMenuOpener {
@@ -42,7 +42,7 @@ PopupWindow {
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
         focus: true
-        Keys.onEscapePressed: root.closed()
+        Keys.onEscapePressed: root.dismissed()
 
         opacity: 0
         scale: 0.96
@@ -135,7 +135,7 @@ PopupWindow {
                                     root.stack = root.stack.concat([row.modelData])
                                 } else {
                                     row.modelData.triggered()
-                                    root.closed()
+                                    root.dismissed()
                                 }
                             }
                         }

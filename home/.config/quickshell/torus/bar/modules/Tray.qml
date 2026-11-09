@@ -47,7 +47,7 @@ Row {
                 TrayMenu {
                     anchorItem: icon
                     root_menu: icon.modelData.menu
-                    onClosed: icon.menuOpen = false
+                    onDismissed: icon.menuOpen = false
                 }
             }
         }

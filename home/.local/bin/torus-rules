@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+db=${XDG_STATE_HOME:-$HOME/.local/state}/torus/rules.tsv
+lua=$HOME/.config/hypr/rules.local.lua
+mkdir -p "$(dirname "$db")" "$(dirname "$lua")"
+touch "$db"
+
+render() {
+  {
+    echo "-- written by torus-rules, edit with SUPER+Space > rule"
+    local n=0 class kind value re match props
+    while IFS=$'\t' read -r class kind value; do
+      n=$((n + 1))
+      re=${class//./\\\\.}
+      match="class = \"^($re)\$\""
+      case $kind in
+        float) props="float = true" ;;
+        tile) props="tile = true" ;;
+        workspace) props="workspace = \"$value\"" ;;
+        monitor) props="monitor = \"$value\"" ;;
+        opacity) props="opacity = \"0.92 0.85 1\"" ;;
+        cursor) match="$match, fullscreen = true"; props="confine_pointer = true" ;;
+        *) continue ;;
+      esac
+      printf 'hl.window_rule({ name = "torus_local_%s", match = { %s }, %s })\n' "$n" "$match" "$props"
+    done < "$db"
+  } > "$lua.tmp" && mv "$lua.tmp" "$lua"
+  hyprctl reload > /dev/null 2>&1 || true
+}
+
+case ${1:-list} in
+  add)
+    class=${2:-} kind=${3:-} value=${4:-}
+    [[ $class =~ ^[A-Za-z0-9._-]+$ ]] || { echo "bad window class" >&2; exit 2; }
+    case $kind in
+      float | tile | opacity | cursor) value="" ;;
+      workspace) [[ $value =~ ^[0-9]+$ ]] || { echo "workspace must be a number" >&2; exit 2; } ;;
+      monitor) [[ $value =~ ^[A-Za-z0-9-]+$ ]] || { echo "bad monitor name" >&2; exit 2; } ;;
+      *) echo "kinds: float tile workspace monitor opacity cursor" >&2; exit 2 ;;
+    esac
+    other=tile
+    [[ $kind == tile ]] && other=float
+    awk -F'\t' -v c="$class" -v k="$kind" -v o="$other" '!($1 == c && ($2 == k || ((k == "float" || k == "tile") && $2 == o)))' "$db" > "$db.tmp"
+    printf '%s\t%s\t%s\n' "$class" "$kind" "$value" >> "$db.tmp"
+    mv "$db.tmp" "$db"
+    render
+    ;;
+  remove)
+    class=${2:-}
+    awk -F'\t' -v c="$class" '$1 != c' "$db" > "$db.tmp" && mv "$db.tmp" "$db"
+    render
+    ;;
+  list)
+    cat "$db"
+    ;;
+  *)
+    echo "usage: torus-rules add CLASS KIND [VALUE] | remove CLASS | list" >&2
+    exit 2
+    ;;
+esac

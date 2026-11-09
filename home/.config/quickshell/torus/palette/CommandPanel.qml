@@ -57,7 +57,7 @@ PanelWindow {
                     anchors.rightMargin: 16
                     spacing: 12
                     Text {
-                        text: ({ all: "󰍉", calc: "󰃬", files: "󰈔", kb: "󰈙", ai: "󰚩", emoji: "󰞅", pass: "󰟵" })[Commands.mode]
+                        text: ({ all: "󰍉", calc: "󰃬", files: "󰈔", kb: "󰈙", ai: "󰚩", emoji: "󰞅", pass: "󰟵", notifs: "󰂚" })[Commands.mode]
                         color: Theme.accent
                         font.family: Theme.fontMono
                         font.pixelSize: 18
@@ -197,7 +197,7 @@ PanelWindow {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: 14
                 Repeater {
-                    model: [["=", "calc"], ["/", "files"], ["?", "kb"], ["!", "ask AI"], [":", "emoji"], ["p ", "pass"]]
+                    model: [["=", "calc"], ["/", "files"], ["?", "kb"], ["!", "ask AI"], [":", "emoji"], ["p ", "pass"], ["n ", "notifications"]]
                     Row {
                         required property var modelData
                         spacing: 4

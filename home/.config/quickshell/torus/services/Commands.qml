@@ -14,6 +14,7 @@ Singleton {
     property var files: []
     property var kb: []
     property var apps: []
+    property bool sessionOn: sessionFile.text().trim() !== "off"
     property var passItems: []
     property string passState: ""
     property real passLoaded: 0
@@ -21,14 +22,18 @@ Singleton {
     property var passFields: null
     readonly property int passClear: Number(Quickshell.env("TORUS_PASS_CLEAR") || 30)
     property var windows: []
+    property var focused: null
+    property var ruleFor: null
     readonly property string home: Quickshell.env("HOME")
     readonly property string mode: {
         const c = query.charAt(0)
         if (query.startsWith("p "))
             return "pass"
+        if (query.startsWith("n "))
+            return "notifs"
         return { "=": "calc", "/": "files", "?": "kb", "!": "ai", ":": "emoji" }[c] || "all"
     }
-    readonly property string term: (mode === "all" ? query : query.slice(mode === "pass" ? 2 : 1)).trim()
+    readonly property string term: (mode === "all" ? query : query.slice(mode === "pass" || mode === "notifs" ? 2 : 1)).trim()
 
     readonly property var actions: [
         { id: "a:night", glyph: "󰖔", title: "Night light", sub: NightLight.on ? "on, turn off" : "off, turn on", act: () => NightLight.toggle() },
@@ -37,6 +42,7 @@ Singleton {
         { id: "a:focus50", glyph: "󰔟", title: "Focus 50 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(50) },
         { id: "a:focusstop", glyph: "󰓛", title: "Stop focus", sub: "timer running", hidden: !Focus.running, act: () => Focus.stop() },
         { id: "a:living", glyph: "󰟪", title: "Living donut", sub: Store.livingDonut ? "on, turn off" : "off, turn on", act: () => Store.setLivingDonut(!Store.livingDonut) },
+        { id: "a:session", glyph: "󰑓", title: "Session restore", sub: sessionOn ? "on, turn off" : "off, turn on", act: () => { sessionOn = !sessionOn; Quickshell.execDetached(["sh", "-c", "mkdir -p \"$1\" && echo \"$2\" > \"$1/session-restore\"", "torus", (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/torus", sessionOn ? "on" : "off"]) } },
         { id: "a:game", glyph: "󰊴", title: "Game mode", sub: "animations, blur and donut off", act: () => Quickshell.execDetached(["torus-gamemode"]) },
         { id: "a:wallnext", glyph: "󰸉", title: "Next wallpaper", sub: "", act: () => Store.stepWallpaper(1) },
         { id: "a:walldonut", glyph: "󰟪", title: "Donut wallpaper", sub: "", act: () => Store.setWallpaper("donut") },
@@ -56,10 +62,15 @@ Singleton {
         let out = []
         if (!Store.isOpen("palette"))
             return out
+        if (mode === "all" && ruleFor) {
+            return ruleResults(ruleFor)
+        }
         if (mode === "all") {
             for (const a of actions)
                 if (!a.hidden)
                     out.push(Object.assign({ kind: "action" }, a))
+            if (focused)
+                out.push({ id: "a:rules", kind: "action", keep: true, glyph: "󰕮", title: "Window rules: " + focused.cls, sub: "float, workspace, monitor, keep mouse inside…", keys: "rule rules window", act: () => root.ruleFor = root.focused })
             out = rank(out.concat(windows, apps), q)
         } else if (mode === "calc") {
             out = calc
@@ -73,8 +84,44 @@ Singleton {
             out = emojiFor(q)
         } else if (mode === "pass") {
             out = passResults(q)
+        } else if (mode === "notifs") {
+            const words = q.toLowerCase().split(/\s+/).filter(w => w)
+            out = Notifs.history.filter(h => words.every(w => (h.app + " " + h.summary + " " + h.body).toLowerCase().includes(w))).slice(0, 40).map(h => ({
+                id: "n", kind: "notification", glyph: "󰂚", title: h.summary || h.app, sub: h.app + " · " + Qt.formatTime(new Date(h.time), "hh:mm") + (h.body ? " · " + h.body : ""),
+                act: () => Quickshell.execDetached(["wl-copy", "--", h.body || h.summary])
+            }))
         }
         return out.slice(0, 40)
+    }
+
+    function rememberFocus() {
+        const t = Hyprland.activeToplevel
+        const cls = t && t.wayland && t.wayland.appId ? t.wayland.appId : ""
+        if (cls)
+            focused = { cls: cls, ws: t.workspace ? t.workspace.name : "", mon: t.workspace && t.workspace.monitor ? t.workspace.monitor.name : "" }
+    }
+
+    Connections {
+        target: Hyprland
+        function onActiveToplevelChanged() {
+            root.rememberFocus()
+        }
+    }
+
+    function ruleResults(f) {
+        const add = (kind, value) => () => Quickshell.execDetached(["torus-rules", "add", f.cls, kind].concat(value ? [value] : []))
+        const opts = [
+            { glyph: "󰉧", title: "Always float", act: add("float") },
+            { glyph: "󰕴", title: "Always tile", act: add("tile") },
+            { glyph: "󰍹", title: "Always open on workspace " + f.ws, hidden: !/^[0-9]+$/.test(f.ws), act: add("workspace", f.ws) },
+            { glyph: "󰍹", title: "Always open on " + f.mon, hidden: !f.mon, act: add("monitor", f.mon) },
+            { glyph: "󰂵", title: "Slightly transparent", act: add("opacity") },
+            { glyph: "󰍽", title: "Keep the mouse inside when fullscreen", sub: "for games", act: add("cursor") }
+        ].filter(o => !o.hidden).map(o => Object.assign({ id: "r", kind: "rule", sub: o.sub || f.cls }, o))
+        const mine = rulesFile.text().split("\n").filter(l => l.split("\t")[0] === f.cls)
+        if (mine.length > 0)
+            opts.push({ id: "r", kind: "rule", glyph: "󰆴", title: "Remove all rules for " + f.cls, sub: mine.map(l => l.split("\t").slice(1).join(" ").trim()).join(", "), act: () => Quickshell.execDetached(["torus-rules", "remove", f.cls]) })
+        return opts
     }
 
     function snapshot() {
@@ -84,6 +131,8 @@ Singleton {
             const top = t
             w.push({ id: "w", kind: "window", title: t.title || app, sub: app + " · workspace " + (t.workspace ? t.workspace.name : "?"), icon: iconFor(app), act: () => top.wayland && top.wayland.activate() })
         }
+        rememberFocus()
+        rulesFile.reload()
         const a = []
         for (const e of DesktopEntries.applications.values) {
             if (e.noDisplay)
@@ -209,6 +258,7 @@ Singleton {
 
     onModeChanged: if (mode === "pass") loadPass()
     onTermChanged: {
+        ruleFor = null
         passPick = null
         passFields = null
         calc = []
@@ -297,6 +347,20 @@ Singleton {
                 root.passLoaded = Date.now()
             }
         }
+    }
+
+    FileView {
+        id: rulesFile
+        path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/torus/rules.tsv"
+        blockLoading: true
+        printErrors: false
+    }
+
+    FileView {
+        id: sessionFile
+        path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/torus/session-restore"
+        blockLoading: true
+        printErrors: false
     }
 
     FileView {

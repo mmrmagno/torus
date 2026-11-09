@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Widgets
 import Quickshell.Services.Mpris
 import qs
 import qs.background
@@ -174,47 +175,66 @@ Item {
             font.family: Theme.fontUi
             font.pixelSize: 13
         }
-    }
+    
+        Rectangle {
+            id: nowPlaying
+            readonly property var player: root.lockPlayer
+            visible: player !== null
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 6
+            Layout.preferredWidth: Math.min(420, root.width - 48)
+            Layout.preferredHeight: 76
+            radius: 18
+            color: Qt.alpha(Theme.base, Theme.glassCard)
+            border.width: 1
+            border.color: Qt.alpha(Theme.accent, 0.3)
 
-    Rectangle {
-        anchors.left: parent.left
-        anchors.bottom: parent.bottom
-        anchors.margins: 24
-        visible: root.lockPlayer !== null
-        width: Math.min(420, root.width - 48)
-        height: 48
-        radius: 24
-        color: Qt.alpha(Theme.base, Theme.glassCard)
-        border.width: 1
-        border.color: Qt.alpha(Theme.accent, 0.35)
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 18
-            anchors.rightMargin: 12
-            spacing: 10
-            Text {
-                Layout.fillWidth: true
-                text: root.lockPlayer ? root.lockPlayer.trackTitle + (root.lockPlayer.trackArtist ? "  ·  " + root.lockPlayer.trackArtist : "") : ""
-                color: Theme.text
-                elide: Text.ElideRight
-                font.family: Theme.fontUi
-                font.pixelSize: 13
-            }
-            Repeater {
-                model: [["󰒮", "previous"], [root.lockPlayer && root.lockPlayer.isPlaying ? "󰏤" : "󰐊", "togglePlaying"], ["󰒭", "next"]]
-                Text {
-                    required property var modelData
-                    text: modelData[0]
-                    color: hover.hovered ? Theme.lavender : Theme.accent
-                    font.family: Theme.fontMono
-                    font.pixelSize: 18
-                    HoverHandler { id: hover }
-                    TapHandler { onTapped: if (root.lockPlayer) root.lockPlayer[parent.modelData[1]]() }
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 12
+                ClippingRectangle {
+                    Layout.preferredWidth: 56
+                    Layout.preferredHeight: 56
+                    radius: 10
+                    color: Theme.surface0
+                    Image {
+                        anchors.fill: parent
+                        source: nowPlaying.player ? nowPlaying.player.trackArtUrl : ""
+                        sourceSize.width: 112
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    Text { Layout.fillWidth: true; text: nowPlaying.player ? nowPlaying.player.trackTitle : ""; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                    Text { Layout.fillWidth: true; text: nowPlaying.player ? nowPlaying.player.trackArtist : ""; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: 12; elide: Text.ElideRight }
+                }
+                Repeater {
+                    model: [["󰒮", "previous"], ["play", "togglePlaying"], ["󰒭", "next"]]
+                    Rectangle {
+                        id: mediaBtn
+                        required property var modelData
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
+                        radius: 17
+                        color: mediaHover.hovered ? Theme.accent : Theme.surface0
+                        Text {
+                            anchors.centerIn: parent
+                            text: mediaBtn.modelData[0] === "play" ? (nowPlaying.player && nowPlaying.player.isPlaying ? "󰏤" : "󰐊") : mediaBtn.modelData[0]
+                            color: mediaHover.hovered ? Theme.crust : Theme.accent
+                            font.family: Theme.fontMono
+                            font.pixelSize: 15
+                        }
+                        HoverHandler { id: mediaHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: if (nowPlaying.player) nowPlaying.player[mediaBtn.modelData[1]]() }
+                    }
                 }
             }
         }
-    }
+}
 
     Row {
         anchors.right: parent.right

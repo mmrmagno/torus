@@ -1,0 +1,9 @@
+[Unit]
+Description=torus: save open windows every 5 minutes
+
+[Timer]
+OnActiveSec=10min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

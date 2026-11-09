@@ -9,6 +9,38 @@ Singleton {
 
     property var popups: []
     property var deadlines: ({})
+    property var repeats: ({})
+    property var history: []
+    property var lastFlash: ({})
+    property int quietFrom: 0
+    property int quietTo: 6
+    property bool quietActive: false
+    property bool dndBeforeQuiet: false
+
+    function keyOf(n) {
+        return (n.appName || "") + "\u0001" + (n.summary || "") + "\u0001" + (n.body || "")
+    }
+
+    function inQuiet(h) {
+        return quietFrom <= quietTo ? (h >= quietFrom && h < quietTo) : (h >= quietFrom || h < quietTo)
+    }
+
+    function checkQuiet() {
+        const now = inQuiet(new Date().getHours())
+        if (now && !quietActive) {
+            dndBeforeQuiet = Store.dnd
+            quietActive = true
+            Store.dnd = true
+        } else if (!now && quietActive) {
+            quietActive = false
+            Store.dnd = dndBeforeQuiet
+        }
+    }
+
+    function remember(n) {
+        const plain = (n.body || "").replace(/<[^>]*>/g, "")
+        history = [{ app: n.appName || "", summary: n.summary || "", body: plain, time: Date.now() }].concat(history).slice(0, 200)
+    }
 
     function lifetime(n) {
         if (n.expireTimeout > 0)
@@ -68,6 +100,14 @@ Singleton {
     }
 
     Timer {
+        interval: 30000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.checkQuiet()
+    }
+
+    Timer {
         interval: 250
         repeat: true
         running: root.popups.length > 0 && Object.keys(root.deadlines).length > 0
@@ -91,9 +131,25 @@ Singleton {
         persistenceSupported: true
 
         onNotification: n => {
+            const key = root.keyOf(n)
+            let count = 1
+            for (const old of root.list.slice()) {
+                if (old !== n && root.keyOf(old) === key) {
+                    count += root.repeats[old.id] || 1
+                    old.dismiss()
+                }
+            }
+            const r = Object.assign({}, root.repeats)
+            r[n.id] = count
+            root.repeats = r
             n.tracked = true
+            root.remember(n)
+            const recent = Date.now() - (root.lastFlash[key] || 0) < 10000
+            const lf = Object.assign({}, root.lastFlash)
+            lf[key] = Date.now()
+            root.lastFlash = lf
             const loud = n.urgency === NotificationUrgency.Critical || n.actions.length > 0
-            if (!loud && !Store.dnd)
+            if (!loud && !Store.dnd && !recent)
                 Island.notify(n)
             else if (loud && (!Store.dnd || n.urgency === NotificationUrgency.Critical)) {
                 if (n.urgency !== NotificationUrgency.Critical) {

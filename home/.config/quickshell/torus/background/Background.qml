@@ -7,7 +7,7 @@ import qs.services
 PanelWindow {
     id: root
 
-    readonly property bool donutMode: Store.wallpaper === "donut"
+    readonly property bool donutMode: Store.wallpaper === "donut" || Store.wallpaper === "xwing"
     readonly property real cellH: Math.round(Math.min(width, height) * 0.5 / DonutClock.h)
 
     anchors {

@@ -18,7 +18,10 @@ PanelWindow {
 
     function run(a) {
         Store.setOpen("logout", false)
-        Quickshell.execDetached(a.cmd)
+        if (a.key === "e" || a.key === "r" || a.key === "s")
+            Quickshell.execDetached(["sh", "-c", "torus-session save; exec \"$@\"", "torus-session"].concat(a.cmd))
+        else
+            Quickshell.execDetached(a.cmd)
     }
 
     screen: Store.focusedScreen
