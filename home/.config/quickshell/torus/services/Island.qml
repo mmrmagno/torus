@@ -28,6 +28,18 @@ Singleton {
         hide.restart()
     }
 
+    function hold(on) {
+        if (on)
+            hide.stop()
+        else if (flashKind !== "")
+            hide.restart()
+    }
+
+    function dismiss() {
+        hide.stop()
+        flashKind = ""
+    }
+
     function report(screenName, mode) {
         const m = Object.assign({}, modes)
         m[screenName] = mode

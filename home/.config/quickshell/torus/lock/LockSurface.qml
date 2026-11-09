@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Widgets
+import Quickshell.Services.Mpris
 import qs
 import qs.background
 import qs.services
@@ -89,6 +91,23 @@ Item {
             color: Theme.subtext
             font.family: Theme.fontUi
             font.pixelSize: 16
+        }
+
+        Row {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 18
+            Row {
+                spacing: 6
+                visible: Weather.ok
+                Text { text: Weather.icon; color: Theme.yellow; font.family: Theme.fontMono; font.pixelSize: 15; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: Weather.temp; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+            }
+            Row {
+                spacing: 6
+                visible: Store.notifCount > 0
+                Text { text: "󰂚"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 15; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: Store.notifCount + (Store.notifCount === 1 ? " notification" : " notifications"); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+            }
         }
 
         Rectangle {
@@ -220,5 +239,77 @@ Item {
     SystemClock {
         id: clock
         precision: SystemClock.Minutes
+    }
+
+    Rectangle {
+        id: nowPlaying
+        readonly property var player: Island.player || (Mpris.players.values.length > 0 ? Mpris.players.values[0] : null)
+        visible: player !== null
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Math.round(root.side * 0.08)
+        width: Math.min(420, parent.width - 48)
+        height: 76
+        radius: 18
+        color: Qt.alpha(Theme.base, Theme.glassCard)
+        border.width: 1
+        border.color: Qt.alpha(Theme.accent, 0.3)
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 12
+            ClippingRectangle {
+                Layout.preferredWidth: 56
+                Layout.preferredHeight: 56
+                radius: 10
+                color: Theme.surface0
+                Image {
+                    anchors.fill: parent
+                    source: nowPlaying.player ? nowPlaying.player.trackArtUrl : ""
+                    sourceSize.width: 112
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                }
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+                Text { Layout.fillWidth: true; text: nowPlaying.player ? nowPlaying.player.trackTitle : ""; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                Text { Layout.fillWidth: true; text: nowPlaying.player ? nowPlaying.player.trackArtist : ""; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: 12; elide: Text.ElideRight }
+            }
+            Repeater {
+                model: [["󰒮", "previous"], ["play", "toggle"], ["󰒭", "next"]]
+                Rectangle {
+                    id: mediaBtn
+                    required property var modelData
+                    Layout.preferredWidth: 34
+                    Layout.preferredHeight: 34
+                    radius: 17
+                    color: mediaHover.hovered ? Theme.accent : Theme.surface0
+                    Text {
+                        anchors.centerIn: parent
+                        text: mediaBtn.modelData[0] === "play" ? (nowPlaying.player && nowPlaying.player.isPlaying ? "󰏤" : "󰐊") : mediaBtn.modelData[0]
+                        color: mediaHover.hovered ? Theme.crust : Theme.accent
+                        font.family: Theme.fontMono
+                        font.pixelSize: 15
+                    }
+                    HoverHandler { id: mediaHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler {
+                        onTapped: {
+                            const p = nowPlaying.player
+                            if (!p)
+                                return
+                            if (mediaBtn.modelData[1] === "previous")
+                                p.previous()
+                            else if (mediaBtn.modelData[1] === "next")
+                                p.next()
+                            else
+                                p.togglePlaying()
+                        }
+                    }
+                }
+            }
+        }
     }
 }

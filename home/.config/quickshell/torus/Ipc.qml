@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Services.Pipewire
 import Quickshell.Io
 import qs.services
 import Quickshell.Hyprland
@@ -248,6 +249,34 @@ IpcHandler {
     function altTabSize(): string {
         const a = Store.altTabber
         return a ? a.cols + ":" + a.rows + ":" + a.implicitWidth + ":" + a.implicitHeight + ":" + (a.screen ? a.screen.width + "x" + a.screen.height : "?") : ""
+    }
+
+    function brightnessOsd(value: int): void {
+        Island.flash("osd", { icon: "󰃟", label: value + "%", value: value / 100 }, 1600)
+    }
+
+    function updatesToggle(): void {
+        Store.toggle("updates")
+    }
+
+    function updatesState(): string {
+        return Updates.count + ":" + Updates.news.length + ":" + Updates.unread
+    }
+
+    function networkState(): string {
+        return (Wifi.wired || "-") + ":" + Wifi.enabled + ":" + Wifi.networks.length
+    }
+
+    function networkToggle(): void {
+        Store.toggle("network")
+    }
+
+    function screenshotShow(path: string): void {
+        Island.flash("shot", { path: path }, 6000)
+    }
+
+    function mixerStreams(): string {
+        return Pipewire.nodes.values.filter(n => n.audio && n.isStream && n.isSink).map(n => ((n.properties || {})["application.name"] || n.name) + "=" + Math.round(n.audio.volume * 100)).join("|")
     }
 
     function focusToggle(): void {

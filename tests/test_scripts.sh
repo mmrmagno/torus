@@ -15,7 +15,10 @@ B=$REPO/home/.local/bin
 "$B/torus-shot" s
 grep -q '^slurp' "$STUB_LOG" || fail "s: slurp"
 grep -q '^grim -g 10,20 300x200 .*/Pictures/Screenshots/torus-.*\.png' "$STUB_LOG" || fail "s: grim geometry"
-grep -q '^satty --filename .*torus-.*\.png' "$STUB_LOG" || fail "s: satty"
+grep -q '^qs -c torus ipc call torus screenshotShow .*/Pictures/Screenshots/torus-.*\.png' "$STUB_LOG" || fail "s: island shows the shot"
+grep -q '^satty' "$STUB_LOG" && fail "s: satty only on request"
+: > "$STUB_LOG"; STUB_QS=down "$B/torus-shot" s; sleep 0.5
+grep -q '^satty --filename .*torus-.*\.png' "$STUB_LOG" || fail "s: satty when the shell is not running"
 
 : > "$STUB_LOG"; "$B/torus-shot" m
 grep -q '^grim -o DP-1 ' "$STUB_LOG" || fail "m: focused monitor"

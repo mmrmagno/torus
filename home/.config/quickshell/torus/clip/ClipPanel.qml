@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import qs
+import qs.components
 import qs.services
 
 PanelWindow {
@@ -25,6 +26,10 @@ PanelWindow {
     }
 
     Rectangle {
+        PanelMotion {
+            target: parent
+            shown: root.visible
+        }
         anchors.fill: parent
         radius: 16
         color: Qt.alpha(Theme.base, Theme.glass)

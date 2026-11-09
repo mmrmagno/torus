@@ -23,12 +23,20 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
-    onVisibleChanged: if (visible && !Weather.ok) Weather.refresh()
+    onVisibleChanged: if (visible) {
+        if (!Weather.ok)
+            Weather.refresh()
+        Displays.refresh()
+    }
 
     SystemClock { id: clock; precision: SystemClock.Seconds }
     PwObjectTracker { objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource] }
 
     Rectangle {
+        PanelMotion {
+            target: parent
+            shown: root.visible
+        }
         anchors.fill: parent
         radius: 18
         color: Qt.alpha(Theme.base, Theme.glass)
@@ -109,6 +117,76 @@ PanelWindow {
                     Meter { label: "cpu"; value: Math.round(SysStats.cpu) + "%" + (SysStats.cpuTemp >= 0 ? "  " + SysStats.cpuTemp + "°" : ""); fraction: SysStats.cpu / 100 }
                     Meter { label: "gpu"; value: (SysStats.gpuBusy >= 0 ? SysStats.gpuBusy + "%" : "--") + (SysStats.gpuTemp >= 0 ? "  " + SysStats.gpuTemp + "°" : ""); fraction: Math.max(0, SysStats.gpuBusy) / 100; tint: Theme.sapphire }
                     Meter { label: "memory"; value: SysStats.memUsed.toFixed(1) + " / " + SysStats.memTotal.toFixed(0) + " G"; fraction: SysStats.memPercent / 100; tint: Theme.green }
+                }
+            }
+
+            Card {
+                title: "displays"
+                visible: Displays.available
+                Layout.fillWidth: true
+                Layout.columnSpan: content.columns
+                Layout.preferredHeight: displayRows.implicitHeight + 44
+                Column {
+                    id: displayRows
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    spacing: 10
+                    Repeater {
+                        model: Object.keys(Displays.levels).sort()
+                        Row {
+                            id: displayRow
+                            required property string modelData
+                            readonly property real level: Displays.levels[modelData] || 0
+                            width: displayRows.width
+                            spacing: 10
+                            Text { text: "󰍹"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 15; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: displayRow.modelData; width: 60; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                            Item {
+                                width: displayRow.width - 140
+                                height: 18
+                                anchors.verticalCenter: parent.verticalCenter
+                                Rectangle {
+                                    id: dTrack
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width
+                                    height: 6
+                                    radius: 3
+                                    color: Theme.surface1
+                                    Rectangle { width: parent.width * displayRow.level / 100; height: parent.height; radius: 3; color: Theme.yellow }
+                                }
+                                Rectangle {
+                                    x: Math.max(0, Math.min(dTrack.width - width, dTrack.width * displayRow.level / 100 - width / 2))
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 14; height: 14; radius: 7
+                                    color: Theme.text
+                                    border.width: 2
+                                    border.color: Theme.yellow
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    anchors.margins: -4
+                                    cursorShape: Qt.PointingHandCursor
+                                    function pick(x) { Displays.set(displayRow.modelData, Math.max(0, Math.min(100, x / dTrack.width * 100))) }
+                                    onPressed: mouse => pick(mouse.x)
+                                    onPositionChanged: mouse => { if (pressed) pick(mouse.x) }
+                                    onWheel: wheel => Displays.set(displayRow.modelData, Math.max(0, Math.min(100, displayRow.level + (wheel.angleDelta.y > 0 ? 5 : -5))))
+                                }
+                            }
+                            Text { text: Math.round(displayRow.level) + "%"; width: 40; horizontalAlignment: Text.AlignRight; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                    }
+                }
+            }
+
+            Card {
+                title: "sound"
+                Layout.fillWidth: true
+                Layout.columnSpan: content.columns
+                Layout.preferredHeight: mixer.implicitHeight + 44
+                Mixer {
+                    id: mixer
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                 }
             }
 

@@ -60,3 +60,4 @@ cantarell-fonts
 ttf-cascadia-code-nerd
 cava
 fd
+ddcutil

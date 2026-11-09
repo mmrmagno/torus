@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs
+import qs.components
 
 PanelWindow {
     id: root
@@ -76,6 +77,10 @@ PanelWindow {
     }
 
     Rectangle {
+        PanelMotion {
+            target: parent
+            shown: root.visible
+        }
         anchors.fill: parent
         color: Qt.alpha(Theme.crust, 0.75)
         TapHandler { onTapped: Store.setOpen("cheatsheet", false) }

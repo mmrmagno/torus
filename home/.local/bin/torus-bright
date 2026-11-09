@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+command -v ddcutil > /dev/null || { echo "ddcutil is not installed" >&2; exit 3; }
+map=${XDG_RUNTIME_DIR:-/tmp}/torus/ddc.map
+step=5
+
+buses() {
+  if [[ ! -s $map ]]; then
+    mkdir -p "$(dirname "$map")"
+    ddcutil detect --terse 2> /dev/null | awk '
+      /I2C bus:/ { split($NF, p, "-"); bus = p[2] }
+      /DRM connector:/ { c = $NF; sub(/^card[0-9]+-/, "", c); if (bus != "") print c, bus; bus = "" }
+    ' > "$map.tmp" && mv "$map.tmp" "$map"
+  fi
+  cat "$map"
+}
+
+bus_of() {
+  buses | awk -v m="$1" '$1 == m {print $2}'
+}
+
+get() {
+  ddcutil --bus "$1" getvcp 10 --terse 2> /dev/null | awk '{print $4}'
+}
+
+put() {
+  local v=$2
+  ((v < 0)) && v=0
+  ((v > 100)) && v=100
+  ddcutil --bus "$1" setvcp 10 "$v" --noverify > /dev/null 2>&1
+  echo "$v"
+}
+
+focused() {
+  hyprctl monitors -j | jq -r '.[] | select(.focused) | .name'
+}
+
+case ${1:-list} in
+  list)
+    while read -r mon bus; do
+      echo "$mon $(get "$bus")"
+    done < <(buses)
+    ;;
+  set)
+    bus=$(bus_of "$2")
+    [[ -n $bus ]] || exit 1
+    put "$bus" "$3" > /dev/null
+    ;;
+  up | down)
+    mon=$(focused)
+    bus=$(bus_of "$mon")
+    [[ -n $bus ]] || exit 1
+    cur=$(get "$bus")
+    [[ -n $cur ]] || exit 1
+    [[ $1 == up ]] && new=$((cur + step)) || new=$((cur - step))
+    v=$(put "$bus" "$new")
+    qs -c torus ipc call torus brightnessOsd "$v" > /dev/null 2>&1 || true
+    ;;
+  *)
+    echo "usage: torus-bright list | up | down | set MONITOR VALUE" >&2
+    exit 2
+    ;;
+esac

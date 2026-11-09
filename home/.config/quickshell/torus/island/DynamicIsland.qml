@@ -13,7 +13,7 @@ PanelWindow {
 
     readonly property bool narrow: screen ? screen.width < 1400 : false
     readonly property bool focused: Store.focusedScreen === screen
-    readonly property bool flashing: Island.state === "osd" || Island.state === "notification"
+    readonly property bool flashing: Island.state === "osd" || Island.state === "notification" || Island.state === "shot"
     readonly property string resting: Island.recording ? "recording" : (Focus.running ? "focus" : (narrow ? "" : (Island.player ? "media" : "idle")))
     readonly property string mode: flashing && focused ? Island.state : resting
     readonly property bool lyricRow: mode === "media" && Lyrics.line !== ""
@@ -21,6 +21,7 @@ PanelWindow {
         switch (mode) {
         case "osd": return 300
         case "notification": return 440
+        case "shot": return 400
         case "recording": return 170
         case "focus": return 150
         case "media": return lyricRow ? 440 : 380
@@ -28,7 +29,7 @@ PanelWindow {
         default: return 0
         }
     }
-    readonly property int pillHeight: mode === "notification" ? 56 : Store.barHeight
+    readonly property int pillHeight: mode === "notification" ? 56 : (mode === "shot" ? 92 : Store.barHeight)
 
     onModeChanged: Island.report(screen.name, mode === "" ? "hidden" : mode)
     Component.onCompleted: Island.report(screen.name, mode === "" ? "hidden" : mode)
@@ -36,7 +37,7 @@ PanelWindow {
     anchors.top: true
     margins.top: narrow ? Store.barGap - 4 : (Store.barPreset === "compact" ? 3 : 4)
     implicitWidth: 480
-    implicitHeight: 64
+    implicitHeight: 104
     exclusionMode: ExclusionMode.Ignore
     color: "transparent"
     visible: !Store.barHidden
@@ -264,6 +265,82 @@ PanelWindow {
                     font.pixelSize: Theme.fontSize - 1
                     elide: Text.ElideRight
                     textFormat: Text.PlainText
+                }
+            }
+        }
+
+        RowLayout {
+            visible: root.mode === "shot"
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 12
+            readonly property string path: Island.flashData.path || ""
+
+            HoverHandler { onHoveredChanged: Island.hold(hovered) }
+
+            ClippingRectangle {
+                Layout.preferredWidth: 128
+                Layout.preferredHeight: 72
+                radius: 10
+                color: Theme.crust
+                Image {
+                    anchors.fill: parent
+                    source: parent.parent.path ? "file://" + parent.parent.path : ""
+                    sourceSize.width: 256
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: false
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Text {
+                    text: "Screenshot copied"
+                    color: Theme.text
+                    font.family: Theme.fontUi
+                    font.pixelSize: Theme.fontSize + 1
+                    font.weight: Font.DemiBold
+                }
+                Row {
+                    spacing: 6
+                    Repeater {
+                        model: [["󰏫", "Edit"], ["󰊄", "Text"], ["󰉋", "Folder"], ["󰆴", "Delete"]]
+                        Rectangle {
+                            id: shotBtn
+                            required property var modelData
+                            width: shotLabel.implicitWidth + 30
+                            height: 26
+                            radius: 13
+                            color: shotHover.hovered ? (modelData[1] === "Delete" ? Theme.red : Theme.accent) : Theme.surface0
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 5
+                                Text { text: shotBtn.modelData[0]; color: shotHover.hovered ? Theme.crust : Theme.accent; font.family: Theme.fontMono; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                                Text { id: shotLabel; text: shotBtn.modelData[1]; color: shotHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            HoverHandler { id: shotHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler {
+                                onTapped: {
+                                    const p = Island.flashData.path || ""
+                                    if (!p)
+                                        return
+                                    const what = shotBtn.modelData[1]
+                                    if (what === "Edit")
+                                        Quickshell.execDetached(["satty", "--filename", p, "--output-filename", p, "--early-exit", "--copy-command", "wl-copy"])
+                                    else if (what === "Text")
+                                        Quickshell.execDetached(["sh", "-c", 'tesseract "$1" - -l eng 2> /dev/null | wl-copy && notify-send -a torus "Text copied" "from the screenshot"', "torus-ocr", p])
+                                    else if (what === "Folder")
+                                        Quickshell.execDetached(["xdg-open", p.substring(0, p.lastIndexOf("/"))])
+                                    else if (what === "Delete")
+                                        Quickshell.execDetached(["rm", "-f", "--", p])
+                                    Island.dismiss()
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -681,6 +681,46 @@ check_pass() {
   if [[ -z $bad ]]; then section pass ok "names listed, field step, copied sensitive, not in history"; else section pass fail "$bad"; fi
 }
 
+check_mixer() {
+  local bad="" r pid
+  mpv --no-video --loop=inf --volume=40 /usr/share/sounds/freedesktop/stereo/complete.oga > /dev/null 2>&1 &
+  pid=$!
+  sleep 2
+  "${QS[@]}" dashboardToggle > /dev/null; sleep 1
+  r=$("${QS[@]}" mixerStreams 2>/dev/null | tail -n 1)
+  [[ $r == *mpv* ]] || bad+="stream-missing[$r] "
+  "${QS[@]}" dashboardToggle > /dev/null
+  kill "$pid" 2>/dev/null
+  if [[ -z $bad ]]; then section mixer ok "playing app listed [$r]"; else section mixer fail "$bad"; fi
+}
+
+check_shot() {
+  local bad="" st
+  torus-shot p; sleep 0.8
+  st=$("${QS[@]}" islandState 2>/dev/null | tail -n 1)
+  [[ $st == *shot* ]] || bad+="island[$st] "
+  pgrep -x satty > /dev/null && { bad+="satty-opened "; pkill -x satty; }
+  [[ -n $(ls ~/Pictures/Screenshots/torus-*.png 2>/dev/null) ]] || bad+="no-file "
+  sleep 6.5
+  st=$("${QS[@]}" islandState 2>/dev/null | tail -n 1)
+  [[ $st != *shot* ]] || bad+="never-hides "
+  if [[ -z $bad ]]; then section shot ok "island shows the screenshot, hides after 6 s, no editor forced"; else section shot fail "$bad"; fi
+}
+
+check_panels() {
+  local bad="" r
+  "${QS[@]}" networkToggle > /dev/null; sleep 3
+  [[ $("${QS[@]}" isOpen network 2>/dev/null | tail -n 1) == true ]] || bad+="network-closed "
+  r=$("${QS[@]}" networkState 2>/dev/null | tail -n 1)
+  [[ $r != -:* ]] || bad+="no-wired[$r] "
+  "${QS[@]}" networkToggle > /dev/null
+  "${QS[@]}" updatesToggle > /dev/null; sleep 8
+  r=$("${QS[@]}" updatesState 2>/dev/null | tail -n 1)
+  [[ $r =~ ^[0-9]+:[1-9] ]] || bad+="updates[$r] "
+  "${QS[@]}" updatesToggle > /dev/null
+  if [[ -z $bad ]]; then section panels ok "network panel sees the wired link, update centre lists updates and arch news [$r]"; else section panels fail "$bad"; fi
+}
+
 lock_cycle() {
   hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
   locked_is true || return 1
@@ -739,6 +779,9 @@ case ${1:-all} in
   focus) check_focus ;;
   switch) check_switch ;;
   pass) check_pass ;;
+  mixer) check_mixer ;;
+  shot) check_shot ;;
+  panels) check_panels ;;
   notify) check_notify ;;
   island) check_island ;;
   widgets) check_widgets ;;
@@ -749,7 +792,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_focus; check_switch; check_pass; check_polkit; check_media ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_polkit; check_media ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

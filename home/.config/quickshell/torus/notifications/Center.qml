@@ -29,6 +29,10 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
     Rectangle {
+        PanelMotion {
+            target: parent
+            shown: root.visible
+        }
         anchors.fill: parent
         radius: 14
         color: Qt.alpha(Theme.base, Theme.glass)

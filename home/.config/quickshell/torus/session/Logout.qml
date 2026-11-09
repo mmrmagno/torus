@@ -36,6 +36,10 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
     Rectangle {
+        PanelMotion {
+            target: parent
+            shown: root.visible
+        }
         anchors.fill: parent
         color: Qt.alpha(Theme.crust, 0.6)
         focus: true

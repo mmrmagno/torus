@@ -112,8 +112,8 @@ bind("XF86AudioPause", "playerctl play-pause", "[Hardware Controls|Media] pause 
 bind("XF86AudioNext", "playerctl next", "[Hardware Controls|Media] next media", locked)
 bind("XF86AudioPrev", "playerctl previous", "[Hardware Controls|Media] previous media", locked)
 bind(MOD .. " + CTRL + M", "torus-wmute", "[Hardware Controls|Media] un/mute active window")
-bind("XF86MonBrightnessUp", "brightnessctl -q set 5%+", "[Hardware Controls|Brightness] increase brightness", locked_repeat)
-bind("XF86MonBrightnessDown", "brightnessctl -q set 5%-", "[Hardware Controls|Brightness] decrease brightness", locked_repeat)
+bind("XF86MonBrightnessUp", "torus-bright up || brightnessctl -q set 5%+", "[Hardware Controls|Brightness] increase brightness", locked_repeat)
+bind("XF86MonBrightnessDown", "torus-bright down || brightnessctl -q set 5%-", "[Hardware Controls|Brightness] decrease brightness", locked_repeat)
 
 bind(MOD .. " + K", "hyprctl switchxkblayout all next", "[Utilities] next keyboard layout", locked)
 bind(MOD .. " + ALT + G", "torus-gamemode", "[Utilities] game mode", locked)

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+log=${TORUS_PACMAN_LOG:-/var/log/pacman.log}
+
+case ${1:-list} in
+  list)
+    checkupdates 2> /dev/null | awk '$3 == "->" {printf "repo\t%s\t%s\t%s\n", $1, $2, $4}'
+    yay -Qua 2> /dev/null | awk '$3 == "->" {printf "aur\t%s\t%s\t%s\n", $1, $2, $4}'
+    ;;
+  news)
+    n=${2:-6}
+    last=$(grep -a 'starting full system upgrade' "$log" 2> /dev/null | tail -n 1 | sed -n 's/^\[\([^]]*\)\].*/\1/p')
+    lastsec=$(date -d "${last:-1970-01-01}" +%s 2> /dev/null || echo 0)
+    curl -sfL --max-time 10 https://archlinux.org/feeds/news/ | tr -d '\n' | awk -v n="$n" 'BEGIN { RS = "<item>" } NR > 1 && NR <= n + 1 {
+      t = $0; sub(/.*<title>/, "", t); sub(/<\/title>.*/, "", t)
+      l = $0; sub(/.*<link>/, "", l); sub(/<\/link>.*/, "", l)
+      d = $0; sub(/.*<pubDate>/, "", d); sub(/<\/pubDate>.*/, "", d)
+      gsub(/&amp;/, "\\&", t); gsub(/&lt;/, "<", t); gsub(/&gt;/, ">", t); gsub(/&quot;/, "\"", t); gsub(/&#39;/, "\x27", t)
+      print d "\t" t "\t" l
+    }' | while IFS=$'\t' read -r pub title link; do
+      s=$(date -d "$pub" +%s 2> /dev/null || echo 0)
+      ((s > lastsec)) && state=new || state=seen
+      printf '%s\t%s\t%s\t%s\n' "$state" "$(date -d "$pub" +%F 2> /dev/null)" "$title" "$link"
+    done
+    ;;
+  *)
+    echo "usage: torus-updates list | news [N]" >&2
+    exit 2
+    ;;
+esac

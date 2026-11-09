@@ -18,6 +18,8 @@ import qs.overview
 import qs.switcher
 import qs.cheatsheet
 import qs.palette
+import qs.network
+import qs.updates
 
 ShellRoot {
     Variants {
@@ -57,6 +59,8 @@ ShellRoot {
     CheatSheet {}
     ClipPanel {}
     CommandPanel {}
+    NetPanel {}
+    UpdatesPanel {}
     AiPanel {}
     Polkit {}
     Lock {}
