@@ -57,12 +57,16 @@ done < "$shots/units-system.txt"
 ((bad == 0)) || { echo "unit check failed" >&2; exit 1; }
 
 "$VM" ssh 'sudo rm -rf ~/restore'
-"$VM" down restore
-"$VM" freeze restore hyde
-"$VM" rm restore
 printf 'tarball_sha256=%s\ntested=%s\nlog=%s\n' "$(cut -d' ' -f1 "$tarball.sha256")" "$stamp" "$log" > "$dir/restore-tested"
 
-"$VM" up hydeshot --from hyde
+sess=restore
+if [[ -n ${TORUS_FREEZE_AS:-} ]]; then
+  "$VM" down restore
+  "$VM" freeze restore "$TORUS_FREEZE_AS"
+  "$VM" rm restore
+  "$VM" up hydeshot --from "$TORUS_FREEZE_AS"
+  sess=hydeshot
+fi
 "$VM" ssh 'printf "[Autologin]\nUser=mmr\nSession=hyprland-uwsm\n" | sudo tee /etc/sddm.conf.d/zz-vm-autologin.conf >/dev/null'
 "$VM" reboot
 t=0
@@ -76,7 +80,7 @@ if "$VM" ssh 'pgrep -x waybar' >/dev/null; then echo "hyde session: waybar runni
 for o in $("$VM" ssh 'export XDG_RUNTIME_DIR=/run/user/1000 HYPRLAND_INSTANCE_SIGNATURE=$(ls /run/user/1000/hypr | head -1); hyprctl monitors -j | jq -r ".[].name"'); do
   "$VM" ssh "XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 grim -o $o /tmp/$o.png" && "$VM" scp-from "/tmp/$o.png" "$shots/hyde-$o.png"
 done
-"$VM" down hydeshot
-"$VM" rm hydeshot
+"$VM" down "$sess"
+"$VM" rm "$sess"
 trap - EXIT
 echo "restore proven: $dir/restore-tested, screenshots in $shots"
