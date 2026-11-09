@@ -1,7 +1,6 @@
 # torus
 
-My own Arch + Hyprland setup: Catppuccin Mocha everywhere, marc-os branding, and the spinning donut from
-the About page of marc-os.com as its signature.
+My own Arch + Hyprland setup: Catppuccin Mocha everywhere.
 
 ![The torus desktop with the spinning ASCII donut](screenshots/desktop.webp)
 
@@ -10,7 +9,7 @@ the About page of marc-os.com as its signature.
 | | |
 |:---:|:---:|
 | ![Dashboard with weather, system stats, sound mixer and calendar](screenshots/dashboard.webp) | ![Command palette on SUPER+Space](screenshots/palette.webp) |
-| The dashboard: weather, stats, a sound mixer per app, calendar | SUPER+Space: apps, windows, actions, maths, files, notes, passwords |
+| The dashboard: weather, stats, a sound mixer per app, calendar | SUPER+Space: apps, windows, actions, calc, files, notes, passwords |
 | ![Grouped notifications with media controls](screenshots/notifications.webp) | ![Lock screen with the donut and now playing](screenshots/lock.webp) |
 | Notifications, grouped per app, repeats folded into one | The lock screen, with what is playing right under the password |
 | ![An ASCII X-wing as the wallpaper](screenshots/xwing.webp) | ![fastfetch with the donut logo](screenshots/fetch.webp) |
@@ -32,35 +31,18 @@ The small things:
 
 ## Why
 
-I ran HyDE for a long time. It is good, but most of my desktop lived in files that get overwritten on
-every update, and one migration quietly took my window rules with it. I want a setup I own end to end.
+I ran [HyDE](https://github.com/HyDE-Project/HyDE) for a long time. It is good, but most of my desktop
+lived in files that get overwritten on every update, and one migration quietly took my window rules
+with it. I want a setup I own end to end.
 
 ## What it does
 
-The donut
-- Drawn on the GPU, synced to each monitor, and it pauses when a game is fullscreen.
-- Its colour follows the time of day and the album art of whatever is playing.
-- The same donut in fastfetch, GRUB, Plymouth, the login screen and the lock screen. An X-wing if I want a change.
-
-The shell, built on Quickshell
-- A bar with hover cards for CPU, memory and GPU, and tooltips on everything.
-- A dynamic island for music with live lyrics, volume, notifications, recording, a focus timer and screenshots.
-- A dashboard with weather, a mixer per app, monitor brightness over DDC, and my Google calendar.
-- Notifications grouped per app, repeats folded into one, quiet hours from midnight to six.
-- A clipboard history with pins that survive a wipe.
-- Wi-Fi, Bluetooth and an update centre with Arch news, all from the bar.
-- A local AI sidebar on Ollama.
-
-SUPER+Space
-- Apps, open windows and quick actions in one box, ranked by what I use.
-- `=` maths, `/` files, `?` my notes, `!` ask the AI, `:` emoji, `n ` past notifications.
-- `p ` Proton Pass: pick an item, copy one field, the clipboard clears itself after 30 seconds.
-- `rule` on any window: always float it, pin it to a workspace or a monitor, or keep the mouse inside it in fullscreen games.
-
-The rest
-- My apps come back on their workspaces after a reboot, kitty in the same folders.
-- One accent picker that every app follows, on top of Catppuccin Mocha.
-- Every keybind I had on HyDE, checked by a test in a VM.
+- A Quickshell shell: bar, dashboard, notifications, a dynamic island for music and alerts, lock screen.
+- SUPER+Space: apps, windows, calc, files, notes, emoji and Proton Pass in one box.
+- The donut drawn on the GPU, tinted by the time of day and the album art. Or an X-wing.
+- A clipboard with pins, a mixer per app, Wi-Fi and Bluetooth, updates with Arch news, my calendar.
+- Window rules from SUPER+Space, and my apps back on their workspaces after a reboot.
+- One accent colour that every app follows.
 
 ## Keys I use the most
 
