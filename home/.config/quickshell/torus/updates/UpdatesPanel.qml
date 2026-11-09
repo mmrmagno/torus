@@ -10,8 +10,8 @@ import qs.services
 PanelWindow {
     id: root
 
-    screen: Store.focusedScreen
-    visible: Store.isOpen("updates")
+    screen: Store.screenFor("updates")
+    visible: Store.isOpen("updates") || motion.leaving
     onVisibleChanged: if (visible) {
         Updates.check()
         Updates.fetchNews()
@@ -42,11 +42,12 @@ PanelWindow {
         focus: true
         Keys.onEscapePressed: Store.setOpen("updates", false)
         PanelMotion {
+            id: motion
             target: parent
-            shown: root.visible
+            shown: Store.isOpen("updates") && !Store.moving
         }
         anchors.fill: parent
-        radius: 18
+        radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
@@ -61,18 +62,18 @@ PanelWindow {
             ColumnLayout {
                 id: body
                 width: parent.width
-                spacing: 10
+                spacing: Theme.sp5
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
-                    Text { text: "󰮯"; color: Updates.count > 0 ? Theme.green : Theme.accent; font.family: Theme.fontMono; font.pixelSize: 18 }
+                    spacing: Theme.sp4
+                    Text { text: "󰮯"; color: Updates.count > 0 ? Theme.green : Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsTitle }
                     Text {
                         Layout.fillWidth: true
                         text: Updates.checking ? "checking…" : (Updates.count > 0 ? Updates.count + (Updates.count === 1 ? " update" : " updates") : "everything is up to date")
                         color: Theme.text
                         font.family: Theme.fontUi
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fsLg
                         font.weight: Font.DemiBold
                     }
                     Rectangle {
@@ -81,7 +82,7 @@ PanelWindow {
                         height: 28
                         radius: 14
                         color: upHover.hovered ? Theme.green : Theme.accent
-                        Text { id: upText; anchors.centerIn: parent; text: "Update now"; color: Theme.crust; font.family: Theme.fontUi; font.pixelSize: 12; font.weight: Font.DemiBold }
+                        Text { id: upText; anchors.centerIn: parent; text: "Update now"; color: Theme.crust; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd; font.weight: Font.DemiBold }
                         HoverHandler { id: upHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: { Store.setOpen("updates", false); Updates.update() } }
                     }
@@ -91,7 +92,7 @@ PanelWindow {
                     visible: Updates.unread > 0
                     Layout.fillWidth: true
                     Layout.preferredHeight: warn.implicitHeight + 16
-                    radius: 10
+                    radius: Theme.radius
                     color: Qt.alpha(Theme.peach, 0.15)
                     border.width: 1
                     border.color: Qt.alpha(Theme.peach, 0.5)
@@ -103,7 +104,7 @@ PanelWindow {
                         text: "Arch posted news since your last full upgrade. Read it before updating."
                         color: Theme.peach
                         font.family: Theme.fontUi
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fsMd
                     }
                 }
 
@@ -112,17 +113,17 @@ PanelWindow {
                     RowLayout {
                         required property var modelData
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: Theme.sp4
                         Rectangle {
                             visible: modelData.source === "aur"
                             width: 30
                             height: 16
-                            radius: 8
+                            radius: Theme.rSm
                             color: Theme.surface1
-                            Text { anchors.centerIn: parent; text: "AUR"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: 9 }
+                            Text { anchors.centerIn: parent; text: "AUR"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsXs }
                         }
-                        Text { text: modelData.name; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Text { text: modelData.from + "  →  " + modelData.to; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: 10; elide: Text.ElideLeft; Layout.maximumWidth: 230 }
+                        Text { text: modelData.name; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Text { text: modelData.from + "  →  " + modelData.to; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs; elide: Text.ElideLeft; Layout.maximumWidth: 230 }
                     }
                 }
 
@@ -131,12 +132,12 @@ PanelWindow {
                     text: "and " + (Updates.packages.length - 40) + " more"
                     color: Theme.overlay
                     font.family: Theme.fontUi
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fsSm
                 }
 
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.surface1; Layout.topMargin: 4; Layout.bottomMargin: 4 }
 
-                Text { text: "Arch news"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: 11; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
+                Text { text: "Arch news"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
 
                 Repeater {
                     model: Updates.news
@@ -145,7 +146,7 @@ PanelWindow {
                         required property var modelData
                         Layout.fillWidth: true
                         Layout.preferredHeight: newsCol.implicitHeight + 12
-                        radius: 10
+                        radius: Theme.radius
                         color: newsHover.hovered ? Theme.surface0 : "transparent"
                         RowLayout {
                             id: newsCol
@@ -154,13 +155,13 @@ PanelWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 8
                             anchors.rightMargin: 8
-                            spacing: 8
+                            spacing: Theme.sp4
                             Rectangle { width: 7; height: 7; radius: 4; color: item.modelData.state === "new" ? Theme.peach : "transparent" }
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 1
-                                Text { Layout.fillWidth: true; text: item.modelData.title; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 12; wrapMode: Text.WordWrap }
-                                Text { text: item.modelData.date; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: 10 }
+                                Text { Layout.fillWidth: true; text: item.modelData.title; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd; wrapMode: Text.WordWrap }
+                                Text { text: item.modelData.date; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
                             }
                         }
                         HoverHandler { id: newsHover; cursorShape: Qt.PointingHandCursor }

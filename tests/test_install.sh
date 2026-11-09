@@ -45,8 +45,8 @@ mkedid "$F/sys/class/drm/card1-DP-1/edid" VG27AQ1A
 mkedid "$F/sys/class/drm/card1-DP-2/edid" Q27G2WG4
 printf 'hl.monitor({\n    output = "DP-2",\n    mode = "2560x1440@120.0",\n    position = "2560x410",\n    scale = 1.0,\n    transform = 3\n})\nhl.monitor({\n    output = "DP-1",\n    mode = "2560x1440@144.01",\n    position = "0x1467",\n    scale = 1\n})\n' > "$F/monitors.lua"
 
-PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve > "$F/sys1"
-PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve > "$F/sys2"
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve --flavour mocha > "$F/sys1"
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve --flavour mocha > "$F/sys2"
 assert_contains "$R/etc/default/grub" 'GRUB_THEME="/boot/grub/themes/marc-os/theme.txt"'
 assert_eq 1 "$(grep -o 'splash' "$R/etc/default/grub" | wc -l)" "splash added once"
 assert_contains "$R/etc/default/grub" 'GRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet splash"'
@@ -71,7 +71,7 @@ order=$(grep -oE '^(plymouth-set-default-theme marc-os|grub-mkconfig|mkinitcpio|
 assert_eq "plymouth-set-default-theme marc-os|grub-mkconfig|mkinitcpio|sbctl sign-all|sbctl verify|" "$order" "system command order"
 grep -q 'grub-install' "$STUB_LOG" && fail "grub-install must never run"
 rc=0
-STUB_UNSIGNED=1 PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve > /dev/null 2>&1 || rc=$?
+STUB_UNSIGNED=1 PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent mauve --flavour mocha > /dev/null 2>&1 || rc=$?
 assert_eq 6 "$rc" "unsigned boot file blocks install"
 rc=0
 "$REPO/install.sh" --system > /dev/null 2>&1 || rc=$?
@@ -86,13 +86,33 @@ cp "$R/etc/default/grub" "$F/grub.before"
 rc=0
 mkdir -p "$F/usrbin"
 for b in /usr/bin/*; do [[ ${b##*/} == plymouth-set-default-theme ]] || ln -s "$b" "$F/usrbin/${b##*/}"; done
-PATH=$F/sbin-partial:$F/usrbin "$REPO/install.sh" --system --root "$R" --accent mauve > "$F/partial" 2>&1 || rc=$?
+PATH=$F/sbin-partial:$F/usrbin "$REPO/install.sh" --system --root "$R" --accent mauve --flavour mocha > "$F/partial" 2>&1 || rc=$?
 assert_eq 3 "$rc" "missing tool stops before any edit"
 cmp -s "$F/grub.before" "$R/etc/default/grub" || fail "grub default touched although a tool was missing"
 assert_contains "$F/partial" "plymouth-set-default-theme"
 
-PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent blue > /dev/null 2>&1
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent blue --flavour mocha > /dev/null 2>&1
 assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'accent="#89b4fa"'
+assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'base="#1e1e2e"'
+G=$R/boot/grub/themes/marc-os
+cmp -s "$REPO/system/boot/grub/themes/marc-os/theme.txt" "$G/theme.txt" || fail "mocha grub theme.txt changed"
+cmp -s "$REPO/system/usr/share/plymouth/themes/marc-os/marc-os.script" "$R/usr/share/plymouth/themes/marc-os/marc-os.script" || fail "mocha plymouth script changed"
+assert_eq "1E1E2E" "$(magick "$G/background.png" -alpha off -depth 8 -format '%[hex:p{5,5}]' info:)" "mocha grub background"
+TORUS_PLY_FRAMES=2 PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --accent blue --flavour latte > "$F/latte"
+assert_contains "$F/latte" "flavour latte"
+assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'base="#eff1f5"'
+assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'accent="#1e66f5"'
+assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'text="#4c4f69"'
+assert_contains "$G/theme.txt" 'desktop-color: "#EFF1F5"'
+assert_contains "$G/theme.txt" 'item_color = "#4C4F69"'
+grep -qi 'CDD6F4\|1E1E2E\|B4BEFE' "$G/theme.txt" && fail "latte grub theme keeps mocha colours"
+assert_contains "$R/usr/share/plymouth/themes/marc-os/marc-os.script" "SetBackgroundTopColor(0.937, 0.945, 0.961)"
+assert_eq "EFF1F5" "$(magick "$G/background.png" -alpha off -depth 8 -format '%[hex:p{5,5}]' info:)" "latte grub background"
+assert_eq "CCD0DA" "$(magick "$G/select_c.png" -alpha off -depth 8 -format '%[hex:p{2,10}]' info:)" "latte grub selection"
+assert_eq "EFF1F5" "$(magick "$R/usr/share/sddm/themes/torus-background.png" -alpha off -depth 8 -format '%[hex:p{5,1000}]' info:)" "latte sddm background"
+rc=0
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --flavour espresso > /dev/null 2>&1 || rc=$?
+assert_eq 2 "$rc" "unknown flavour"
 R2=$F/root2
 mkdir -p "$R2/etc/default" "$R2/boot/grub" "$R2/usr/share/sddm/themes/catppuccin-mocha-mauve"
 printf 'GRUB_DEFAULT=0\nGRUB_CMDLINE_LINUX_DEFAULT="loglevel=3 quiet"\nGRUB_THEME="/boot/grub/themes/hollow-grub/theme.txt"\n' > "$R2/etc/default/grub"
@@ -101,12 +121,12 @@ cp "$R2/etc/default/grub" "$F/g2.before"; cp "$R2/etc/mkinitcpio.conf" "$F/m2.be
 printf '#!/usr/bin/env bash\necho "plymouth-set-default-theme $*" >> "$STUB_LOG"\n(($#)) || echo bgrt\n' > "$F/sbin/plymouth-set-default-theme"
 rc=0; PATH=$F/sbin:$PATH "$REPO/install.sh" --system --undo --root "$R2" > /dev/null 2>&1 || rc=$?
 assert_eq 10 "$rc" "undo without originals"
-PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R2" --accent mauve > /dev/null
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R2" --accent mauve --flavour mocha > /dev/null
 O=$R2/var/lib/torus/original
 assert_contains "$O/etc/default/grub" "hollow-grub"
 assert_contains "$O/absent.txt" "etc/sddm.conf.d/zz-torus.conf"
 assert_eq bgrt "$(cat "$O/plymouth-theme")" "previous plymouth theme saved"
-PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R2" --accent mauve > /dev/null
+PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R2" --accent mauve --flavour mocha > /dev/null
 assert_contains "$O/etc/default/grub" "hollow-grub"
 assert_eq "$(sort -u "$R2/var/lib/torus/installed.txt" | wc -l)" "$(wc -l < "$R2/var/lib/torus/installed.txt")" "installed list has no duplicates"
 mapfile -t inst < "$R2/var/lib/torus/installed.txt"

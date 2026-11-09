@@ -16,7 +16,10 @@ Singleton {
     readonly property var shown: {
         const q = filter.toLowerCase()
         const pinned = pins.map(p => ({ id: "pin:" + p.file, line: "", text: p.text, image: p.image ? "file://" + pinDir + "/" + p.file : "", pinned: true, file: p.file }))
-        const all = pinned.concat(entries.filter(e => !pins.some(p => p.text === e.text)))
+        const taken = {}
+        for (const p of pins)
+            taken[p.file] = true
+        const all = pinned.concat(entries.filter(e => !taken[Qt.md5(e.line) + ".pin"]))
         if (q === "")
             return all
         return all.filter(e => {
@@ -53,14 +56,17 @@ Singleton {
             Quickshell.execDetached(["rm", "-f", "--", pinDir + "/" + entry.file])
             return
         }
+        if (pinner.running)
+            return
         const file = Qt.md5(entry.line) + ".pin"
         pinner.pending = { file: file, text: entry.text, image: entry.image !== "" }
-        pinner.command = ["sh", "-c", "mkdir -p \"$2\" && printf '%s\\n' \"$1\" | cliphist decode > \"$2/$3\"", "sh", entry.line, pinDir, file]
+        pinner.command = ["sh", "-c", "umask 077; mkdir -p \"$2\" && chmod 700 \"$2\" && printf '%s\\n' \"$1\" | cliphist decode > \"$2/$3\"", "sh", entry.line, pinDir, file]
         pinner.running = true
     }
 
     function savePins() {
         pinFile.setText(JSON.stringify(pins))
+        Quickshell.execDetached(["chmod", "600", "--", pinDir + ".json"])
     }
 
     function remove(entry) {

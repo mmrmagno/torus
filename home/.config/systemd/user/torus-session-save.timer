@@ -2,7 +2,7 @@
 Description=torus: save open windows every 5 minutes
 
 [Timer]
-OnActiveSec=10min
+OnActiveSec=2min
 OnUnitActiveSec=5min
 
 [Install]

@@ -5,6 +5,7 @@ SELF=$(readlink -f "$0")
 REPO=$(cd "$(dirname "$SELF")/../../.." && pwd)
 STATE=${XDG_STATE_HOME:-$HOME/.local/state}/torus
 ACCENTS=(rosewater flamingo pink mauve red maroon peach yellow green teal sky sapphire blue lavender)
+FLAVOURS=(mocha macchiato frappe latte)
 
 warn() { echo "torus: $*" >&2; }
 
@@ -12,19 +13,71 @@ current_accent() {
   cat "$STATE/accent" 2>/dev/null || echo mauve
 }
 
+current_flavour() {
+  local f
+  f=$(cat "$STATE/flavour" 2>/dev/null || true)
+  [[ " ${FLAVOURS[*]} " == *" $f "* ]] && echo "$f" || echo mocha
+}
+
+flavour_meta() {
+  if [[ $1 == latte ]]; then
+    DARK=false GTK_THEME=adw-gtk3 COLOR_SCHEME=prefer-light ICON_THEME=Tela-circle
+  else
+    DARK=true GTK_THEME=adw-gtk3-dark COLOR_SCHEME=prefer-dark ICON_THEME=Tela-circle-dracula
+  fi
+}
+
+sed_script() {
+  local accent=$1 flavour=$2
+  flavour_meta "$flavour"
+  jq -r --arg a "$accent" --arg f "$flavour" --arg dark "$DARK" --arg gtk "$GTK_THEME" --arg scheme "$COLOR_SCHEME" --arg icons "$ICON_THEME" '
+    def h2d: ascii_downcase | explode | map(if . >= 97 then . - 87 else . - 48 end) | reduce .[] as $d (0; . * 16 + $d);
+    def d2h: [(. / 16 | floor), (. % 16)] | map(if . < 10 then . + 48 else . + 87 end) | implode;
+    def rgb: .[1:] | [.[0:2], .[2:4], .[4:6]] | map(h2d);
+    def mix($b; $t): [(rgb), ($b | rgb)] | transpose | map(.[1] + (.[0] - .[1]) * $t | floor | d2h) | "#" + add;
+    . as $p | ($dark == "true") as $d | $p[$a] as $acc
+    | (if $d then $p.crust else $p.text end) as $shadow
+    | (to_entries | map({key, value})) + [
+        {key: "accent", value: $acc},
+        {key: "accent_hover", value: (if $d then ("#000000" | mix($acc; 0.08)) else ("#ffffff" | mix($acc; 0.085)) end)},
+        {key: "shadow", value: $shadow},
+        {key: "diff_minus", value: ($p.red | mix($p.base; 0.25))},
+        {key: "diff_plus", value: ($p.green | mix($p.base; 0.2))},
+        {key: "term0", value: (if $d then $p.surface1 else $p.subtext1 end)},
+        {key: "term8", value: (if $d then $p.surface2 else $p.subtext0 end)},
+        {key: "term7", value: (if $d then $p.subtext1 else $p.surface2 end)},
+        {key: "term15", value: (if $d then $p.subtext0 else $p.surface1 end)}
+      ]
+    | (.[] | "s/@\(.key)_rgb@/\(.value | rgb | map(tostring) | join(","))/g\ns/@\(.key)_hex@/\(.value[1:])/g\ns/@\(.key)@/\(.value)/g"),
+      "s/@accent_name@/\($a)/g",
+      "s/@flavour@/\($f)/g",
+      "s/@Flavour@/\($f[0:1] | ascii_upcase)\($f[1:])/g",
+      "s/@dark@/\($dark)/g",
+      "s/@mode@/\(if $d then "dark" else "light" end)/g",
+      "s/@shadow_alpha@/\(if $d then "cc" else "59" end)/g",
+      "s/@lock_brightness@/\(if $d then "0.55" else "1.0" end)/g",
+      "s/@gtk_theme@/\($gtk)/g",
+      "s/@color_scheme@/\($scheme)/g",
+      "s/@icon_theme@/\($icons)/g",
+      "s/@kvantum_theme@/\(if $f == "mocha" then "hyde-mocha" else "torus" end)/g"
+  ' "$REPO/theme/$flavour.json"
+  printf 's|@state@|%s|g\n' "$(printf '%s' "$STATE" | sed 's/[|&\\]/\\&/g')"
+}
+
 render() {
-  local accent=$1 hex script tmp t
-  hex=$(jq -r --arg a "$accent" '.[$a]' "$REPO/theme/mocha.json")
-  script=$(jq -r 'to_entries[] | "s/@\(.key)_hex@/\(.value[1:])/g\ns/@\(.key)@/\(.value)/g"' "$REPO/theme/mocha.json")
-  script="s/@accent_name@/$accent/g
-s/@accent_hex@/${hex:1}/g
-s/@accent@/$hex/g
-$script"
+  local accent=$1 flavour=${2:-$(current_flavour)} script tmp t e
+  script=$(sed_script "$accent" "$flavour")
   mkdir -p "$STATE"
   tmp=$(mktemp -d "$STATE/.theme.XXXXXX")
   for t in "$REPO"/theme/templates/*.tmpl; do
     sed "$script" "$t" > "$tmp/$(basename "$t" .tmpl)"
   done
+  if [[ -f $REPO/theme/kvantum/catppuccin-$flavour.kvconfig ]]; then
+    mkdir -p "$tmp/kvantum"
+    for e in kvconfig svg; do
+      sed "$script" "$REPO/theme/kvantum/catppuccin-$flavour.$e" > "$tmp/kvantum/torus.$e"
+    done
+  fi
   if [[ -d $STATE/theme ]]; then
     mv -T --exchange "$tmp" "$STATE/theme"
     rm -rf "$tmp"
@@ -32,6 +85,46 @@ $script"
     mv "$tmp" "$STATE/theme"
   fi
   echo "$accent" > "$STATE/accent"
+  echo "$flavour" > "$STATE/flavour"
+}
+
+link_state() {
+  local src=$STATE/theme/$1 dst=$HOME/$2
+  [[ -e $dst && ! -L $dst ]] && return 0
+  mkdir -p "$(dirname "$dst")"
+  ln -sfn "$src" "$dst"
+}
+
+link_configs() {
+  link_state hyprtoolkit.conf .config/hypr/hyprtoolkit.conf
+  link_state starship.toml .config/starship/starship.toml
+  link_state yazi-theme.toml .config/yazi/theme.toml
+  link_state lazygit.yml .config/lazygit/config.yml
+  link_state kvantum.kvconfig .config/Kvantum/kvantum.kvconfig
+  link_state kvantum .config/Kvantum/torus
+  link_state qt6ct.conf .config/qt6ct/qt6ct.conf
+  link_state kdeglobals .config/kdeglobals
+  link_state gtk-settings.ini .config/gtk-3.0/settings.ini
+  link_state gtk-settings.ini .config/gtk-4.0/settings.ini
+}
+
+apply_gsettings() {
+  command -v gsettings > /dev/null || return 0
+  flavour_meta "$1"
+  local g=org.gnome.desktop.interface
+  gsettings set $g gtk-theme "$GTK_THEME" || true
+  gsettings set $g color-scheme "$COLOR_SCHEME" || true
+  gsettings set $g icon-theme "$ICON_THEME" || true
+}
+
+render_art() {
+  command -v deno > /dev/null || return 0
+  local tmp
+  tmp=$(mktemp -d)
+  deno run --quiet --allow-read --allow-write --allow-run --allow-env "$REPO/donut/render-frames.ts" "$tmp" 1 600 transparent > /dev/null 2>&1 || true
+  [[ -s $tmp/frame-0000.png ]] && mv "$tmp/frame-0000.png" "$STATE/donut.png" || warn "donut.png not rendered"
+  rm -rf "$tmp"
+  deno run --quiet --allow-read --allow-write --allow-env "$REPO/donut/render-logo.ts" "$STATE/fastfetch" > /dev/null 2>&1 || warn "fastfetch colours not rendered"
 }
 
 install_app_themes() {
@@ -41,20 +134,21 @@ install_app_themes() {
   install -D -m 644 "$t/btop.theme" "$HOME/.config/btop/themes/torus.theme"
   if [[ -d $HOME/.config/vesktop ]]; then
     mkdir -p "$HOME/.config/vesktop/themes"
-    printf '@import url("https://catppuccin.github.io/discord/dist/catppuccin-mocha-%s.theme.css");\n' "$(cat "$STATE/accent")" > "$HOME/.config/vesktop/themes/torus.theme.css"
+    printf '@import url("https://catppuccin.github.io/discord/dist/catppuccin-%s-%s.theme.css");\n' "$(current_flavour)" "$(current_accent)" > "$HOME/.config/vesktop/themes/torus.theme.css"
   fi
 }
 
 reload() {
-  local accent=$1
+  local accent=$1 flavour
+  flavour=$(current_flavour)
   install_app_themes
   hyprctl eval "dofile('$STATE/theme/hypr-colors.lua')" > /dev/null 2>&1 || warn "hyprland not reachable, borders update on next login"
   qs -c torus ipc call torus reloadTheme > /dev/null 2>&1 || warn "shell not reachable"
   pkill -USR1 -x kitty || true
   local chadrc=$HOME/.config/nvim/lua/chadrc.lua
   if [[ -f $chadrc ]] && grep -q -- '-- torus accent start' "$chadrc"; then
-    awk -v a="$accent" '
-      /-- torus accent start/ { print; print "M.torus_accent = \"" a "\""; skip = 1; next }
+    awk -v a="$accent" -v f="$flavour" '
+      /-- torus accent start/ { print; print "M.torus_accent = \"" a "\""; print "M.torus_flavour = \"" f "\""; skip = 1; next }
       /-- torus accent end/ { skip = 0 }
       !skip' "$chadrc" > "$chadrc.torus" && mv "$chadrc.torus" "$chadrc"
   fi
@@ -72,16 +166,36 @@ cmd_accent() {
   echo "accent: $accent"
 }
 
-cmd_setup() {
-  local accent
+cmd_flavour() {
+  if (($# == 0)); then
+    current_flavour
+    return
+  fi
+  local flavour=$1 accent before
+  [[ " ${FLAVOURS[*]} " == *" $flavour "* ]] || { warn "unknown flavour: $flavour (one of: ${FLAVOURS[*]})"; exit 2; }
   accent=$(current_accent)
-  render "$accent"
+  before=$(current_flavour)
+  render "$accent" "$flavour"
+  link_configs
+  reload "$accent"
+  apply_gsettings "$flavour"
+  render_art
+  if command -v bat > /dev/null; then bat cache --build > /dev/null 2>&1 || true; fi
+  if [[ $before != "$flavour" && ( $before == latte || $flavour == latte ) ]]; then
+    systemctl --user restart --no-block torus-shell.service > /dev/null 2>&1 || true
+  fi
+  echo "flavour: $flavour"
+}
+
+cmd_setup() {
+  local accent flavour
+  accent=$(current_accent)
+  flavour=$(current_flavour)
+  render "$accent" "$flavour"
+  link_configs
   reload "$accent" 2> /dev/null || true
+  apply_gsettings "$flavour"
   local g=org.gnome.desktop.interface
-  gsettings set $g gtk-theme adw-gtk3-dark || true
-  gsettings set $g color-scheme prefer-dark || true
-  gsettings set $g icon-theme Tela-circle-dracula || true
-  [[ -e $HOME/.config/hypr/hyprtoolkit.conf && ! -L $HOME/.config/hypr/hyprtoolkit.conf ]] || { mkdir -p "$HOME/.config/hypr" && ln -sfn "$STATE/theme/hyprtoolkit.conf" "$HOME/.config/hypr/hyprtoolkit.conf"; }
   gsettings set $g font-name "Cantarell 10" || true
   gsettings set $g monospace-font-name "JetBrainsMono Nerd Font 10" || true
   gsettings set $g cursor-size 24 || true
@@ -101,25 +215,23 @@ cmd_setup() {
   local layout
   layout=$(cat "$STATE/hyprlock" 2> /dev/null || echo marc-os)
   [[ -e $STATE/hyprlock-layout.conf ]] || ln -sfn "$HOME/.config/hypr/hyprlock/$layout.conf" "$STATE/hyprlock-layout.conf"
-  if command -v deno > /dev/null && [[ ! -s $STATE/donut.png ]]; then
-    local tmp
-    tmp=$(mktemp -d)
-    deno run --quiet --allow-read --allow-write --allow-run "$REPO/donut/render-frames.ts" "$tmp" 1 600 transparent > /dev/null 2>&1 && mv "$tmp/frame-0000.png" "$STATE/donut.png"
-    rm -rf "$tmp"
-  fi
-  local inc=$HOME/.config/torus/delta.gitconfig
-  git config --global --get-all include.path 2> /dev/null | grep -qxF "$inc" || git config --global --add include.path "$inc"
+  [[ -s $STATE/donut.png ]] || render_art
+  local inc
+  for inc in "$HOME/.config/torus/delta.gitconfig" "$STATE/theme/delta.gitconfig"; do
+    git config --global --get-all include.path 2> /dev/null | grep -qxF "$inc" || git config --global --add include.path "$inc"
+  done
   systemctl --user enable torus-shell.service > /dev/null 2>&1 || true
   systemctl --user enable --now torus-session-save.timer > /dev/null 2>&1 || true
   systemctl --user mask dunst.service > /dev/null 2>&1 || true
-  echo "torus: setup done (accent $accent)"
+  echo "torus: setup done (flavour $flavour, accent $accent)"
 }
 
-(($#)) || { echo "usage: torus accent [name] | torus setup" >&2; exit 1; }
+(($#)) || { echo "usage: torus accent [name] | torus flavour [name] | torus setup" >&2; exit 1; }
 cmd=$1
 shift
 case $cmd in
   accent) cmd_accent "$@" ;;
+  flavour | flavor) cmd_flavour "$@" ;;
   setup) cmd_setup ;;
   *) echo "unknown command: $cmd" >&2; exit 1 ;;
 esac

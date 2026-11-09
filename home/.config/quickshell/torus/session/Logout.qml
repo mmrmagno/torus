@@ -24,8 +24,8 @@ PanelWindow {
             Quickshell.execDetached(a.cmd)
     }
 
-    screen: Store.focusedScreen
-    visible: Store.isOpen("logout")
+    screen: Store.screenFor("logout")
+    visible: Store.isOpen("logout") || motion.leaving
     anchors {
         top: true
         bottom: true
@@ -40,8 +40,9 @@ PanelWindow {
 
     Rectangle {
         PanelMotion {
+            id: motion
             target: parent
-            shown: root.visible
+            shown: Store.isOpen("logout")
         }
         anchors.fill: parent
         color: Qt.alpha(Theme.crust, 0.6)
@@ -68,15 +69,15 @@ PanelWindow {
                     required property var modelData
                     width: 128
                     height: 140
-                    radius: 18
+                    radius: Theme.rPanel
                     color: hover.hovered ? Qt.alpha(Theme.accent, 0.25) : Qt.alpha(Theme.base, Theme.glassCard)
                     border.width: hover.hovered ? 2 : 1
                     border.color: hover.hovered ? Theme.accent : Theme.surface1
-                    Behavior on color { ColorAnimation { duration: 120 } }
+                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
                     Column {
                         anchors.centerIn: parent
-                        spacing: 10
+                        spacing: Theme.sp5
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: parent.parent.modelData.icon
@@ -89,14 +90,14 @@ PanelWindow {
                             text: parent.parent.modelData.label
                             color: Theme.text
                             font.family: Theme.fontUi
-                            font.pixelSize: 14
+                            font.pixelSize: Theme.fsLg
                         }
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: parent.parent.modelData.key
                             color: Theme.overlay
                             font.family: Theme.fontMono
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fsSm
                         }
                     }
 

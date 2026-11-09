@@ -1,11 +1,12 @@
 import { grid, ramp, CHARS, W, H } from "./donut.mjs";
+import { activePalette } from "./palette.ts";
 
 const out = Deno.args[0];
 if (!out) {
   console.error("usage: render-logo.ts <out-dir>");
   Deno.exit(1);
 }
-const palette = JSON.parse(Deno.readTextFileSync(new URL("../theme/mocha.json", import.meta.url)));
+const palette = activePalette();
 const colors: string[] = ramp(palette);
 const slotOf = (lvl: number) => Math.min(9, Math.floor((lvl * 9) / 12) + 1);
 const slotLevel = (slot: number) => Math.min(11, Math.round(((slot - 1) * 12) / 9 + 0.5));

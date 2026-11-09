@@ -9,8 +9,8 @@ import qs.services
 PanelWindow {
     id: root
 
-    screen: Store.focusedScreen
-    visible: Store.isOpen("ai")
+    screen: Store.screenFor("ai")
+    visible: Store.isOpen("ai") || motion.leaving
     anchors {
         top: true
         right: true
@@ -35,8 +35,9 @@ PanelWindow {
 
     Rectangle {
         PanelMotion {
+            id: motion
             target: parent
-            shown: root.visible
+            shown: Store.isOpen("ai")
         }
         anchors.fill: parent
         radius: 14
@@ -47,11 +48,11 @@ PanelWindow {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 14
-            spacing: 10
+            spacing: Theme.sp5
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Theme.sp4
                 Text {
                     text: "󰚩"
                     color: Theme.accent
@@ -63,7 +64,7 @@ PanelWindow {
                     text: "Local AI"
                     color: Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: 18
+                    font.pixelSize: Theme.fsTitle
                     font.weight: Font.DemiBold
                 }
                 PanelButton {
@@ -80,18 +81,18 @@ PanelWindow {
                 Layout.fillWidth: true
                 Layout.preferredHeight: hint.implicitHeight + 28
                 visible: Ai.status === "offline" || (Ai.status === "online" && Ai.models.length === 0)
-                radius: 12
+                radius: Theme.rCard
                 color: Theme.surface0
                 Column {
                     id: hint
                     anchors.fill: parent
                     anchors.margins: 14
-                    spacing: 6
+                    spacing: Theme.sp3
                     Text {
                         text: Ai.status === "offline" ? "Ollama is not running" : "No models yet"
                         color: Theme.peach
                         font.family: Theme.fontUi
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fsLg
                         font.weight: Font.DemiBold
                     }
                     Text {
@@ -100,13 +101,13 @@ PanelWindow {
                         text: Ai.status === "offline" ? "Start it, then reopen this panel:" : "Pull one, then reopen this panel:"
                         color: Theme.subtext
                         font.family: Theme.fontUi
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fsMd
                     }
                     Text {
                         text: Ai.status === "offline" ? "systemctl enable --now ollama" : "ollama pull llama3.2"
                         color: Theme.accent
                         font.family: Theme.fontMono
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fsMd
                     }
                 }
             }
@@ -116,7 +117,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                spacing: 10
+                spacing: Theme.sp5
                 model: Ai.messages
                 onCountChanged: positionViewAtEnd()
                 delegate: Item {
@@ -134,7 +135,7 @@ PanelWindow {
                         anchors.left: msg.mine ? undefined : parent.left
                         width: Math.min(parent.width * (msg.mine ? 0.85 : 1), body.implicitWidth + 28)
                         height: body.implicitHeight + (msg.mine ? 20 : 40)
-                        radius: 12
+                        radius: Theme.rCard
                         color: msg.mine ? Qt.alpha(Theme.accent, 0.2) : Qt.alpha(Theme.surface0, 0.8)
                         TextEdit {
                             id: body
@@ -149,7 +150,7 @@ PanelWindow {
                             color: Theme.text
                             selectionColor: Qt.alpha(Theme.accent, 0.4)
                             font.family: Theme.fontUi
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.fsBase
                         }
                         Text {
                             visible: !msg.mine && msg.modelData.content !== ""
@@ -159,7 +160,7 @@ PanelWindow {
                             text: copied.running ? "󰄬 copied" : "󰆏 copy"
                             color: copyHover.hovered ? Theme.lavender : Theme.overlay
                             font.family: Theme.fontMono
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fsSm
                             HoverHandler { id: copyHover }
                             TapHandler {
                                 onTapped: {
@@ -181,7 +182,7 @@ PanelWindow {
                     text: "Ask " + Ai.model + " anything. Runs on this machine, nothing leaves it."
                     color: Theme.overlay
                     font.family: Theme.fontUi
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fsBase
                 }
             }
 
@@ -191,14 +192,14 @@ PanelWindow {
                 text: Ai.error
                 color: Theme.red
                 font.family: Theme.fontUi
-                font.pixelSize: 12
+                font.pixelSize: Theme.fsMd
                 wrapMode: Text.Wrap
             }
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(140, input.implicitHeight + 20)
-                radius: 12
+                radius: Theme.rCard
                 color: Theme.surface0
                 border.width: input.activeFocus ? 1 : 0
                 border.color: Qt.alpha(Theme.accent, 0.6)
@@ -210,7 +211,7 @@ PanelWindow {
                     wrapMode: TextEdit.Wrap
                     color: Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fsBase
                     enabled: Ai.status === "online" && Ai.models.length > 0
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Escape) {
@@ -237,7 +238,7 @@ PanelWindow {
                     text: Ai.busy ? "󰓛" : "󰒊"
                     color: Ai.busy ? Theme.red : Theme.accent
                     font.family: Theme.fontMono
-                    font.pixelSize: 16
+                    font.pixelSize: Theme.fsXl
                     TapHandler {
                         onTapped: {
                             if (Ai.busy) {

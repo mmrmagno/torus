@@ -92,7 +92,7 @@ Item {
         property variant levels: levelTex
         property variant atlas: atlasTex
         property point grid: Qt.point(view.gridW, view.gridH)
-        property real boost: 1 + Visualizer.bass * 0.45
+        property real boost: Theme.dark ? 1 + Visualizer.bass * 0.45 : 1 - Visualizer.bass * 0.3
         fragmentShader: "file://" + view.shaderDir + "donut.frag.qsb"
     }
 }

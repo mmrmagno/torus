@@ -11,20 +11,20 @@ Rectangle {
 
     implicitWidth: row.implicitWidth + 24
     implicitHeight: 34
-    radius: 10
+    radius: Theme.radius
     color: active ? Theme.accent : (hover.hovered ? Theme.surface1 : Theme.surface0)
-    Behavior on color { ColorAnimation { duration: 150 } }
+    Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
     Row {
         id: row
         anchors.centerIn: parent
-        spacing: 6
+        spacing: Theme.sp3
         Text {
             text: root.icon
             visible: root.icon !== ""
             color: root.active ? Theme.crust : Theme.accent
             font.family: Theme.fontMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.icon
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
@@ -32,11 +32,13 @@ Rectangle {
             visible: root.label !== ""
             color: root.active ? Theme.crust : Theme.text
             font.family: Theme.fontUi
-            font.pixelSize: 12
+            font.pixelSize: Theme.fsMd
             anchors.verticalCenter: parent.verticalCenter
         }
     }
 
     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-    TapHandler { onTapped: root.clicked() }
+    TapHandler { id: tap; onTapped: root.clicked() }
+    scale: tap.pressed ? 0.95 : 1
+    Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutBack } }
 }

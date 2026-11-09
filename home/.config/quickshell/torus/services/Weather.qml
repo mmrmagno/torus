@@ -13,6 +13,18 @@ Singleton {
     property string icon: "󰖐"
     property string place: ""
     property var hours: []
+    property string sunrise: ""
+    property string sunset: ""
+
+    function clock24(t) {
+        const m = /^(\d+):(\d+)\s*(AM|PM)$/i.exec((t || "").trim())
+        if (!m)
+            return ""
+        let h = parseInt(m[1]) % 12
+        if (m[3].toUpperCase() === "PM")
+            h += 12
+        return (h < 10 ? "0" : "") + h + ":" + m[2]
+    }
 
     function iconFor(code) {
         const c = parseInt(code)
@@ -43,6 +55,9 @@ Singleton {
                     root.icon = root.iconFor(cur.weatherCode)
                     root.place = j.nearest_area ? j.nearest_area[0].areaName[0].value : ""
                     root.hours = j.weather[0].hourly.filter((h, i) => i % 2 === 0).map(h => ({ t: (parseInt(h.time) / 100) + ":00", temp: h.tempC + "°", icon: root.iconFor(h.weatherCode) }))
+                    const astro = j.weather[0].astronomy ? j.weather[0].astronomy[0] : null
+                    root.sunrise = astro ? root.clock24(astro.sunrise) : ""
+                    root.sunset = astro ? root.clock24(astro.sunset) : ""
                     root.ok = true
                 } catch (e) {
                     root.ok = false

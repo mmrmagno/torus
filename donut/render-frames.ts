@@ -1,4 +1,5 @@
 import { grid, ramp, step, CHARS, W, H } from "./donut.mjs";
+import { activePalette } from "./palette.ts";
 
 const [out, countArg, widthArg] = Deno.args;
 if (!out || !countArg || !widthArg) {
@@ -7,7 +8,7 @@ if (!out || !countArg || !widthArg) {
 }
 const count = Number(countArg);
 const width = Number(widthArg);
-const palette = JSON.parse(Deno.readTextFileSync(new URL("../theme/mocha.json", import.meta.url)));
+const palette = activePalette();
 const bgName = Deno.args[3] ?? "base";
 const bg = bgName === "transparent" ? "none" : palette[bgName];
 const colors: string[] = ramp(palette);

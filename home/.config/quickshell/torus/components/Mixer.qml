@@ -25,7 +25,7 @@ ColumnLayout {
         return Quickshell.iconPath(e ? e.icon : name.toLowerCase(), "audio-volume-high")
     }
 
-    spacing: 10
+    spacing: Theme.sp5
 
     PwObjectTracker { objects: root.nodes }
 
@@ -36,12 +36,12 @@ ColumnLayout {
         property string glyph: ""
         signal picked(var node)
         Layout.fillWidth: true
-        spacing: 6
+        spacing: Theme.sp3
         Text {
             text: devRow.glyph
             color: Theme.accent
             font.family: Theme.fontMono
-            font.pixelSize: 15
+            font.pixelSize: Theme.icon
             height: 28
             verticalAlignment: Text.AlignVCenter
         }
@@ -54,14 +54,14 @@ ColumnLayout {
                 width: devText.implicitWidth + 24
                 radius: 14
                 color: on ? Theme.accent : (devHover.hovered ? Theme.surface1 : Theme.surface0)
-                Behavior on color { ColorAnimation { duration: 140 } }
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
                 Text {
                     id: devText
                     anchors.centerIn: parent
                     text: modelData.nickname || modelData.description || modelData.name
                     color: parent.on ? Theme.crust : Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fsSm
                     elide: Text.ElideRight
                     width: Math.min(implicitWidth, 220)
                 }
@@ -90,7 +90,7 @@ ColumnLayout {
         text: "nothing is playing"
         color: Theme.overlay
         font.family: Theme.fontUi
-        font.pixelSize: 12
+        font.pixelSize: Theme.fsMd
     }
 
     Repeater {
@@ -98,7 +98,7 @@ ColumnLayout {
         RowLayout {
             required property var modelData
             Layout.fillWidth: true
-            spacing: 10
+            spacing: Theme.sp5
             IconImage {
                 implicitSize: 20
                 source: root.iconOf(parent.modelData)
@@ -108,7 +108,7 @@ ColumnLayout {
                 text: root.label(parent.modelData)
                 color: Theme.text
                 font.family: Theme.fontUi
-                font.pixelSize: 12
+                font.pixelSize: Theme.fsMd
                 elide: Text.ElideRight
             }
             VolumeSlider {
@@ -121,14 +121,14 @@ ColumnLayout {
                 text: parent.modelData.audio ? Math.round(parent.modelData.audio.volume * 100) + "%" : ""
                 color: Theme.subtext
                 font.family: Theme.fontMono
-                font.pixelSize: 11
+                font.pixelSize: Theme.fsSm
             }
             Text {
                 readonly property bool muted: parent.modelData.audio && parent.modelData.audio.muted
                 text: muted ? "󰝟" : "󰕾"
                 color: muted ? Theme.red : Theme.accent
                 font.family: Theme.fontMono
-                font.pixelSize: 15
+                font.pixelSize: Theme.icon
                 TapHandler { onTapped: if (parent.parent.modelData.audio) parent.parent.modelData.audio.muted = !parent.parent.modelData.audio.muted }
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
             }

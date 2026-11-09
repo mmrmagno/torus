@@ -9,7 +9,8 @@ Row {
     property real maxHeight: 14
     property real barWidth: 3
     property color tint: Theme.accent
-    spacing: 2
+    property bool live: true
+    spacing: Theme.sp1
     visible: Visualizer.playing
 
     Repeater {
@@ -17,6 +18,8 @@ Row {
         Rectangle {
             required property int index
             readonly property real v: {
+                if (!root.live)
+                    return 0.18
                 const vals = Visualizer.values
                 if (vals.length === 0)
                     return 0

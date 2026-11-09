@@ -9,8 +9,8 @@ import qs.services
 PanelWindow {
     id: root
 
-    screen: Store.focusedScreen
-    visible: Store.isOpen("clip")
+    screen: Store.screenFor("clip")
+    visible: Store.isOpen("clip") || motion.leaving
     implicitWidth: 560
     implicitHeight: 540
     exclusiveZone: 0
@@ -27,8 +27,9 @@ PanelWindow {
 
     Rectangle {
         PanelMotion {
+            id: motion
             target: parent
-            shown: root.visible
+            shown: Store.isOpen("clip")
         }
         anchors.fill: parent
         radius: 16
@@ -39,30 +40,30 @@ PanelWindow {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 14
-            spacing: 10
+            spacing: Theme.sp5
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 40
-                radius: 12
+                radius: Theme.rCard
                 color: Theme.surface0
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 14
                     anchors.rightMargin: 14
-                    spacing: 10
+                    spacing: Theme.sp5
                     Text {
                         text: "󰅌"
                         color: Theme.accent
                         font.family: Theme.fontMono
-                        font.pixelSize: 16
+                        font.pixelSize: Theme.fsXl
                     }
                     TextInput {
                         id: search
                         Layout.fillWidth: true
                         color: Theme.text
                         font.family: Theme.fontUi
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fsLg
                         onTextChanged: {
                             Clip.filter = text
                             list.currentIndex = 0
@@ -96,7 +97,7 @@ PanelWindow {
                         text: Clip.shown.length
                         color: Theme.overlay
                         font.family: Theme.fontMono
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fsMd
                     }
                 }
             }
@@ -106,7 +107,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                spacing: 6
+                spacing: Theme.sp3
                 model: Clip.shown
                 highlightMoveDuration: 120
                 delegate: Rectangle {
@@ -115,7 +116,7 @@ PanelWindow {
                     required property int index
                     width: ListView.view.width
                     height: modelData.image ? 84 : 44
-                    radius: 10
+                    radius: Theme.radius
                     color: ListView.isCurrentItem ? Qt.alpha(Theme.accent, 0.18) : (hover.hovered ? Theme.surface0 : "transparent")
                     border.width: ListView.isCurrentItem ? 1 : 0
                     border.color: Qt.alpha(Theme.accent, 0.5)
@@ -124,13 +125,13 @@ PanelWindow {
                         anchors.fill: parent
                         anchors.margins: 8
                         anchors.leftMargin: 12
-                        spacing: 12
+                        spacing: Theme.sp6
                         Text {
                             visible: row.modelData.pinned === true
                             text: "󰐃"
                             color: Theme.peach
                             font.family: Theme.fontMono
-                            font.pixelSize: 14
+                            font.pixelSize: Theme.fsLg
                         }
                         Image {
                             visible: row.modelData.image !== ""
@@ -147,7 +148,7 @@ PanelWindow {
                             text: row.modelData.text
                             color: row.modelData.image ? Theme.subtext : Theme.text
                             font.family: row.modelData.image ? Theme.fontUi : Theme.fontMono
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.fsMd
                             elide: Text.ElideRight
                             maximumLineCount: 2
                             wrapMode: Text.WrapAnywhere
@@ -157,7 +158,7 @@ PanelWindow {
                             text: "󰆴"
                             color: delHover.hovered ? Theme.red : Theme.overlay
                             font.family: Theme.fontMono
-                            font.pixelSize: 14
+                            font.pixelSize: Theme.fsLg
                             MouseArea {
                                 id: delHover
                                 readonly property bool hovered: containsMouse
@@ -184,7 +185,7 @@ PanelWindow {
                     text: Clip.entries.length === 0 ? "clipboard history is empty" : "no match"
                     color: Theme.overlay
                     font.family: Theme.fontMono
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fsBase
                 }
             }
         }

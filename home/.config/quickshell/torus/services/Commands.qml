@@ -9,12 +9,12 @@ Singleton {
     id: root
 
     property string query: ""
+    signal fill(string text)
     property var counts: ({})
     property var calc: []
     property var files: []
     property var kb: []
     property var apps: []
-    property bool sessionOn: sessionFile.text().trim() !== "off"
     property var passItems: []
     property string passState: ""
     property real passLoaded: 0
@@ -24,6 +24,8 @@ Singleton {
     property var windows: []
     property var focused: null
     property var ruleFor: null
+    property var winFor: null
+    property string winBase: ""
     readonly property string home: Quickshell.env("HOME")
     readonly property string mode: {
         const c = query.charAt(0)
@@ -31,29 +33,38 @@ Singleton {
             return "pass"
         if (query.startsWith("n "))
             return "notifs"
-        return { "=": "calc", "/": "files", "?": "kb", "!": "ai", ":": "emoji" }[c] || "all"
+        if (query.startsWith("r "))
+            return "recent"
+        if (query.startsWith("t ") || query === "t")
+            return "timer"
+        return { "=": "calc", "/": "files", "?": "kb", "!": "ai", ":": "emoji", "#": "colors" }[c] || "all"
     }
-    readonly property string term: (mode === "all" ? query : query.slice(mode === "pass" || mode === "notifs" ? 2 : 1)).trim()
+    readonly property string term: (mode === "all" ? query : query.slice(mode === "pass" || mode === "notifs" || mode === "recent" || mode === "timer" ? 2 : 1)).trim()
+    property var calcHistory: []
+    property var recent: []
 
     readonly property var actions: [
         { id: "a:night", glyph: "󰖔", title: "Night light", sub: NightLight.on ? "on, turn off" : "off, turn on", act: () => NightLight.toggle() },
+        { id: "a:nightauto", glyph: "󰖚", title: NightLight.auto ? "Stop the night light schedule" : "Night light at sunset", sub: NightLight.auto ? "on at " + NightLight.sunset + ", off at " + NightLight.sunrise : "on at " + NightLight.sunset + ", off at " + NightLight.sunrise + ", follows your weather location", keys: "night light schedule sunset sunrise auto", act: () => NightLight.setAuto(!NightLight.auto) },
         { id: "a:dnd", glyph: "󰂛", title: "Do not disturb", sub: Store.dnd ? "on, turn off" : "off, turn on", act: () => Store.dnd = !Store.dnd },
         { id: "a:focus25", glyph: "󰔟", title: "Focus 25 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(25) },
         { id: "a:focus50", glyph: "󰔟", title: "Focus 50 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(50) },
         { id: "a:focusstop", glyph: "󰓛", title: "Stop focus", sub: "timer running", hidden: !Focus.running, act: () => Focus.stop() },
         { id: "a:living", glyph: "󰟪", title: "Living donut", sub: Store.livingDonut ? "on, turn off" : "off, turn on", act: () => Store.setLivingDonut(!Store.livingDonut) },
-        { id: "a:session", glyph: "󰑓", title: "Session restore", sub: sessionOn ? "on, turn off" : "off, turn on", act: () => { sessionOn = !sessionOn; Quickshell.execDetached(["sh", "-c", "mkdir -p \"$1\" && echo \"$2\" > \"$1/session-restore\"", "torus", (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/torus", sessionOn ? "on" : "off"]) } },
+        { id: "a:session", glyph: "󰑓", title: "Session restore", sub: "see what reopens after a reboot", act: () => Store.setOpen("session", true) },
+        { id: "a:sessiontoggle", glyph: Session.on ? "󰜺" : "󰑓", title: Session.on ? "Turn session restore off" : "Turn session restore on", sub: Session.on ? "currently on: windows reopen after reboot" : "currently off: nothing reopens after reboot", act: () => Session.setOn(!Session.on) },
         { id: "a:game", glyph: "󰊴", title: "Game mode", sub: "animations, blur and donut off", act: () => Quickshell.execDetached(["torus-gamemode"]) },
         { id: "a:wallnext", glyph: "󰸉", title: "Next wallpaper", sub: "", act: () => Store.stepWallpaper(1) },
         { id: "a:walldonut", glyph: "󰟪", title: "Donut wallpaper", sub: "", act: () => Store.setWallpaper("donut") },
-        { id: "a:accent", glyph: "󰏘", title: "Accent colour", sub: "pick", act: () => Quickshell.execDetached(["torus-menu", "accent"]) },
+        { id: "a:accent", glyph: "󰏘", title: "Theme", sub: "flavor, accent color, wallpaper, animations", keys: "accent color flavour flavor latte light dark mocha wallpaper animations", act: () => Store.setOpen("theme", true) },
         { id: "a:shot", glyph: "󰹑", title: "Screenshot area", sub: "", act: () => Quickshell.execDetached(["sh", "-c", "sleep 0.3; torus-shot s"]) },
         { id: "a:record", glyph: "󰑋", title: "Record screen", sub: "start or stop", act: () => Quickshell.execDetached(["torus-record", "toggle"]) },
-        { id: "a:picker", glyph: "󰈊", title: "Colour picker", sub: "copies the colour", act: () => Quickshell.execDetached(["sh", "-c", "sleep 0.3; hyprpicker -a"]) },
+        { id: "a:picker", glyph: "󰈊", title: "Color picker", sub: "pick from the screen, copies hex, # lists past picks", keys: "color color pick eyedropper hex", act: () => Quickshell.execDetached(["sh", "-c", "sleep 0.3; torus-pick"]) },
         { id: "a:clip", glyph: "󰅌", title: "Clipboard history", sub: "", act: () => Store.setOpen("clip", true) },
         { id: "a:dash", glyph: "󰕮", title: "Dashboard", sub: "", act: () => Store.setOpen("dashboard", true) },
         { id: "a:keys", glyph: "󰌌", title: "Keybind cheat sheet", sub: "", act: () => Store.setOpen("cheatsheet", true) },
         { id: "a:lock", glyph: "󰌾", title: "Lock screen", sub: "", act: () => Quickshell.execDetached(["torus-lock"]) },
+        { id: "a:timer", glyph: "󰔛", title: "Timer or stopwatch", sub: "type t 5 for five minutes", keys: "timer stopwatch countdown alarm", keep: true, act: () => root.fill("t ") },
         { id: "a:power", glyph: "󰐥", title: "Power menu", sub: "log out, reboot, power off", act: () => Store.setOpen("logout", true) }
     ]
 
@@ -65,15 +76,39 @@ Singleton {
         if (mode === "all" && ruleFor) {
             return ruleResults(ruleFor)
         }
+        if (mode === "all" && winFor) {
+            const rest = q.startsWith(winBase) ? q.slice(winBase.length).trim() : q
+            const opts = winResults(winFor)
+            return rest === "" ? opts : rank(opts, rest)
+        }
         if (mode === "all") {
             for (const a of actions)
                 if (!a.hidden)
                     out.push(Object.assign({ kind: "action" }, a))
             if (focused)
-                out.push({ id: "a:rules", kind: "action", keep: true, glyph: "󰕮", title: "Window rules: " + focused.cls, sub: "float, workspace, monitor, keep mouse inside…", keys: "rule rules window", act: () => root.ruleFor = root.focused })
+                out.push({ id: "a:window", kind: "action", keep: true, glyph: "󰖯", title: "Window: " + focused.cls, sub: "move to workspace, float, pin, fullscreen, close, rules…", keys: "window move float tile pin fullscreen close center rule rules", act: () => { root.winBase = root.term; root.winFor = root.focused } })
             out = rank(out.concat(windows, apps), q)
         } else if (mode === "calc") {
-            out = calc
+            out = q === "" ? calcHistory.map(h => ({ id: "ch", kind: "calc", glyph: "󰋚", title: h.r, sub: h.q + "  ·  enter copies", act: () => Quickshell.execDetached(["wl-copy", "--", h.r.replace(/\u2212/g, "-")]) })) : calc
+        } else if (mode === "colors") {
+            out = colorsFile.text().split("\n").filter(l => /^#[0-9a-f]{6}$/.test(l) && l.includes(q.toLowerCase().replace("#", ""))).map(h => ({ id: "c:" + h, kind: "color", swatch: h, title: h, sub: "enter copies", act: () => Quickshell.execDetached(["wl-copy", "--", h]) }))
+            if (q === "")
+                out.unshift({ id: "a:pick2", kind: "action", glyph: "󰈊", title: "Pick a color from the screen", sub: "copies the hex", act: () => Quickshell.execDetached(["sh", "-c", "sleep 0.3; torus-pick"]) })
+        } else if (mode === "timer") {
+            const t = Timers.parse(q)
+            if (Timers.running)
+                out.push({ id: "tm:stop", kind: "action", glyph: "󰓛", title: "Stop " + (Timers.stopwatch ? "stopwatch" : "timer") + "  " + Timers.text, sub: Timers.label || "", act: () => Timers.stop() })
+            if (t)
+                out.push({ id: "tm", kind: "action", glyph: "󰔛", title: "Timer " + (t.secs >= 3600 ? Math.floor(t.secs / 3600) + " h " : "") + (t.secs % 3600 >= 60 ? Math.floor(t.secs % 3600 / 60) + " min " : "") + (t.secs % 60 ? t.secs % 60 + " s" : "") + (t.label ? "  ·  " + t.label : ""), sub: "counts down in the island", act: () => Timers.start(t.secs, t.label) })
+            if (q === "") {
+                for (const m of [1, 3, 5, 10, 25])
+                    out.push({ id: "tm" + m, kind: "action", glyph: "󰔛", title: "Timer " + m + " min", sub: "counts down in the island", act: () => Timers.start(m * 60, "") })
+                out.push({ id: "tm:sw", kind: "action", glyph: "󱎫", title: "Stopwatch", sub: "counts up in the island, click pauses", act: () => Timers.startStopwatch() })
+            } else if (!t) {
+                out.push({ id: "tm:h", kind: "hint", glyph: "󰔛", title: "Try  t 5,  t 90s,  t 1h,  t 10m tea", sub: "minutes by default", act: () => {} })
+            }
+        } else if (mode === "recent") {
+            out = q === "" ? recent : rank(recent, q)
         } else if (mode === "files") {
             out = files
         } else if (mode === "kb") {
@@ -98,7 +133,7 @@ Singleton {
         const t = Hyprland.activeToplevel
         const cls = t && t.wayland && t.wayland.appId ? t.wayland.appId : ""
         if (cls)
-            focused = { cls: cls, ws: t.workspace ? t.workspace.name : "", mon: t.workspace && t.workspace.monitor ? t.workspace.monitor.name : "" }
+            focused = { cls: cls, addr: t.address, title: t.title || cls, ws: t.workspace ? t.workspace.name : "", mon: t.workspace && t.workspace.monitor ? t.workspace.monitor.name : "", floating: !!(t.lastIpcObject && t.lastIpcObject.floating), full: !!(t.lastIpcObject && t.lastIpcObject.fullscreen) }
     }
 
     Connections {
@@ -108,8 +143,26 @@ Singleton {
         }
     }
 
+    function winResults(f) {
+        const w = 'window = "address:0x' + f.addr + '"'
+        const d = js => () => Hyprland.dispatch(js)
+        const opts = []
+        for (let n = 1; n <= 9; n++)
+            if (String(n) !== f.ws)
+                opts.push({ glyph: "󰍹", title: "Move to workspace " + n, keys: "move " + n, act: d("hl.dsp.window.move({ workspace = " + n + ", follow = false, " + w + " })") })
+        opts.push(
+            { glyph: f.floating ? "󰕴" : "󰉧", title: f.floating ? "Tile it" : "Float it", act: d('hl.dsp.window.float({ action = "toggle", ' + w + " })") },
+            { glyph: "󰐃", title: "Pin on every workspace", sub: "floating windows only", hidden: !f.floating || f.full, act: d("hl.dsp.window.pin({ " + w + " })") },
+            { glyph: "󰘖", title: "Centre it", hidden: !f.floating || f.full, act: d("hl.dsp.window.center({ " + w + " })") },
+            { glyph: "󰊓", title: f.full ? "Leave fullscreen" : "Fullscreen", act: d("hl.dsp.window.fullscreen_state({ internal = " + (f.full ? 0 : 2) + ", client = " + (f.full ? 0 : 2) + ", " + w + " })") },
+            { glyph: "󰕮", title: "Rules for " + f.cls, sub: "always float, workspace, monitor…", keep: true, act: () => { root.winFor = null; root.ruleFor = f } },
+            { glyph: "󰅖", title: "Close it", act: d("hl.dsp.window.close({ " + w + " })") }
+        )
+        return opts.filter(o => !o.hidden).map(o => Object.assign({ id: "wa", kind: "action", sub: o.sub || f.title }, o))
+    }
+
     function ruleResults(f) {
-        const add = (kind, value) => () => Quickshell.execDetached(["torus-rules", "add", f.cls, kind].concat(value ? [value] : []))
+        const add = (kind, value) => () => Quickshell.execDetached(["sh", "-c", "out=$(torus-rules \"$@\" 2>&1) || notify-send -a torus 'Window rule not saved' \"$out\"", "sh", "add", f.cls, kind].concat(value ? [value] : []))
         const opts = [
             { glyph: "󰉧", title: "Always float", act: add("float") },
             { glyph: "󰕴", title: "Always tile", act: add("tile") },
@@ -125,11 +178,13 @@ Singleton {
     }
 
     function snapshot() {
+        ruleFor = null
+        winFor = null
         const w = []
         for (const t of Hyprland.toplevels.values) {
             const app = t.wayland && t.wayland.appId ? t.wayland.appId : ""
             const top = t
-            w.push({ id: "w", kind: "window", title: t.title || app, sub: app + " · workspace " + (t.workspace ? t.workspace.name : "?"), icon: iconFor(app), act: () => top.wayland && top.wayland.activate() })
+            w.push({ id: "w", kind: "window", title: t.title || app, sub: app + " · workspace " + (t.workspace ? t.workspace.name : "?"), icon: iconFor(app), act: () => Store.focusWindow(top) })
         }
         rememberFocus()
         rulesFile.reload()
@@ -256,7 +311,14 @@ Singleton {
         item.act()
     }
 
-    onModeChanged: if (mode === "pass") loadPass()
+    onModeChanged: {
+        if (mode === "pass")
+            loadPass()
+        else if (mode === "colors")
+            colorsFile.reload()
+        else if (mode === "recent" && !recentProc.running)
+            recentProc.running = true
+    }
     onTermChanged: {
         ruleFor = null
         passPick = null
@@ -295,7 +357,11 @@ Singleton {
                     return
                 const r = text.trim()
                 const plain = r.replace(/\u2212/g, "-")
-                root.calc = r === "" ? [] : [{ id: "calc", kind: "calc", glyph: "󰃬", title: r, sub: "enter copies", act: () => Quickshell.execDetached(["wl-copy", "--", plain]) }]
+                const asked = calcProc.asked
+                root.calc = r === "" ? [] : [{ id: "calc", kind: "calc", glyph: "󰃬", title: r, sub: "enter copies", act: () => {
+                    root.calcHistory = [{ q: asked, r: r }].concat(root.calcHistory.filter(h => h.q !== asked)).slice(0, 15)
+                    Quickshell.execDetached(["wl-copy", "--", plain])
+                } }]
             }
         }
     }
@@ -357,13 +423,6 @@ Singleton {
     }
 
     FileView {
-        id: sessionFile
-        path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/torus/session-restore"
-        blockLoading: true
-        printErrors: false
-    }
-
-    FileView {
         id: emojiFile
         path: root.home + "/.local/share/torus/emoji.db"
         blockLoading: true
@@ -380,6 +439,29 @@ Singleton {
                 root.counts = JSON.parse(text())
             } catch (e) {
                 root.counts = {}
+            }
+        }
+    }
+
+    FileView {
+        id: colorsFile
+        path: (Quickshell.env("XDG_STATE_HOME") || root.home + "/.local/state") + "/torus/colors"
+        printErrors: false
+    }
+
+    Process {
+        id: recentProc
+        command: ["torus-recent", "40"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const seen = {}
+                root.recent = text.split("\n").filter(l => l).map(l => {
+                    const path = l.split("\t")[1] || ""
+                    if (!path || seen[path])
+                        return null
+                    seen[path] = true
+                    return { id: "rf:" + path, kind: "file", glyph: "󰈔", title: path.split("/").pop(), sub: path.replace(root.home, "~") + "  ·  " + l.slice(0, 10), act: () => Quickshell.execDetached(["xdg-open", path]) }
+                }).filter(x => x).slice(0, 40)
             }
         }
     }

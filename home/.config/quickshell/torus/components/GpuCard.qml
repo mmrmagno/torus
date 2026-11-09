@@ -3,16 +3,16 @@ import qs
 import qs.services
 
 Column {
-    spacing: 10
+    spacing: Theme.sp5
     width: 280
 
     Row {
-        spacing: 10
-        Text { text: (SysStats.gpuBusy >= 0 ? SysStats.gpuBusy : "--") + "%"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 26; font.weight: Font.Bold }
+        spacing: Theme.sp5
+        Text { text: (SysStats.gpuBusy >= 0 ? SysStats.gpuBusy : "--") + "%"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsHead; font.weight: Font.Bold }
         Column {
             anchors.verticalCenter: parent.verticalCenter
-            Text { text: "GPU" + (SysStats.gpuMhz > 0 ? "  " + SysStats.gpuMhz + " MHz" : ""); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: 11 }
-            Text { text: SysStats.gpuWatts >= 0 ? SysStats.gpuWatts + " W" : ""; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: 11 }
+            Text { text: "GPU" + (SysStats.gpuMhz > 0 ? "  " + SysStats.gpuMhz + " MHz" : ""); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+            Text { text: SysStats.gpuWatts >= 0 ? SysStats.gpuWatts + " W" : ""; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm }
         }
     }
 

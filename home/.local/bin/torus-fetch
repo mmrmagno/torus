@@ -1,25 +1,41 @@
-#!/usr/bin/env -S deno run --quiet --no-config --allow-read --allow-run=fastfetch --allow-env
+#!/usr/bin/env -S deno run --quiet --no-config --allow-read --allow-run=fastfetch,deno --allow-env
 const self = Deno.realPathSync(new URL(import.meta.url).pathname);
 const repo = self.replace(/\/home\/\.local\/bin\/torus-fetch$/, "");
-const { grid, ramp, CHARS, W, H } = await import(`file://${repo}/home/.config/quickshell/torus/background/donut.mjs`);
+const { grid, xwing, ramp, CHARS, W, H } = await import(`file://${repo}/home/.config/quickshell/torus/background/donut.mjs`);
+const { activePalette } = await import(`file://${repo}/donut/palette.ts`);
+const state = Deno.env.get("XDG_STATE_HOME") || `${Deno.env.get("HOME")}/.local/state`;
+const ffConfig = `${state}/torus/fastfetch/config.jsonc`;
+const ffArgs = (() => {
+  try {
+    return Deno.statSync(ffConfig).isFile ? ["--config", ffConfig] : [];
+  } catch {
+    return [];
+  }
+})();
 
 const run = async (args: string[]) => {
-  const out = await new Deno.Command("fastfetch", { args, stdout: "piped", stderr: "null" }).output();
+  const out = await new Deno.Command("fastfetch", { args: [...ffArgs, ...args], stdout: "piped", stderr: "null" }).output();
   return new TextDecoder().decode(out.stdout);
 };
 const plain = async () => {
-  const p = new Deno.Command("fastfetch", { stdin: "inherit", stdout: "inherit", stderr: "inherit" }).spawn();
+  const p = new Deno.Command("fastfetch", { args: ffArgs, stdin: "inherit", stdout: "inherit", stderr: "inherit" }).spawn();
   Deno.exit((await p.status).code);
 };
+
+const args = Deno.args;
+const animate = args[0] === "--animate";
+const pick = Deno.env.get("TORUS_FETCH_SHAPE");
+const shape = animate ? args[4] : (pick === "xwing" || pick === "torus" ? pick : Math.random() < 0.5 ? "xwing" : "torus");
+const shapeGrid = (A: number, B: number) => (shape === "xwing" ? xwing(A * 0.6, B) : grid(A, B));
 
 const force = Deno.env.get("TORUS_FETCH_FORCE") === "1";
 const tty = Deno.stdout.isTerminal();
 const cols = tty ? Deno.consoleSize().columns : Number(Deno.env.get("COLUMNS") || 0);
 const forever = Deno.args.includes("--forever") && Deno.stdin.isTerminal();
 const frames = Number(Deno.env.get("TORUS_FETCH_FRAMES") || 30);
-if ((!tty && !force) || cols < 80 || frames < 1) await plain();
+if (!animate && ((!tty && !force) || cols < 80 || frames < 1)) await plain();
 
-const palette = JSON.parse(Deno.readTextFileSync(`${repo}/theme/mocha.json`));
+const palette = activePalette();
 const colors: string[] = ramp(palette);
 const slotOf = (lvl: number) => Math.min(9, Math.floor((lvl * 9) / 12) + 1);
 const slotLevel = (slot: number) => Math.min(11, Math.round(((slot - 1) * 12) / 9 + 0.5));
@@ -29,11 +45,70 @@ const ansi = (hex: string) => {
 };
 const slotColor = Array.from({ length: 10 }, (_, s) => (s ? ansi(colors[slotLevel(s)]) : ""));
 
+const enc = new TextEncoder();
+const write = (s: string) => Deno.stdout.writeSync(enc.encode(s));
+const logoLine = (g: Int8Array, r: number) => {
+  let line = "";
+  let cur = 0;
+  for (let c = 0; c < W; c++) {
+    const lvl = r < H ? g[r * W + c] : -1;
+    if (lvl < 0) {
+      line += " ";
+      continue;
+    }
+    const slot = slotOf(lvl);
+    if (slot !== cur) {
+      line += slotColor[slot];
+      cur = slot;
+    }
+    line += CHARS[lvl];
+  }
+  return line + "\x1b[0m";
+};
+
+if (animate) {
+  const [shell, top] = [Number(args[1]), Number(args[2])];
+  let [A, B] = [Number(args[5]), Number(args[6])];
+  const fg = () => {
+    try {
+      const out = new Deno.Command("ps", { args: ["-o", "pgid=,tpgid=", "-p", String(shell)], stdout: "piped", stderr: "null" }).outputSync();
+      const [pgid, tpgid] = new TextDecoder().decode(out.stdout).trim().split(/\s+/).map(Number);
+      return !pgid ? "gone" : pgid === tpgid ? "idle" : "busy";
+    } catch {
+      return "gone";
+    }
+  };
+  let stop = false;
+  try {
+    Deno.addSignalListener("SIGWINCH", () => (stop = true));
+  } catch {
+    // no signal support
+  }
+  const start = Date.now();
+  while (fg() === "busy" && Date.now() - start < 3000) await new Promise((r) => setTimeout(r, 50));
+  let state = fg();
+  let checked = Date.now();
+  while (!stop && Date.now() - start < 300000 && state === "idle") {
+    if (Date.now() - checked > 400) {
+      state = fg();
+      checked = Date.now();
+      if (state !== "idle")
+        break;
+    }
+    A += 0.07;
+    B += 0.03;
+    const g = shapeGrid(A, B);
+    for (let r = 0; r < H; r++) write(`\x1b7\x1b[${top + r};1H${logoLine(g, r)}\x1b8`);
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  Deno.exit(0);
+}
+
 const info = (await run(["--logo", "none", "--pipe", "false"])).replace(/\n+$/, "").split("\n");
 const rows = Math.max(H, info.length);
 
 const draw = (A: number, B: number) => {
-  const g = grid(A, B);
+  const g = shapeGrid(A, B);
   let s = "";
   for (let r = 0; r < rows; r++) {
     let line = "";
@@ -56,9 +131,42 @@ const draw = (A: number, B: number) => {
   return s;
 };
 
-const enc = new TextEncoder();
-const write = (s: string) => Deno.stdout.writeSync(enc.encode(s));
 const raw = Deno.stdin.isTerminal();
+
+const cursorRow = async () => {
+  Deno.stdin.setRaw(true);
+  try {
+    write("\x1b[6n");
+    const buf = new Uint8Array(32);
+    const n = await Promise.race([Deno.stdin.read(buf), new Promise<null>((r) => setTimeout(() => r(null), 300))]);
+    const m = n ? /\x1b\[(\d+);\d+R/.exec(new TextDecoder().decode(buf.subarray(0, n))) : null;
+    return m ? Number(m[1]) : 0;
+  } finally {
+    Deno.stdin.setRaw(false);
+  }
+};
+
+const shellPid = Deno.ppid;
+const live = tty && raw && !forever && Deno.env.get("TORUS_FETCH_LIVE") !== "0";
+if (live) {
+  const startRow = await cursorRow();
+  const termRows = Deno.consoleSize().rows;
+  write("\x1b[?7l");
+  write(draw(1, 1));
+  write("\x1b[?7h");
+  const top = startRow > 0 ? Math.min(startRow, termRows - rows) : 0;
+  if (top > 0 && top + rows + 2 <= termRows) {
+    const child = new Deno.Command(Deno.execPath(), {
+      args: ["run", "--quiet", "--no-config", "--allow-read", "--allow-env", "--allow-run=ps", self, "--animate", String(shellPid), String(top), String(rows), shape, "1", "1"],
+      stdin: "null",
+      stdout: "inherit",
+      stderr: "null",
+    }).spawn();
+    child.unref();
+  }
+  Deno.exit(0);
+}
+
 if (raw) Deno.stdin.setRaw(true);
 try {
   write("\x1b[?25l\x1b[?7l");

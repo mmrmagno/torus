@@ -9,7 +9,7 @@ Column {
     property date picked: new Date()
     readonly property var dayEvents: Agenda.onDay(picked)
     readonly property var today: clock.date
-    spacing: 6
+    spacing: Theme.sp3
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
 
@@ -32,7 +32,7 @@ Column {
             text: Qt.formatDate(root.shown, "MMMM yyyy")
             color: Theme.text
             font.family: Theme.fontUi
-            font.pixelSize: 14
+            font.pixelSize: Theme.fsLg
             font.weight: Font.DemiBold
         }
         Rectangle {
@@ -40,7 +40,7 @@ Column {
             readonly property bool away: Qt.formatDate(root.picked, "yyyyMMdd") !== Qt.formatDate(root.today, "yyyyMMdd") || root.shown.getMonth() !== root.today.getMonth() || root.shown.getFullYear() !== root.today.getFullYear()
             width: 46
             height: 20
-            radius: 10
+            radius: Theme.radius
             anchors.verticalCenter: parent.verticalCenter
             color: todayHover.hovered && away ? Theme.accent : Theme.surface0
             opacity: away ? 1 : 0.45
@@ -49,7 +49,7 @@ Column {
                 text: "today"
                 color: todayHover.hovered && todayBtn.away ? Theme.crust : Theme.text
                 font.family: Theme.fontUi
-                font.pixelSize: 10
+                font.pixelSize: Theme.fsXs
             }
             HoverHandler { id: todayHover; cursorShape: todayBtn.away ? Qt.PointingHandCursor : Qt.ArrowCursor }
             TapHandler {
@@ -60,18 +60,18 @@ Column {
             }
         }
         Item { width: 6; height: 1 }
-        Text { text: "󰅁"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 16; width: 30
+        Text { text: "󰅁"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsXl; width: 30
             TapHandler { onTapped: root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() - 1, 1) } }
-        Text { text: "󰅂"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 16; width: 30
+        Text { text: "󰅂"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsXl; width: 30
             TapHandler { onTapped: root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() + 1, 1) } }
     }
 
     Grid {
         columns: 7
-        spacing: 2
+        spacing: Theme.sp1
         Repeater {
             model: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-            Text { required property string modelData; text: modelData; width: 34; horizontalAlignment: Text.AlignHCenter; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: 11 }
+            Text { required property string modelData; text: modelData; width: 34; horizontalAlignment: Text.AlignHCenter; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
         }
         Repeater {
             model: root.cells()
@@ -84,7 +84,7 @@ Column {
                 readonly property bool busy: modelData > 0 && Agenda.onDay(day).length > 0
                 width: 34
                 height: 24
-                radius: 8
+                radius: Theme.rSm
                 color: isToday ? Theme.accent : (isPicked ? Theme.surface1 : (cellHover.hovered && modelData > 0 ? Theme.surface0 : "transparent"))
                 Text {
                     anchors.centerIn: parent
@@ -92,7 +92,7 @@ Column {
                     text: cell.modelData > 0 ? cell.modelData : ""
                     color: cell.isToday ? Theme.crust : Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fsMd
                 }
                 Rectangle {
                     visible: cell.busy
@@ -112,7 +112,7 @@ Column {
 
     Column {
         width: parent.width
-        spacing: 4
+        spacing: Theme.sp2
         topPadding: 6
 
         Text {
@@ -122,7 +122,7 @@ Column {
             text: "No calendar yet: put your private iCal address in ~/.config/torus/calendar.url"
             color: Theme.overlay
             font.family: Theme.fontUi
-            font.pixelSize: 11
+            font.pixelSize: Theme.fsSm
         }
 
         Text {
@@ -130,7 +130,7 @@ Column {
             text: "Nothing on " + Qt.formatDate(root.picked, "ddd d MMM")
             color: Theme.overlay
             font.family: Theme.fontUi
-            font.pixelSize: 11
+            font.pixelSize: Theme.fsSm
         }
 
         Repeater {
@@ -138,13 +138,13 @@ Column {
             Row {
                 required property var modelData
                 width: parent.width
-                spacing: 8
+                spacing: Theme.sp4
                 Rectangle { width: 3; height: 14; radius: 2; color: Theme.peach; anchors.verticalCenter: parent.verticalCenter }
                 Text {
                     text: modelData.allDay ? "all day" : modelData.start.slice(11)
                     color: Theme.subtext
                     font.family: Theme.fontMono
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fsXs
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
@@ -152,7 +152,7 @@ Column {
                     text: modelData.title
                     color: Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fsMd
                     elide: Text.ElideRight
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -164,7 +164,7 @@ Column {
             text: "+" + (root.dayEvents.length - 3) + " more"
             color: Theme.overlay
             font.family: Theme.fontUi
-            font.pixelSize: 10
+            font.pixelSize: Theme.fsXs
         }
     }
 }

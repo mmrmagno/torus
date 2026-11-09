@@ -2,27 +2,27 @@ gui:
   nerdFontsVersion: "3"
   theme:
     activeBorderColor:
-      - "#cba6f7"
+      - "@mauve@"
       - bold
     inactiveBorderColor:
-      - "#a6adc8"
+      - "@subtext0@"
     optionsTextColor:
-      - "#89b4fa"
+      - "@blue@"
     selectedLineBgColor:
-      - "#313244"
+      - "@surface0@"
     cherryPickedCommitBgColor:
-      - "#45475a"
+      - "@surface1@"
     cherryPickedCommitFgColor:
-      - "#cba6f7"
+      - "@mauve@"
     unstagedChangesColor:
-      - "#f38ba8"
+      - "@red@"
     defaultFgColor:
-      - "#cdd6f4"
+      - "@text@"
     searchingActiveBorderColor:
-      - "#f9e2af"
+      - "@yellow@"
     authorColors:
-      "*": "#b4befe"
+      "*": "@lavender@"
 git:
   diffRenderers:
     - colorArg: always
-      command: delta --dark --paging=never
+      command: delta --@mode@ --paging=never

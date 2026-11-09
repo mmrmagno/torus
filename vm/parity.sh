@@ -42,7 +42,7 @@ check_binds() {
   fi
 }
 
-BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates keyhint privacy record tray wallpaper accent clipboard menu notifications power"
+BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates privacy record tray clipboard menu notifications power"
 
 check_bar() {
   local out screens bad=""
@@ -566,7 +566,13 @@ check_night() {
   [[ $t == 5500 ]] || bad+="temperature-$t "
   "${QS[@]}" nightLightToggle > /dev/null; sleep 1.5
   [[ $("${QS[@]}" nightLight 2>/dev/null) == false ]] || bad+="off-snaps-back "
-  if [[ -z $bad ]]; then section night ok "toggles on (5500 K) and stays off"; else section night fail "$bad"; fi
+  local st
+  "${QS[@]}" nightAuto true > /dev/null; sleep 3
+  st=$("${QS[@]}" nightState 2>/dev/null | tail -n 1)
+  [[ $st == "on auto=true phase=night"* || $st == "off auto=true phase=day"* ]] || bad+="schedule[$st] "
+  "${QS[@]}" nightAuto false > /dev/null
+  [[ $("${QS[@]}" nightLight 2>/dev/null) == true ]] && "${QS[@]}" nightLightToggle > /dev/null
+  if [[ -z $bad ]]; then section night ok "toggles on (5500 K) and stays off, schedule follows the clock [$st]"; else section night fail "$bad"; fi
 }
 
 check_palette() {
@@ -654,6 +660,8 @@ check_switch() {
   after=$(hyprctl activewindow -j | jq -r .address)
   [[ $before != "$after" ]] || bad+="quick-tap-no-switch "
   [[ $("${QS[@]}" isOpen alttab 2>/dev/null | tail -n 1) == false ]] || { bad+="quick-tap-left-open "; "${QS[@]}" altTab apply > /dev/null; }
+  "${QS[@]}" altTab next > /dev/null; "${QS[@]}" altTab apply > /dev/null; sleep 0.4
+  [[ $(hyprctl activewindow -j | jq -r .address) == "$before" ]] || bad+="second-tap-not-back "
   hyprctl clients -j | jq -r '.[] | select(.class == "parity-switch") | .pid' | xargs -r kill
   hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "1" }))' > /dev/null
   "${QS[@]}" overviewToggle > /dev/null; sleep 1
@@ -721,7 +729,11 @@ check_panels() {
   r=$("${QS[@]}" updatesState 2>/dev/null | tail -n 1)
   [[ $r =~ ^[0-9]+:[1-9] ]] || bad+="updates[$r] "
   "${QS[@]}" updatesToggle > /dev/null
-  if [[ -z $bad ]]; then section panels ok "network panel sees the wired link, update centre lists updates and arch news [$r]"; else section panels fail "$bad"; fi
+  "${QS[@]}" themeToggle > /dev/null; sleep 1.5
+  [[ $("${QS[@]}" isOpen theme 2>/dev/null | tail -n 1) == true ]] || bad+="theme-closed "
+  "${QS[@]}" themeToggle > /dev/null; sleep 0.5
+  [[ $("${QS[@]}" isOpen theme 2>/dev/null | tail -n 1) == false ]] || bad+="theme-stuck "
+  if [[ -z $bad ]]; then section panels ok "network panel sees the wired link, update centre lists updates and arch news [$r], theme studio opens"; else section panels fail "$bad"; fi
 }
 
 check_pins() {
@@ -775,6 +787,7 @@ check_session() {
   torus-session save
   grep -qP '^kitty\t3\t/tmp$' ~/.local/state/torus/session.tsv || bad+="saved[$(tr '\t' ' ' < ~/.local/state/torus/session.tsv | head -2)] "
   hyprctl clients -j | jq -r '.[] | select(.class == "kitty") | .pid' | xargs -r kill; sleep 1
+  rm -f ~/.local/state/torus/session.restored-in
   torus-session restore
   for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "kitty")' > /dev/null && break; sleep 0.2; done
   sleep 1.5
@@ -784,9 +797,18 @@ check_session() {
   dir=$(readlink /proc/$child/cwd 2>/dev/null)
   [[ $ws == 3 ]] || bad+="workspace[$ws] "
   [[ $dir == /tmp ]] || bad+="folder[$dir] "
-  [[ ! -e ~/.local/state/torus/session.tsv ]] || bad+="not-consumed "
+  [[ -s ~/.local/state/torus/session.tsv ]] || bad+="save-consumed "
+  torus-session restore; sleep 2.5; hyprctl clients -j | jq -e '[.[] | select(.class == "kitty")] | length == 1' > /dev/null || bad+="restored-twice "
+  "${QS[@]}" sessionToggle > /dev/null; sleep 1.5
+  [[ $("${QS[@]}" isOpen session 2>/dev/null | tail -n 1) == true ]] || bad+="panel-closed "
+  local st
+  st=$("${QS[@]}" sessionState 2>/dev/null | tail -n 1)
+  [[ $st == "on keep="[1-9]* ]] || bad+="panel-state[$st] "
+  torus-session off; "${QS[@]}" sessionToggle > /dev/null; sleep 0.5; "${QS[@]}" sessionToggle > /dev/null; sleep 1.5
+  [[ $("${QS[@]}" sessionState 2>/dev/null | tail -n 1) == off* ]] || bad+="panel-not-off "
+  torus-session on; "${QS[@]}" sessionToggle > /dev/null
   hyprctl clients -j | jq -r '.[] | select(.class == "kitty") | .pid' | xargs -r kill
-  if [[ -z $bad ]]; then section session ok "kitty saved and restored on workspace 3 in /tmp"; else section session fail "$bad"; fi
+  if [[ -z $bad ]]; then section session ok "kitty saved and restored on workspace 3 in /tmp, panel shows on/off and what comes back"; else section session fail "$bad"; fi
 }
 
 check_rules() {
@@ -798,8 +820,15 @@ check_rules() {
   [[ $(hyprctl activewindow -j | jq -r .class) == parity.rule ]] || bad+="not-focused "
   "${QS[@]}" paletteQuery "rule" > /dev/null; sleep 0.5
   r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
-  i=$(tr '|' '\n' <<< "$r" | grep -n 'Window rules: parity.rule' | cut -d: -f1)
-  [[ -n $i ]] || bad+="no-rules-entry[$r] "
+  i=$(tr '|' '\n' <<< "$r" | grep -n 'Window: parity.rule' | cut -d: -f1)
+  [[ -n $i ]] || bad+="no-window-entry[$r] "
+  if [[ -n $i ]]; then
+    "${QS[@]}" paletteRun $((i - 1)) > /dev/null; sleep 0.4
+    "${QS[@]}" paletteQuery "rule rules for" > /dev/null; sleep 0.4
+    r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+    i=$(tr '|' '\n' <<< "$r" | grep -n 'Rules for parity.rule' | cut -d: -f1)
+    [[ -n $i ]] || bad+="no-rules-entry[$r] "
+  fi
   if [[ -n $i ]]; then
     "${QS[@]}" paletteRun $((i - 1)) > /dev/null; sleep 0.4
     r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
@@ -807,9 +836,17 @@ check_rules() {
     "${QS[@]}" paletteRun 0 > /dev/null; sleep 1
     torus-rules list | grep -qP '^parity\.rule\tfloat' || bad+="not-saved "
   fi
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity.rule" }))' > /dev/null; sleep 0.5
+  "${QS[@]}" paletteQuery "window" > /dev/null; sleep 0.5
+  "${QS[@]}" paletteRun 0 > /dev/null; sleep 0.4
+  "${QS[@]}" paletteQuery "window 7" > /dev/null; sleep 0.4
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == "action:Move to workspace 7" ]] || bad+="move-entry[$r] "
+  "${QS[@]}" paletteRun 0 > /dev/null; sleep 1
+  [[ $(hyprctl clients -j | jq -r '.[] | select(.class == "parity.rule") | .workspace.id') == 7 ]] || bad+="not-moved "
   torus-rules remove parity.rule
   pkill -f "kitty --class [p]arity.rule"
-  if [[ -z $bad ]]; then section rules ok "palette rule for the focused window saved"; else section rules fail "$bad"; fi
+  if [[ -z $bad ]]; then section rules ok "palette window menu: rule saved, moved to workspace 7"; else section rules fail "$bad"; fi
 }
 
 check_calendar() {
@@ -878,6 +915,15 @@ h=$(date +%-H)
 "${QS[@]}" quietSet $(( (h + 2) % 24 )) $(( (h + 3) % 24 )) > /dev/null 2>&1
 trap '"${QS[@]}" quietSet 0 6 > /dev/null 2>&1' EXIT
 
+check_qmllog() {
+  local inv out
+  inv=$(systemctl --user show -p InvocationID --value torus-shell)
+  out=$(journalctl --user -u torus-shell "_SYSTEMD_INVOCATION_ID=$inv" --no-pager -o cat 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' \
+    | grep -E 'WARN qml|ERROR|TypeError|ReferenceError|[Bb]inding loop|Unable to assign|unavailable|is not a function|Cannot read property' \
+    | grep -vE 'dmabuf: Failed to find render device|quickshell\.dbus' | sort -u | head -5)
+  if [[ -z $out ]]; then section qmllog ok "no QML warnings since the shell started"; else section qmllog fail "$(tr '\n' '|' <<<"$out" | cut -c1-600)"; fi
+}
+
 case ${1:-all} in
   media) check_media ;;
   lock) check_lock ;;
@@ -896,6 +942,7 @@ case ${1:-all} in
   pins) check_pins ;;
   smart) check_smart ;;
   session) check_session ;;
+  qmllog) check_qmllog ;;
   rules) check_rules ;;
   calendar) check_calendar ;;
   notify) check_notify ;;
@@ -908,7 +955,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

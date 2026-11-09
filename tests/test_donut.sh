@@ -4,6 +4,7 @@ set -euo pipefail
 
 F=$(mktemp -d)
 trap 'rm -rf "$F"' EXIT
+export XDG_STATE_HOME=$F/state
 deno run --quiet --allow-read "$REPO/tests/donut/check.ts" > "$F/check" 2>&1 || { cat "$F/check" >&2; fail "donut check"; }
 
 deno run --quiet --allow-read --allow-write "$REPO/donut/render-logo.ts" "$F/ff" > /dev/null

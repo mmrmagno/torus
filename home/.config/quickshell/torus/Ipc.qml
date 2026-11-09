@@ -285,6 +285,30 @@ IpcHandler {
         Island.flash("osd", { icon: "󰃟", label: value + "%", value: value / 100 }, 1600)
     }
 
+    function themeToggle(): void {
+        Store.themeSection = ""
+        Store.toggle("theme")
+    }
+
+    function themeOpen(section: string): void {
+        if (Store.isOpen("theme") && Store.themeSection === section) {
+            Store.setOpen("theme", false)
+            return
+        }
+        Store.themeSection = section
+        if (Store.isOpen("theme"))
+            Store.setOpen("theme", false)
+        Store.setOpen("theme", true)
+    }
+
+    function sessionToggle(): void {
+        Store.toggle("session")
+    }
+
+    function sessionState(): string {
+        return (Session.on ? "on" : "off") + " keep=" + Session.keep.length + " lost=" + Session.lost.length + " saved=" + Session.saved
+    }
+
     function updatesToggle(): void {
         Store.toggle("updates")
     }
@@ -330,6 +354,55 @@ IpcHandler {
 
     function nightLight(): bool {
         return NightLight.on
+    }
+
+    function wallpaperOn(screen: string, mode: string): string {
+        Store.setWallpaperFor(screen, mode)
+        return Store.wallFor(screen)
+    }
+
+    function wallBreathe(on: bool): void {
+        Store.setBreathing(on)
+    }
+
+    function notifMute(app: string, minutes: int): void {
+        Notifs.mute(app, minutes)
+    }
+
+    function notifState(): string {
+        return "count=" + Notifs.count + " groups=" + Notifs.groups.map(g => g.app + ":" + g.items.length).join(",") + " muted=" + Object.keys(Notifs.muted).filter(k => Notifs.isMuted(k)).join(",") + " away=" + Notifs.lastAway
+    }
+
+    function notifFilter(text: string): void {
+        Notifs.filter = text
+    }
+
+    function capsCheck(): void {
+        Island.checkCaps()
+    }
+
+    function timerStart(spec: string): string {
+        const t = Timers.parse(spec)
+        if (!t)
+            return "bad"
+        Timers.start(t.secs, t.label)
+        return "ok " + t.secs
+    }
+
+    function timerState(): string {
+        return Timers.running ? (Timers.stopwatch ? "stopwatch " : "timer ") + Timers.text + (Timers.paused ? " paused" : "") : "idle"
+    }
+
+    function timerStop(): void {
+        Timers.stop()
+    }
+
+    function nightAuto(on: bool): void {
+        NightLight.setAuto(on)
+    }
+
+    function nightState(): string {
+        return (NightLight.on ? "on" : "off") + " auto=" + NightLight.auto + " phase=" + NightLight.phase + " " + NightLight.sunset + "-" + NightLight.sunrise
     }
 
     function nightLightToggle(): void {

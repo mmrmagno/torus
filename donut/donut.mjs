@@ -137,3 +137,65 @@ export function living(palette, hour, art, on) {
   if (/^#[0-9a-f]{6}$/i.test(art || '')) accent = mix(accent, 0.6, art);
   return Object.assign({}, palette, { mauve: accent, lavender: mix(palette.lavender, 0.7, accent) });
 }
+
+function xbox(px, py, pz, bx, by, bz) {
+  const qx = Math.abs(px) - bx, qy = Math.abs(py) - by, qz = Math.abs(pz) - bz;
+  const ox = Math.max(qx, 0), oy = Math.max(qy, 0), oz = Math.max(qz, 0);
+  return Math.hypot(ox, oy, oz) + Math.min(Math.max(qx, Math.max(qy, qz)), 0);
+}
+
+function xcap(px, py, pz, z0, z1, r) {
+  const z = pz - Math.min(Math.max(pz, z0), z1);
+  return Math.hypot(px, py, z) - r;
+}
+
+function xship(x, y, z) {
+  const body = xbox(x, y, z - 0.2, 0.16, 0.17, 1.35) - 0.04;
+  const nose = xcap(x, y * 1.15, z, 1.2, 2.1, 0.12);
+  const cockpit = Math.hypot(x * 2.6, (y - 0.2) * 3.0, z - 0.35) - 0.42;
+  const mx = Math.abs(x), my = Math.abs(y);
+  const a = 0.4, ca = Math.cos(a), sa = Math.sin(a);
+  const wx = mx * ca + my * sa, wy = -mx * sa + my * ca;
+  const wing = xbox(wx - 1.1, wy, z + 0.75, 0.95, 0.03, 0.42 - 0.12 * (wx - 0.2));
+  const engine = xcap(mx - 0.36, my - 0.17, z, -1.35, -0.25, 0.13);
+  const gun = xcap(mx - 2.05 * ca, my - 2.05 * sa, z, -1.0, 1.25, 0.05);
+  return Math.min(body, nose, cockpit, wing, engine, gun);
+}
+
+export function xwing(A, B, w = W, h = H) {
+  const K = 5;
+  const cy = Math.cos(A), sy = Math.sin(A);
+  const tilt = 0.35 * Math.sin(B), cx = Math.cos(tilt), sx = Math.sin(tilt);
+  const scene = (x, y, z) => {
+    z -= K;
+    const rx = x * cy + z * sy, rz = -x * sy + z * cy;
+    return xship(rx, y * cx - rz * sx, y * sx + rz * cx);
+  };
+  const k1 = (w * K * 3) / (8 * 2.25);
+  const lum = new Int8Array(w * h).fill(-1);
+  const lx = 0.35, ly = 0.8, lz = -0.6, ln = Math.hypot(lx, ly, lz);
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      let dx = (c + 0.5 - w / 2) / k1, dy = -(r + 0.5 - h / 2) / (k1 * 0.5), dz = 1;
+      const dl = Math.hypot(dx, dy, dz);
+      dx /= dl; dy /= dl; dz /= dl;
+      let s = K - 3;
+      let hit = false;
+      for (let i = 0; i < 72; i++) {
+        const d = scene(dx * s, dy * s, dz * s);
+        if (d < 0.002) { hit = true; break; }
+        s += d;
+        if (s > K + 3) break;
+      }
+      if (!hit) continue;
+      const px = dx * s, py = dy * s, pz = dz * s, e = 0.002;
+      let nx = scene(px + e, py, pz) - scene(px - e, py, pz);
+      let ny = scene(px, py + e, pz) - scene(px, py - e, pz);
+      let nz = scene(px, py, pz + e) - scene(px, py, pz - e);
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      const L = 0.18 + 0.82 * Math.max((nx * lx + ny * ly + nz * lz) / (nl * ln), 0);
+      lum[r * w + c] = Math.min(11, Math.floor(L * 11.99));
+    }
+  }
+  return lum;
+}

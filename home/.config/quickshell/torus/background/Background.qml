@@ -1,13 +1,16 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
+import QtQuick.Effects
 import qs
 import qs.services
 
 PanelWindow {
     id: root
 
-    readonly property bool donutMode: Store.wallpaper === "donut" || Store.wallpaper === "xwing"
+    readonly property string mode: Store.wallFor(screen ? screen.name : "")
+    readonly property bool donutMode: mode === "donut" || mode === "xwing"
     readonly property real cellH: Math.round(Math.min(width, height) * 0.5 / DonutClock.h)
 
     anchors {
@@ -42,13 +45,31 @@ PanelWindow {
         opacity: 0.55
     }
 
+    readonly property var monitor: screen ? Hyprland.monitorFor(screen) : null
+    readonly property bool empty: monitor && monitor.activeWorkspace ? !Hyprland.toplevels.values.some(t => t.workspace === monitor.activeWorkspace) : false
+    readonly property bool breathe: Store.breathing && !donutMode && empty && Theme.motion > 0
+
     Image {
+        id: picture
         anchors.fill: parent
-        visible: !root.donutMode
-        source: root.donutMode ? "" : "file://" + Store.wallpaper.slice(6)
+        visible: !root.donutMode && !root.breathe
+        source: root.donutMode ? "" : "file://" + root.mode.slice(6)
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         sourceSize.width: root.width
         sourceSize.height: root.height
+    }
+
+    MultiEffect {
+        id: breath
+        anchors.fill: parent
+        visible: root.breathe
+        source: picture
+        blurEnabled: true
+        blurMax: 48
+        property real phase: 0
+        blur: 0.18 + 0.17 * Math.sin(phase)
+        scale: 1.015 + 0.015 * Math.sin(phase)
+        NumberAnimation on phase { running: root.breathe; from: 0; to: 2 * Math.PI; duration: 16000; loops: Animation.Infinite }
     }
 }

@@ -18,8 +18,13 @@ Singleton {
     }
 
     function refresh() {
-        if (!fetch.running)
-            fetch.running = true
+        if (fetch.running)
+            return
+        const from = new Date()
+        from.setDate(1)
+        from.setMonth(from.getMonth() - 1)
+        fetch.command = ["torus-calendar", "fetch", "--from", Qt.formatDate(from, "yyyy-MM-dd"), "--days", "150"]
+        fetch.running = true
     }
 
     function parse(text) {
@@ -31,10 +36,12 @@ Singleton {
 
     Process {
         id: fetch
-        command: ["torus-calendar", "fetch"]
         onExited: code => {
             root.configured = code !== 3
-            file.reload()
+            if (code === 3)
+                root.events = []
+            else
+                file.reload()
         }
     }
 
@@ -44,7 +51,7 @@ Singleton {
         printErrors: false
         watchChanges: true
         onFileChanged: reload()
-        onLoaded: root.events = root.parse(text())
+        onLoaded: if (root.configured) root.events = root.parse(text())
     }
 
     Timer {

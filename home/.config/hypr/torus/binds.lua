@@ -63,11 +63,36 @@ bind(MOD .. " + Right", hl.dsp.focus({ direction = "r" }), "[Window Management|C
 bind(MOD .. " + Up", hl.dsp.focus({ direction = "u" }), "[Window Management|Change focus] focus up")
 bind(MOD .. " + Down", hl.dsp.focus({ direction = "d" }), "[Window Management|Change focus] focus down")
 
-bind("ALT + TAB", ipc("altTab", "next"), "[Window Management|Alt-tab] cycle next", { transparent = true })
-bind("ALT + SHIFT + TAB", ipc("altTab", "prev"), "[Window Management|Alt-tab] cycle previous", { transparent = true })
-bind("ALT + ALT_R", ipc("altTab", "apply"), "[Window Management|Alt-tab] switch", { release = true, transparent = true })
-bind("ALT + ALT_L", ipc("altTab", "apply"), "[Window Management|Alt-tab] switch", { release = true, transparent = true })
-bind("ALT + ESCAPE", ipc("altTab", "cancel"), "[Window Management|Alt-tab] cancel", { transparent = true })
+local alttab_held = false
+
+local function alttab(dir)
+	return function()
+		if dir == "next" or dir == "prev" then
+			alttab_held = true
+		elseif not alttab_held then
+			return
+		else
+			alttab_held = false
+		end
+		hl.exec_cmd(ipc("altTab", dir))
+	end
+end
+
+-- the ALT release bind never fires while TAB is still down, so every ALT release counts
+local ALT_KEYCODES = { [64] = true, [108] = true }
+hl.on("input.keyboard.key", function(code, _, state)
+	if state == 0 and alttab_held and ALT_KEYCODES[code] then
+		alttab("apply")()
+	elseif state == 0 and code == 66 then
+		hl.exec_cmd(ipc("capsCheck"))
+	end
+end)
+
+bind("ALT + TAB", alttab("next"), "[Window Management|Alt-tab] cycle next", { transparent = true })
+bind("ALT + SHIFT + TAB", alttab("prev"), "[Window Management|Alt-tab] cycle previous", { transparent = true })
+bind("ALT + ALT_R", alttab("apply"), "[Window Management|Alt-tab] switch", { release = true, transparent = true })
+bind("ALT + ALT_L", alttab("apply"), "[Window Management|Alt-tab] switch", { release = true, transparent = true })
+bind("ALT + ESCAPE", alttab("cancel"), "[Window Management|Alt-tab] cancel", { transparent = true })
 
 bind(MOD .. " + SHIFT + RIGHT", hl.dsp.window.resize({ x = 30, y = 0, relative = true }), "[Window Management|Resize] right", repeating)
 bind(MOD .. " + SHIFT + LEFT", hl.dsp.window.resize({ x = -30, y = 0, relative = true }), "[Window Management|Resize] left", repeating)
@@ -133,9 +158,9 @@ bind(MOD .. " + ALT + Right", ipc("wallpaperNext"), "[Theming and Wallpaper] nex
 bind(MOD .. " + ALT + Left", ipc("wallpaperPrev"), "[Theming and Wallpaper] previous wallpaper")
 bind(MOD .. " + ALT + Up", ipc("barPreset", "next"), "[Theming and Wallpaper] next bar preset")
 bind(MOD .. " + ALT + Down", ipc("barPreset", "prev"), "[Theming and Wallpaper] previous bar preset")
-bind(MOD .. " + SHIFT + W", "torus-menu wallpaper", "[Theming and Wallpaper] select wallpaper")
-bind(MOD .. " + SHIFT + T", "torus-menu accent", "[Theming and Wallpaper] select accent color")
-bind(MOD .. " + SHIFT + Y", "torus-menu animations", "[Theming and Wallpaper] select animations")
+bind(MOD .. " + SHIFT + W", ipc("themeOpen", "wallpaper"), "[Theming and Wallpaper] select wallpaper")
+bind(MOD .. " + SHIFT + T", ipc("themeToggle"), "[Theming and Wallpaper] select accent color")
+bind(MOD .. " + SHIFT + Y", ipc("themeOpen", "feel"), "[Theming and Wallpaper] select animations")
 bind(MOD .. " + SHIFT + U", "torus-menu hyprlock", "[Theming and Wallpaper] select lock screen")
 
 local kp = {

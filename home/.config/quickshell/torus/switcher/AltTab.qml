@@ -11,7 +11,27 @@ PanelWindow {
     property int selected: 0
     property real releasedAt: 0
     property bool revealed: false
-    readonly property var windows: Hyprland.toplevels.values.slice().sort((a, b) => ((a.lastIpcObject || {}).focusHistoryID || 0) - ((b.lastIpcObject || {}).focusHistoryID || 0))
+    property var mru: []
+    readonly property var windows: {
+        const rank = t => {
+            const i = mru.indexOf(t.address)
+            return i >= 0 ? i : 1000 + ((t.lastIpcObject || {}).focusHistoryID || 0)
+        }
+        return Hyprland.toplevels.values.slice().sort((a, b) => rank(a) - rank(b))
+    }
+
+    function noteFocus() {
+        const t = Hyprland.activeToplevel
+        if (t && t.address)
+            mru = [t.address].concat(mru.filter(a => a !== t.address)).slice(0, 200)
+    }
+
+    Connections {
+        target: Hyprland
+        function onActiveToplevelChanged() {
+            root.noteFocus()
+        }
+    }
 
     function step(dir) {
         if (windows.length === 0)
@@ -19,9 +39,7 @@ PanelWindow {
         if (!Store.isOpen("alttab")) {
             if (Date.now() - releasedAt < 400) {
                 releasedAt = 0
-                const w = windows.length > 1 ? windows[1] : null
-                if (w && w.wayland)
-                    w.wayland.activate()
+                Store.focusWindow(windows.length > 1 ? windows[1] : null)
                 return
             }
             Hyprland.refreshToplevels()
@@ -41,8 +59,7 @@ PanelWindow {
         }
         const w = windows[selected]
         Store.setOpen("alttab", false)
-        if (w && w.wayland)
-            w.wayland.activate()
+        Store.focusWindow(w)
     }
 
     screen: Store.focusedScreen
@@ -69,7 +86,10 @@ PanelWindow {
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
 
-    Component.onCompleted: Store.altTabber = root
+    Component.onCompleted: {
+        Store.altTabber = root
+        noteFocus()
+    }
 
     Timer {
         id: reveal
@@ -87,15 +107,15 @@ PanelWindow {
         id: content
     Rectangle {
         anchors.fill: parent
-        radius: 18
+        radius: Theme.rPanel
         opacity: 0
         scale: 0.96
         Component.onCompleted: {
             opacity = 1
             scale = 1
         }
-        Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-        Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
+        Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
         color: Qt.alpha(Theme.base, Theme.glass)
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
@@ -104,7 +124,7 @@ PanelWindow {
         Grid {
             id: row
             anchors.centerIn: parent
-            spacing: 12
+            spacing: Theme.sp6
             columns: root.cols
 
             Repeater {
@@ -115,7 +135,7 @@ PanelWindow {
                     readonly property bool sel: index === root.selected
                     width: root.tileW
                     height: root.tileH
-                    radius: 12
+                    radius: Theme.rCard
                     color: sel ? Qt.alpha(Theme.accent, 0.2) : Theme.surface0
                     border.width: sel ? 2 : 0
                     border.color: Theme.accent
@@ -138,7 +158,7 @@ PanelWindow {
                         live: root.visible
                         constraintSize: Qt.size(width, height)
                         opacity: hasContent ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: 120 } }
+                        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
                     }
                     Text {
                         anchors.bottom: parent.bottom
@@ -150,7 +170,7 @@ PanelWindow {
                         text: parent.modelData.title
                         color: parent.sel ? Theme.text : Theme.subtext
                         font.family: Theme.fontUi
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fsMd
                     }
                 }
             }

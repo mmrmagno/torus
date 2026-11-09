@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")" && pwd)
-home=$HOME no_packages=0 dry_run=0 system=0 undo=0 root="" accent=""
+home=$HOME no_packages=0 dry_run=0 system=0 undo=0 root="" accent="" flavour=""
 
 while (($#)); do
   case $1 in
@@ -13,6 +13,7 @@ while (($#)); do
     --undo) undo=1; shift ;;
     --root) root=$2; shift 2 ;;
     --accent) accent=$2; shift 2 ;;
+    --flavour) flavour=$2; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -24,6 +25,9 @@ system_install() {
   local uhome
   uhome=$(getent passwd "$user" | cut -d: -f6)
   [[ -n $accent ]] || accent=$(cat "$uhome/.local/state/torus/accent" 2> /dev/null || echo mauve)
+  [[ -n $flavour ]] || flavour=$(cat "$uhome/.local/state/torus/flavour" 2> /dev/null || echo mocha)
+  [[ $flavour =~ ^[a-z]+$ && -f $REPO/theme/$flavour.json ]] || { echo "torus: unknown flavour: $flavour" >&2; exit 2; }
+  local pal=$REPO/theme/$flavour.json
   local missing=() c
   for c in deno magick plymouth-set-default-theme grub-mkconfig mkinitcpio; do
     command -v "$c" > /dev/null || missing+=("$c")
@@ -65,7 +69,7 @@ system_install() {
   [[ $EUID -eq 0 && $user != root ]] && chown "$user" "$tmp"
   local as=()
   [[ $EUID -eq 0 && $user != root ]] && as=(sudo -u "$user")
-  local render=("${as[@]}" deno run --quiet --allow-read --allow-write --allow-run "$REPO/donut/render-frames.ts")
+  local render=("${as[@]}" env TORUS_PALETTE="$pal" deno run --quiet --allow-read --allow-write --allow-run --allow-env "$REPO/donut/render-frames.ts")
   "${render[@]}" "$tmp/ply" "${TORUS_PLY_FRAMES:-90}" 360 transparent > /dev/null
   "${render[@]}" "$tmp/grub" 1 320 transparent > /dev/null
   "${render[@]}" "$tmp/sddm" 1 360 transparent > /dev/null
@@ -75,19 +79,30 @@ system_install() {
   done
   magick "$tmp/grub/frame-0000.png" -depth 8 "PNG32:$tmp/grub/donut.png"
   install -D -m 644 "$tmp/grub/donut.png" "$R/boot/grub/themes/marc-os/donut.png"
+  local G=$R/boot/grub/themes/marc-os p
+  local base surface0 text lavender mantle
+  read -r base surface0 text lavender mantle < <(jq -r '[.base, .surface0, .text, .lavender, .mantle] | join(" ")' "$pal")
+  magick -size 640x480 "xc:$base" "PNG24:$G/background.png"
+  for p in c e w; do
+    magick "$REPO/system/boot/grub/themes/marc-os/select_$p.png" -fill "$surface0" -colorize 100 "$G/select_$p.png"
+  done
+  sed -i "s/#1E1E2E/${base^^}/I; s/#B4BEFE/${lavender^^}/I; s/#CDD6F4/${text^^}/Ig" "$G/theme.txt"
+  awk -v a="$base" -v b="$mantle" 'function c(h, i) { return sprintf("%.3f", strtonum("0x" substr(h, i, 2)) / 255) }
+    /SetBackgroundTopColor/ { $0 = "Window.SetBackgroundTopColor(" c(a, 2) ", " c(a, 4) ", " c(a, 6) ");" }
+    /SetBackgroundBottomColor/ { $0 = "Window.SetBackgroundBottomColor(" c(b, 2) ", " c(b, 4) ", " c(b, 6) ");" }
+    { print }' "$REPO/system/usr/share/plymouth/themes/marc-os/marc-os.script" > "$R/usr/share/plymouth/themes/marc-os/marc-os.script"
   mkdir -p "$R/usr/share/sddm/themes"
-  magick -size 1920x1080 xc:'#1e1e2e' "$tmp/sddm/frame-0000.png" -gravity north -geometry +0+40 -composite "$R/usr/share/sddm/themes/torus-background.png"
+  magick -size 1920x1080 "xc:$base" "$tmp/sddm/frame-0000.png" -gravity north -geometry +0+40 -composite "$R/usr/share/sddm/themes/torus-background.png"
   rm -rf "$tmp"
   printf '%s\n' boot/grub/themes/marc-os/donut.png usr/share/sddm/themes/torus-background.png >> "$list"
   sort -u -o "$list" "$list"
 
-  local T=usr/share/sddm/themes/torus frag hex
+  local T=usr/share/sddm/themes/torus frag
   install -D -m 644 "$REPO/home/.config/quickshell/torus/background/donut.mjs" "$R/$T/donut.mjs"
   for frag in torus donut; do
     "$qsb" --glsl "100 es,120,150" --hlsl 50 --msl 12 -o "$R/$T/$frag.frag.qsb" "$REPO/home/.config/quickshell/torus/background/$frag.frag"
   done
-  hex=$(jq -r --arg a "$accent" '.[$a]' "$REPO/theme/mocha.json")
-  printf '[General]\naccent="%s"\n' "$hex" > "$R/$T/theme.conf.user"
+  jq -r --arg a "$accent" '"[General]", (. as $p | {base, mantle, crust, text, subtext: .subtext0, overlay: .overlay0, surface0, surface1, accent: $p[$a], red, mauve, lavender} | to_entries[] | "\(.key)=\"\(.value)\"")' "$pal" > "$R/$T/theme.conf.user"
   install -D -m 755 "$REPO/sddm/xsetup" "$R/usr/local/lib/torus/sddm-xsetup"
   mkdir -p "$R/etc/torus"
   : > "$R/etc/torus/sddm-monitors"
@@ -137,7 +152,7 @@ system_install() {
       exit 6
     fi
   fi
-  echo "torus: system theming done (accent $accent), original files in $attic"
+  echo "torus: system theming done (flavour $flavour, accent $accent), original files in $attic"
 }
 
 system_undo() {

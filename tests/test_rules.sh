@@ -31,4 +31,7 @@ rc=0; "$T" add 'bad"class' float > /dev/null 2>&1 || rc=$?
 assert_eq 2 "$rc" "refuses classes that could break the lua file"
 rc=0; "$T" add kitty workspace abc > /dev/null 2>&1 || rc=$?
 assert_eq 2 "$rc" "workspace must be a number"
+for i in $(seq 12); do "$T" add "app$i" float & done; wait
+assert_eq 12 "$(grep -c '^app[0-9]*	float' "$XDG_STATE_HOME/torus/rules.tsv")" "parallel adds all land"
+assert_eq 12 "$(grep -c 'class = "\^(app[0-9]*)\$"' "$HOME/.config/hypr/rules.local.lua")" "lua file matches the tsv after parallel adds"
 true

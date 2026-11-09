@@ -28,7 +28,16 @@ PanelWindow {
     Column {
         id: column
         width: parent.width
-        spacing: 8
+        spacing: Theme.sp4
+        add: Transition {
+            ParallelAnimation {
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durMed; easing.type: Easing.OutCubic }
+                NumberAnimation { property: "x"; from: 48; to: 0; duration: Theme.durSlow; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+            }
+        }
+        move: Transition {
+            NumberAnimation { property: "y"; duration: Theme.durMed; easing.type: Easing.OutCubic }
+        }
 
         Repeater {
             model: ScriptModel { values: Notifs.popups }

@@ -67,7 +67,7 @@ Rectangle {
         Rectangle {
             Layout.preferredWidth: 96
             Layout.preferredHeight: 96
-            radius: 10
+            radius: Theme.radius
             color: Theme.mantle
             clip: true
             Image {
@@ -88,14 +88,14 @@ Rectangle {
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 4
+            spacing: Theme.sp2
 
             Text {
                 Layout.fillWidth: true
                 text: root.player ? root.player.trackTitle : ""
                 color: Theme.text
                 font.family: Theme.fontUi
-                font.pixelSize: 15
+                font.pixelSize: Theme.icon
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
             }
@@ -104,7 +104,7 @@ Rectangle {
                 text: root.player ? root.player.trackArtist : ""
                 color: Theme.subtext
                 font.family: Theme.fontUi
-                font.pixelSize: 12
+                font.pixelSize: Theme.fsMd
                 elide: Text.ElideRight
             }
             Text {
@@ -113,7 +113,7 @@ Rectangle {
                 text: Lyrics.line
                 color: root.tint
                 font.family: Theme.fontUi
-                font.pixelSize: 12
+                font.pixelSize: Theme.fsMd
                 font.italic: true
                 elide: Text.ElideRight
             }
@@ -124,13 +124,13 @@ Rectangle {
                 visible: root.player && root.player.lengthSupported
                 Rectangle {
                     anchors.fill: parent
-                    radius: 3
+                    radius: Theme.rXs
                     color: Qt.alpha(Theme.text, 0.15)
                 }
                 Rectangle {
                     width: root.player && root.player.length > 0 ? parent.width * Math.min(1, root.player.position / root.player.length) : 0
                     height: parent.height
-                    radius: 3
+                    radius: Theme.rXs
                     color: root.tint
                 }
                 MouseArea {
@@ -145,7 +145,7 @@ Rectangle {
             }
 
             RowLayout {
-                spacing: 6
+                spacing: Theme.sp3
                 PanelButton { icon: "󰒮"; onClicked: root.player.previous() }
                 PanelButton { icon: root.player && root.player.isPlaying ? "󰏤" : "󰐊"; active: true; onClicked: root.player.togglePlaying() }
                 PanelButton { icon: "󰒭"; onClicked: root.player.next() }

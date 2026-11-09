@@ -31,6 +31,27 @@ Singleton {
     property int gpuMhz: -1
     property int gpuHotspot: -1
 
+    property var cpuHist: []
+    property var gpuHist: []
+    property var memHist: []
+    property var rxHist: []
+    property var txHist: []
+    property real rxRate: 0
+    property real txRate: 0
+    property var lastNet: [0, 0, 0]
+
+    function push(arr, v) {
+        return arr.concat([v]).slice(-30)
+    }
+
+    function rate(bps) {
+        if (bps < 1024)
+            return Math.round(bps) + " B/s"
+        if (bps < 1048576)
+            return (bps / 1024).toFixed(bps < 10240 ? 1 : 0) + " KB/s"
+        return (bps / 1048576).toFixed(1) + " MB/s"
+    }
+
     readonly property real memPercent: memTotal > 0 ? memUsed / memTotal * 100 : 0
 
     function readInt(view) {
@@ -64,6 +85,7 @@ Singleton {
     FileView { id: gpuTempFile; path: root.gpuTempPath; printErrors: false }
     FileView { id: gpuBusyFile; path: root.gpuBusyPath; printErrors: false }
     FileView { id: loadFile; path: "/proc/loadavg" }
+    FileView { id: netdev; path: "/proc/net/dev" }
     FileView { id: cpuinfo; path: "/proc/cpuinfo" }
     FileView { id: vramUsedFile; path: root.gpuDir ? root.gpuDir + "/mem_info_vram_used" : ""; printErrors: false }
     FileView { id: vramTotalFile; path: root.gpuDir ? root.gpuDir + "/mem_info_vram_total" : ""; printErrors: false }
@@ -150,6 +172,28 @@ Singleton {
                 gpuBusyFile.reload()
                 root.gpuBusy = root.readInt(gpuBusyFile)
             }
+            netdev.reload()
+            let rx = 0
+            let tx = 0
+            for (const l of netdev.text().split("\n").slice(2)) {
+                const parts = l.trim().split(/[:\s]+/)
+                if (parts.length < 10 || parts[0] === "lo" || /^(veth|docker|br-|virbr|tailscale|wg)/.test(parts[0]))
+                    continue
+                rx += Number(parts[1]) || 0
+                tx += Number(parts[9]) || 0
+            }
+            const t = Date.now()
+            if (root.lastNet[2] > 0) {
+                const sec = (t - root.lastNet[2]) / 1000
+                root.rxRate = Math.max(0, (rx - root.lastNet[0]) / sec)
+                root.txRate = Math.max(0, (tx - root.lastNet[1]) / sec)
+            }
+            root.lastNet = [rx, tx, t]
+            root.cpuHist = root.push(root.cpuHist, root.cpu / 100)
+            root.gpuHist = root.push(root.gpuHist, Math.max(0, root.gpuBusy) / 100)
+            root.memHist = root.push(root.memHist, root.memPercent / 100)
+            root.rxHist = root.push(root.rxHist, root.rxRate)
+            root.txHist = root.push(root.txHist, root.txRate)
         }
     }
 }

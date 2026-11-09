@@ -5,6 +5,8 @@ db=${XDG_STATE_HOME:-$HOME/.local/state}/torus/rules.tsv
 lua=$HOME/.config/hypr/rules.local.lua
 mkdir -p "$(dirname "$db")" "$(dirname "$lua")"
 touch "$db"
+exec 9> "$db.lock"
+flock -w 10 9 || { echo "torus-rules: busy" >&2; exit 1; }
 
 render() {
   {

@@ -24,11 +24,11 @@ n=0
 for t in "$REPO"/theme/templates/*.tmpl; do
   out=$S/theme/$(basename "$t" .tmpl)
   assert_file "$out"
-  if [[ $out == *cursor.env ]]; then
-    assert_contains "$out" "XCURSOR_THEME=Bibata-Modern-Ice"
-  else
-    assert_contains "$out" "89b4fa"
-  fi
+  case ${out##*/} in
+    cursor.env) assert_contains "$out" "XCURSOR_THEME=Bibata-Modern-Ice" ;;
+    delta.gitconfig | starship.toml | yazi-theme.toml | lazygit.yml | zsh-colors.zsh | kvantum.kvconfig | qt6ct.conf | kdeglobals | rofi-config.rasi | gtk-settings.ini) ;;
+    *) assert_contains "$out" "89b4fa" ;;
+  esac
   grep -q '@[a-z_0-9]*@' "$out" && fail "placeholder left in $out"
   n=$((n + 1))
 done

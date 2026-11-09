@@ -6,6 +6,6 @@ import qs.services
 
 Chip {
     icon: "󰏘"
-    tip: "Accent colour, click to pick"
-    onClicked: Quickshell.execDetached(["torus-menu", "accent"])
+    tip: "Theme: flavour, accent, wallpaper"
+    onClicked: Store.toggleOn("theme", QsWindow.window ? QsWindow.window.screen : null)
 }

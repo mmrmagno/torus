@@ -5,7 +5,7 @@ set -euo pipefail
 F=$(mktemp -d)
 trap 'rm -rf "$F"' EXIT
 mkdir -p "$F/bin" "$F/proc/100" "$F/proc/101" "$F/proc/200" "$F/proc/201" "$F/apps/applications" "$F/state"
-export STUB_LOG=$F/calls TORUS_PROC=$F/proc XDG_DATA_DIRS=$F/apps XDG_DATA_HOME=$F/nohome XDG_STATE_HOME=$F/state
+export HYPRLAND_INSTANCE_SIGNATURE=login1 STUB_LOG=$F/calls TORUS_PROC=$F/proc XDG_DATA_DIRS=$F/apps XDG_DATA_HOME=$F/nohome XDG_STATE_HOME=$F/state
 ln -s /home/me/dev/torus "$F/proc/101/cwd"
 ln -s /home/me/music "$F/proc/201/cwd"
 mkdir -p "$F/proc/100/task/100" "$F/proc/200/task/200"
@@ -26,6 +26,7 @@ if [[ $1 == clients ]]; then cat <<'J'
 J
 fi
 S
+cp "$F/bin/hyprctl" "$F/hyprctl.real"
 printf '[Desktop Entry]\nName=Zen Browser\nExec=zen-browser %%u\nStartupWMClass=zen\n' > "$F/apps/applications/zen.desktop"
 chmod +x "$F/bin"/*
 export PATH=$F/bin:$PATH
@@ -41,15 +42,53 @@ grep -qF 'hl.exec_cmd("[workspace 2 silent] kitty --directory /home/me/dev/torus
 grep -q '\[workspace 3 silent\] kitty --directory /home/me/music' "$STUB_LOG" || fail "second kitty"
 grep -q '\[workspace 1 silent\] gtk-launch zen' "$STUB_LOG" || fail "zen via its desktop entry"
 assert_eq 1 "$(grep -c 'gtk-launch zen' "$STUB_LOG")" "zen launched once"
-assert_absent "$S"
+[[ -s $S ]] || fail "restore keeps the saved session, so a reboot before the next save loses nothing"
 
 : > "$STUB_LOG"
 "$T" restore
-grep -q 'exec_cmd' "$STUB_LOG" && fail "restore runs once"
+grep -q 'exec_cmd' "$STUB_LOG" && fail "restore runs once per login"
+
+: > "$STUB_LOG"
+HYPRLAND_INSTANCE_SIGNATURE=login2 "$T" restore
+grep -q 'kitty --directory /home/me/music' "$STUB_LOG" || fail "next login restores again"
+
+cp "$S" "$F/good"
+cat > "$F/bin/hyprctl" <<'S'
+#!/usr/bin/env bash
+exit 1
+S
+"$T" save && fail "save fails when Hyprland is gone"
+cmp -s "$S" "$F/good" || fail "failed save keeps the last session"
+assert_eq '[]' "$("$T" preview)" "preview empty when Hyprland is gone"
+cp "$F/hyprctl.real" "$F/bin/hyprctl"; chmod +x "$F/bin/hyprctl"
 
 "$T" save
 echo off > "$F/state/torus/session-restore"
 : > "$STUB_LOG"
 "$T" restore
 grep -q 'exec_cmd' "$STUB_LOG" && fail "restore off"
+
+echo on > "$F/state/torus/session-restore"
+P=$("$T" preview)
+assert_eq keep "$(jq -r '.[] | select(.class == "zen") | .verdict' <<<"$P")" "preview: zen will come back"
+assert_eq never "$(jq -r '.[] | select(.class == "cs2") | .verdict' <<<"$P")" "preview: games never come back"
+assert_eq /home/me/dev/torus "$(jq -r '[.[] | select(.class == "kitty")][0].dir' <<<"$P")" "preview: kitty folder shown"
+assert_eq 0 "$(jq '[.[] | select(.ws < 0)] | length' <<<"$P")" "preview: special workspaces left out"
+
+"$T" skip zen
+assert_eq skipped "$("$T" preview | jq -r '.[] | select(.class == "zen") | .verdict')" "skip: zen marked skipped"
+"$T" save
+grep -q '^zen' "$S" && fail "skip: zen not saved"
+assert_eq '["zen"]' "$("$T" status | jq -c .skipped)" "status lists skipped apps"
+"$T" unskip zen
+assert_eq keep "$("$T" preview | jq -r '.[] | select(.class == "zen") | .verdict')" "unskip: zen back"
+
+"$T" off
+assert_eq false "$("$T" status | jq .on)" "status: off"
+"$T" on
+assert_eq true "$("$T" status | jq .on)" "status: on"
+"$T" save
+assert_eq 3 "$("$T" status | jq .saved)" "status: saved count"
+"$T" clear
+assert_eq 0 "$("$T" status | jq .saved)" "clear empties the saved session"
 true

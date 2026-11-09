@@ -9,7 +9,7 @@ PanelWindow {
     id: win
 
     readonly property bool fullscreen: screen ? Fullscreen.isFull(screen.name) : false
-    readonly property bool shown: Store.wallpaper === "donut" || Store.wallpaper === "xwing"
+    readonly property bool shown: Store.wallFor(win.screen ? win.screen.name : "") === "donut" || Store.wallFor(win.screen ? win.screen.name : "") === "xwing"
     property int frames: 0
     property real drift: 0
     property int lastWs: 0
@@ -27,7 +27,7 @@ PanelWindow {
 
     SequentialAnimation {
         id: nudge
-        NumberAnimation { id: out; target: win; property: "drift"; duration: 140; easing.type: Easing.OutCubic }
+        NumberAnimation { id: out; target: win; property: "drift"; duration: Theme.durFast; easing.type: Easing.OutCubic }
         NumberAnimation { target: win; property: "drift"; to: 0; duration: 520; easing.type: Easing.OutBack; easing.overshoot: 1.6 }
     }
 
@@ -46,9 +46,9 @@ PanelWindow {
         height: parent.height
         x: (parent.width - width) / 2 + win.drift
         throttle: Fullscreen.any
-        shape: Store.wallpaper === "xwing" ? "xwing" : "torus"
+        shape: Store.wallFor(win.screen ? win.screen.name : "") === "xwing" ? "xwing" : "torus"
         live: win.shown && !win.fullscreen && !Store.gamemode && !Store.donutPaused && !Store.locked
-        cellH: win.screen ? Math.max(8, Math.round(Math.min(win.screen.width, win.screen.height) * 0.5 / (Store.wallpaper === "xwing" ? DonutClock.h * 2 : DonutClock.h))) : 16
+        cellH: win.screen ? Math.max(8, Math.round(Math.min(win.screen.width, win.screen.height) * 0.5 / (Store.wallFor(win.screen ? win.screen.name : "") === "xwing" ? DonutClock.h * 2 : DonutClock.h))) : 16
         onFrame: {
             win.frames++
             Store.reportFrames(win.screen.name, win.frames)

@@ -4,7 +4,7 @@ import qs
 Rectangle {
     default property alias content: inner.data
     property string title: ""
-    radius: 12
+    radius: Theme.rCard
     color: Qt.alpha(Theme.surface0, 0.7)
     border.width: 1
     border.color: Qt.alpha(Theme.surface1, 0.6)
@@ -17,7 +17,7 @@ Rectangle {
         y: 10
         color: Theme.overlay
         font.family: Theme.fontUi
-        font.pixelSize: 11
+        font.pixelSize: Theme.fsSm
         font.letterSpacing: 1.2
         font.capitalization: Font.AllUppercase
     }

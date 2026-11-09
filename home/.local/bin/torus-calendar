@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import calendar
 import os
 import subprocess
 import sys
@@ -8,8 +9,23 @@ from zoneinfo import ZoneInfo
 DAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 
 
+_zone = None
+
+
 def local():
-    return datetime.now().astimezone().tzinfo
+    global _zone
+    if _zone is None:
+        name = os.environ.get("TZ", "").lstrip(":")
+        if not name:
+            try:
+                name = os.path.realpath("/etc/localtime").split("zoneinfo/", 1)[1]
+            except IndexError:
+                name = ""
+        try:
+            _zone = ZoneInfo(name) if name else datetime.now().astimezone().tzinfo
+        except Exception:
+            _zone = datetime.now().astimezone().tzinfo
+    return _zone
 
 
 def unfold(text):
@@ -61,23 +77,62 @@ def events(lines):
             cur = None
         elif cur is not None:
             name, params, value = prop(line)
-            if name in ("DTSTART", "DTEND", "RECURRENCE-ID"):
-                cur[name], cur[name + "_DAY"] = when(value, params)
-            elif name == "EXDATE":
-                for v in value.split(","):
-                    cur["exdate"].append(when(v, params)[0])
-            elif name in ("SUMMARY", "LOCATION", "RRULE", "UID", "STATUS"):
-                cur[name] = value
+            try:
+                if name in ("DTSTART", "DTEND", "RECURRENCE-ID"):
+                    cur[name], cur[name + "_DAY"] = when(value, params)
+                elif name == "EXDATE":
+                    for v in value.split(","):
+                        cur["exdate"].append(when(v, params)[0])
+                elif name in ("SUMMARY", "LOCATION", "RRULE", "UID", "STATUS"):
+                    cur[name] = value
+            except ValueError:
+                cur["broken"] = True
+
+
+def ints(v):
+    return [int(x) for x in v.split(",") if x.strip().lstrip("+-").isdigit()] if v else []
+
+
+def month_days(year, month, r, start):
+    last = calendar.monthrange(year, month)[1]
+    picked = None
+    if "BYMONTHDAY" in r:
+        picked = {d if d > 0 else last + d + 1 for d in ints(r["BYMONTHDAY"])}
+    if r.get("BYDAY"):
+        hits = set()
+        for tok in r["BYDAY"].split(","):
+            wd = tok[-2:]
+            if wd not in DAYS:
+                continue
+            all_wd = [d for d in range(1, last + 1) if date(year, month, d).weekday() == DAYS.index(wd)]
+            n = tok[:-2].lstrip("+")
+            if n.lstrip("-").isdigit() and int(n) != 0:
+                i = int(n)
+                if -len(all_wd) <= i <= len(all_wd):
+                    hits.add(all_wd[i - 1] if i > 0 else all_wd[i])
+            else:
+                hits.update(all_wd)
+        picked = hits if picked is None else picked & hits
+    if picked is None:
+        picked = {start.day}
+    days = sorted(d for d in picked if 1 <= d <= last)
+    if "BYSETPOS" in r:
+        days = sorted({days[i - 1] if i > 0 else days[i] for i in ints(r["BYSETPOS"]) if i != 0 and -len(days) <= i <= len(days)})
+    return [start.replace(year=year, month=month, day=d) for d in days]
 
 
 def occurrences(start, rule, end):
     r = dict(x.split("=", 1) for x in rule.split(";") if "=" in x)
     freq = r.get("FREQ", "")
-    step = int(r.get("INTERVAL", "1"))
+    step = max(1, int(r.get("INTERVAL", "1")))
     count = int(r["COUNT"]) if "COUNT" in r else None
     until = when(r["UNTIL"], {})[0] if "UNTIL" in r else None
     byday = [DAYS.index(d[-2:]) for d in r.get("BYDAY", "").split(",") if d[-2:] in DAYS]
-    n = 0
+    if start < end:
+        yield start
+    if freq not in ("DAILY", "WEEKLY", "MONTHLY", "YEARLY"):
+        return
+    n = 1
     k = 0
     while k < 5000:
         if freq == "WEEKLY" and byday:
@@ -85,24 +140,23 @@ def occurrences(start, rule, end):
             batch = sorted(week + timedelta(days=d) for d in byday)
         elif freq == "DAILY":
             batch = [start + timedelta(days=k * step)]
+            if byday and batch[0].weekday() not in byday:
+                batch = []
         elif freq == "WEEKLY":
             batch = [start + timedelta(weeks=k * step)]
         elif freq == "MONTHLY":
             m = start.month - 1 + k * step
-            try:
-                batch = [start.replace(year=start.year + m // 12, month=m % 12 + 1)]
-            except ValueError:
-                batch = []
-        elif freq == "YEARLY":
-            try:
-                batch = [start.replace(year=start.year + k * step)]
-            except ValueError:
-                batch = []
+            batch = month_days(start.year + m // 12, m % 12 + 1, r, start)
         else:
-            return
+            y = start.year + k * step
+            months = ints(r.get("BYMONTH")) or [start.month]
+            batch = []
+            for mo in months:
+                if "BYDAY" in r or "BYMONTHDAY" in r or mo == start.month:
+                    batch += month_days(y, mo, r, start)
         k += 1
         for dt in batch:
-            if dt < start:
+            if dt <= start:
                 continue
             if (until and dt > until) or (count is not None and n >= count) or dt >= end:
                 return
@@ -121,13 +175,18 @@ def parse(text, frm, days):
             moved.setdefault(e["UID"], []).append(e["RECURRENCE-ID"])
     out = []
     for e in evs:
+        if e.get("broken"):
+            continue
         if "DTSTART" not in e or e.get("STATUS") == "CANCELLED" and "RECURRENCE-ID" not in e:
             continue
         start = e["DTSTART"]
         allday = e.get("DTSTART_DAY", False)
         length = (e["DTEND"] - start) if "DTEND" in e else (timedelta(days=1) if allday else timedelta(hours=1))
         skip = e["exdate"] + ([] if "RECURRENCE-ID" in e else moved.get(e.get("UID"), []))
-        starts = occurrences(start, e["RRULE"], hi) if "RRULE" in e and "RECURRENCE-ID" not in e else [start]
+        try:
+            starts = list(occurrences(start, e["RRULE"], hi)) if "RRULE" in e and "RECURRENCE-ID" not in e else [start]
+        except (ValueError, KeyError):
+            starts = [start]
         for s in starts:
             if any(abs((s - x).total_seconds()) < 60 for x in skip):
                 continue
@@ -159,7 +218,7 @@ def main():
         except OSError:
             return 3
         try:
-            text = subprocess.run(["curl", "-sfL", "--max-time", "20", "--", url], capture_output=True, text=True, check=True).stdout
+            text = subprocess.run(["curl", "-sfL", "--max-time", "20", "--", url], capture_output=True, check=True).stdout.decode("utf-8", errors="replace")
         except subprocess.CalledProcessError:
             return 4
         os.makedirs(os.path.dirname(cache), exist_ok=True)

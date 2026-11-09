@@ -35,8 +35,8 @@ PanelWindow {
         return out
     }
 
-    screen: Store.focusedScreen
-    visible: Store.isOpen("cheatsheet")
+    screen: Store.screenFor("cheatsheet")
+    visible: Store.isOpen("cheatsheet") || motion.leaving
     onVisibleChanged: {
         if (visible) {
             query = ""
@@ -78,8 +78,9 @@ PanelWindow {
 
     Rectangle {
         PanelMotion {
+            id: motion
             target: parent
-            shown: root.visible
+            shown: Store.isOpen("cheatsheet") && !Store.moving
         }
         anchors.fill: parent
         color: Qt.alpha(Theme.crust, 0.75)
@@ -105,7 +106,7 @@ PanelWindow {
                 text: "󰍉"
                 color: Theme.accent
                 font.family: Theme.fontMono
-                font.pixelSize: 16
+                font.pixelSize: Theme.fsXl
             }
 
             TextInput {
@@ -117,7 +118,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 color: Theme.text
                 font.family: Theme.fontUi
-                font.pixelSize: 14
+                font.pixelSize: Theme.fsLg
                 clip: true
                 focus: true
                 onTextChanged: root.query = text
@@ -139,7 +140,7 @@ PanelWindow {
                 text: root.groups.reduce((n, g) => n + g.items.length, 0) + " binds"
                 color: Theme.subtext
                 font.family: Theme.fontUi
-                font.pixelSize: 11
+                font.pixelSize: Theme.fsSm
             }
         }
 
@@ -160,12 +161,12 @@ PanelWindow {
                     Column {
                         required property var modelData
                         width: 380
-                        spacing: 4
+                        spacing: Theme.sp2
                         Text {
                             text: modelData.name
                             color: Theme.accent
                             font.family: Theme.fontUi
-                            font.pixelSize: 15
+                            font.pixelSize: Theme.icon
                             font.weight: Font.DemiBold
                             bottomPadding: 4
                         }
@@ -173,9 +174,9 @@ PanelWindow {
                             model: modelData.items
                             Row {
                                 required property var modelData
-                                spacing: 10
-                                Text { text: modelData.keys; width: 180; color: Theme.lavender; font.family: Theme.fontMono; font.pixelSize: 11; elide: Text.ElideRight }
-                                Text { text: modelData.what; width: 190; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 11; elide: Text.ElideRight }
+                                spacing: Theme.sp5
+                                Text { text: modelData.keys; width: 180; color: Theme.lavender; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm; elide: Text.ElideRight }
+                                Text { text: modelData.what; width: 190; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; elide: Text.ElideRight }
                             }
                         }
                     }

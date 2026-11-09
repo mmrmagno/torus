@@ -10,4 +10,5 @@ configuration {
     me-select-entry: "";
     me-accept-entry: "MousePrimary";
 }
+@import "~/.local/state/torus/theme/rofi-config.rasi"
 @theme "~/.config/rofi/themes/marc-os.rasi"

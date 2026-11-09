@@ -15,13 +15,13 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: parent.width
         height: 6
-        radius: 3
+        radius: Theme.rXs
         color: Theme.surface1
 
         Rectangle {
             width: parent.width * Math.min(1, root.value)
             height: parent.height
-            radius: 3
+            radius: Theme.rXs
             color: root.muted ? Theme.overlay : (root.value > 1 ? Theme.peach : Theme.accent)
             Behavior on width { NumberAnimation { duration: 90 } }
         }
@@ -37,7 +37,7 @@ Item {
         border.width: 2
         border.color: root.muted ? Theme.overlay : Theme.accent
         scale: drag.pressed || drag.containsMouse ? 1.15 : 1
-        Behavior on scale { NumberAnimation { duration: 120 } }
+        Behavior on scale { NumberAnimation { duration: Theme.durFast } }
     }
 
     MouseArea {

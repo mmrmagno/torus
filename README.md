@@ -1,6 +1,6 @@
 # torus
 
-My own Arch + Hyprland setup: Catppuccin Mocha everywhere.
+My own Arch + Hyprland setup: Catppuccin everywhere, Mocha by default.
 
 ![The torus desktop with the spinning ASCII donut](screenshots/desktop.webp)
 
@@ -42,7 +42,7 @@ with it. I want a setup I own end to end.
 - The donut drawn on the GPU, tinted by the time of day and the album art. Or an X-wing.
 - A clipboard with pins, a mixer per app, Wi-Fi and Bluetooth, updates with Arch news, my calendar.
 - Window rules from SUPER+Space, and my apps back on their workspaces after a reboot.
-- One accent colour that every app follows.
+- One flavor (Mocha, Macchiato, Frappe, Latte) and one accent color that every app follows: `torus flavor latte`, `torus accent blue`.
 
 ## Keys I use the most
 

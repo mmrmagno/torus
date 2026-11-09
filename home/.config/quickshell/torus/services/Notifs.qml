@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Notifications
 import qs
 
@@ -16,6 +17,72 @@ Singleton {
     property int quietTo: 6
     property bool quietActive: false
     property bool dndBeforeQuiet: false
+    property var arrived: ({})
+    property var muted: ({})
+    property string filter: ""
+    property real awaySince: 0
+    property var awayItems: []
+    property real lastAway: 0
+    readonly property bool away: Store.locked || Focus.running
+
+    function isMuted(app) {
+        return (muted[app] || 0) > Date.now()
+    }
+
+    function mute(app, minutes) {
+        const m = {}
+        for (const k in muted)
+            if (muted[k] > Date.now())
+                m[k] = muted[k]
+        if (minutes > 0)
+            m[app] = Date.now() + minutes * 60000
+        else
+            delete m[app]
+        muted = m
+        muteFile.setText(JSON.stringify(m))
+    }
+
+    function untilTomorrow() {
+        const d = new Date()
+        d.setDate(d.getDate() + 1)
+        d.setHours(8, 0, 0, 0)
+        return Math.ceil((d.getTime() - Date.now()) / 60000)
+    }
+
+    function matches(n) {
+        const q = filter.trim().toLowerCase()
+        if (q === "")
+            return true
+        return ((n.appName || "") + " " + (n.summary || "") + " " + (n.body || "")).toLowerCase().includes(q)
+    }
+
+    onAwayChanged: {
+        if (away) {
+            awaySince = Date.now()
+            awayItems = []
+        } else if (awayItems.length > 0) {
+            lastAway = awaySince
+            const apps = {}
+            for (const a of awayItems)
+                apps[a] = (apps[a] || 0) + 1
+            const top = Object.keys(apps).sort((a, b) => apps[b] - apps[a])
+            Island.flash("notification", { summary: "While you were away: " + awayItems.length + (awayItems.length === 1 ? " notification" : " notifications"), body: top.slice(0, 3).map(a => a + (apps[a] > 1 ? " ×" + apps[a] : "")).join(", ") + (top.length > 3 ? " and more" : ""), app: "torus", icon: "notifications", image: "" }, 6000)
+        }
+    }
+
+    FileView {
+        id: muteFile
+        path: Store.stateDir + "/notif-mute.json"
+        blockLoading: true
+        printErrors: false
+        onLoaded: {
+            try {
+                root.muted = JSON.parse(text())
+            } catch (e) {
+                root.muted = {}
+            }
+        }
+    }
 
     function keyOf(n) {
         return (n.appName || "") + "\u0001" + (n.summary || "") + "\u0001" + (n.body || "")
@@ -33,7 +100,8 @@ Singleton {
             Store.dnd = true
         } else if (!now && quietActive) {
             quietActive = false
-            Store.dnd = dndBeforeQuiet
+            if (Store.dnd)
+                Store.dnd = dndBeforeQuiet
         }
     }
 
@@ -63,6 +131,8 @@ Singleton {
         const byApp = {}
         for (let i = list.length - 1; i >= 0; i--) {
             const n = list[i]
+            if (!matches(n))
+                continue
             const k = n.appName || "unknown"
             if (!byApp[k]) {
                 byApp[k] = { app: k, icon: n.appIcon, items: [] }
@@ -91,6 +161,14 @@ Singleton {
         const d = Object.assign({}, deadlines)
         delete d[n.id]
         deadlines = d
+    }
+
+    function ago(n) {
+        const t = arrived[n.id]
+        if (!t)
+            return ""
+        const m = Math.floor((Date.now() - t) / 60000)
+        return m < 1 ? "now" : m < 60 ? m + " min" : Math.floor(m / 60) + " h"
     }
 
     function clearAll() {
@@ -133,21 +211,43 @@ Singleton {
         onNotification: n => {
             const key = root.keyOf(n)
             let count = 1
+            const r = Object.assign({}, root.repeats)
             for (const old of root.list.slice()) {
                 if (old !== n && root.keyOf(old) === key) {
-                    count += root.repeats[old.id] || 1
-                    old.dismiss()
+                    count += r[old.id] || 1
+                    delete r[old.id]
+                    old.expire()
                 }
             }
-            const r = Object.assign({}, root.repeats)
+            const live = {}
+            for (const x of root.list)
+                live[x.id] = true
+            for (const id in r)
+                if (!live[id])
+                    delete r[id]
             r[n.id] = count
             root.repeats = r
             n.tracked = true
             root.remember(n)
             const recent = Date.now() - (root.lastFlash[key] || 0) < 10000
-            const lf = Object.assign({}, root.lastFlash)
+            const lf = {}
+            for (const k in root.lastFlash)
+                if (Date.now() - root.lastFlash[k] < 60000)
+                    lf[k] = root.lastFlash[k]
             lf[key] = Date.now()
             root.lastFlash = lf
+            const ar = {}
+            for (const x of root.list)
+                if (root.arrived[x.id])
+                    ar[x.id] = root.arrived[x.id]
+            ar[n.id] = Date.now()
+            root.arrived = ar
+            if (root.away)
+                root.awayItems = root.awayItems.concat([n.appName || "unknown"])
+            if (root.isMuted(n.appName || "unknown") && n.urgency !== NotificationUrgency.Critical) {
+                n.closed.connect(() => root.dismissPopup(n))
+                return
+            }
             const loud = n.urgency === NotificationUrgency.Critical || n.actions.length > 0
             if (!loud && !Store.dnd && !recent)
                 Island.notify(n)

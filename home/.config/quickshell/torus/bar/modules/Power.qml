@@ -8,5 +8,5 @@ Chip {
     icon: "󰐥"
     tip: "Lock, log out, reboot, power off"
     iconColor: Theme.red
-    onClicked: Store.toggle("logout")
+    onClicked: Store.toggleOn("logout", QsWindow.window ? QsWindow.window.screen : null)
 }

@@ -73,7 +73,26 @@ case ${1:-drun} in
       [[ $name == *"Steam Linux Runtime"* || $name == Proton* || $name == "Steamworks Common"* ]] && continue
       list+="$name"$'\t'"$id"$'\n'
     done
-    pick=$(cut -f1 <<< "$list" | grep -v '^$' | sort | menu "play") || exit 0
+    game_icon() {
+      local id=$1 f
+      for f in "$HOME"/.local/share/icons/hicolor/{256x256,128x128,64x64,48x48,32x32}/apps/steam_icon_"$id".png; do
+        [[ -f $f ]] && { echo "$f"; return; }
+      done
+      for f in "$HOME"/.local/share/Steam/appcache/librarycache/"$id"/*.jpg "$HOME"/.local/share/Steam/appcache/librarycache/"$id"/*/*.jpg; do
+        [[ $(basename "$f" .jpg) =~ ^[0-9a-f]{40}$ ]] && { echo "$f"; return; }
+      done
+      for f in "$HOME"/.local/share/Steam/appcache/librarycache/"$id"/header.jpg "$HOME"/.local/share/Steam/appcache/librarycache/"$id"_icon.jpg; do
+        [[ -f $f ]] && { echo "$f"; return; }
+      done
+      echo steam
+    }
+    rows() {
+      local name id
+      while IFS=$'\t' read -r name id; do
+        [[ -n $name ]] && printf '%s\0icon\x1f%s\n' "$name" "$(game_icon "$id")"
+      done < <(grep -v '^$' <<< "$list" | sort)
+    }
+    pick=$(rows | menu "play" -show-icons) || exit 0
     [[ -n $pick ]] || exit 0
     id=$(awk -F'\t' -v n="$pick" '$1 == n {print $2; exit}' <<< "$list")
     steam "steam://rungameid/$id" > /dev/null 2>&1 &
@@ -93,7 +112,29 @@ case ${1:-drun} in
     qs -c torus ipc call torus wallpaper "$pick" > /dev/null
     ;;
   accent)
-    pick=$(printf '%s\n' rosewater flamingo pink mauve red maroon peach yellow green teal sky sapphire blue lavender | menu "accent") || exit 0
+    colors=$state/theme/qs-colors.json
+    sw=${XDG_CACHE_HOME:-$HOME/.cache}/torus/swatches
+    mkdir -p "$sw"
+    current=$(jq -r '.accentName // ""' "$colors" 2> /dev/null || true)
+    rows() {
+      local name hex label
+      for name in "${names[@]}"; do
+        hex=$(jq -r --arg n "$name" '.[$n] // "#888888"' "$colors" 2> /dev/null || echo '#888888')
+        if [[ $name == "$current" ]]; then
+          printf "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><circle cx='32' cy='32' r='20' fill='%s'/><circle cx='32' cy='32' r='29' fill='none' stroke='%s' stroke-width='4'/></svg>\n" "$hex" "$hex" > "$sw/$name.svg"
+          label="$name  (current)"
+        else
+          printf "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><circle cx='32' cy='32' r='26' fill='%s'/></svg>\n" "$hex" > "$sw/$name.svg"
+          label=$name
+        fi
+        printf '%s\0icon\x1f%s\n' "$label" "$sw/$name.svg"
+      done
+    }
+    names=(rosewater flamingo pink mauve red maroon peach yellow green teal sky sapphire blue lavender)
+    row=0
+    for i in "${!names[@]}"; do [[ ${names[$i]} == "$current" ]] && row=$i; done
+    pick=$(rows | menu "accent" -show-icons -selected-row "$row") || exit 0
+    pick=${pick%%  (current)}
     [[ -n $pick ]] && torus accent "$pick"
     ;;
   animations)

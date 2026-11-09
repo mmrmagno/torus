@@ -9,6 +9,6 @@ Chip {
     tip: Net.online ? (Net.type === "wifi" ? "Wi-Fi" : "Wired") + " connected\nClick: Wi-Fi and Bluetooth, right click: all connections" : "Offline"
     iconColor: Net.online ? Theme.accent : Theme.red
     label: Net.online ? "" : "offline"
-    onClicked: Store.toggle("network")
+    onClicked: Store.toggleOn("network", QsWindow.window ? QsWindow.window.screen : null)
     onRightClicked: Quickshell.execDetached(["nm-connection-editor"])
 }

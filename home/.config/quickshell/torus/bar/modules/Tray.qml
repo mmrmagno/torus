@@ -10,7 +10,7 @@ import Quickshell.Widgets
 Row {
     id: root
     property bool available: true
-    spacing: 8
+    spacing: Theme.sp4
 
     Repeater {
         model: SystemTray.items.values
@@ -23,7 +23,7 @@ Row {
             anchors.verticalCenter: parent.verticalCenter
             source: modelData.icon
             scale: hover.hovered ? 1.15 : 1
-            Behavior on scale { NumberAnimation { duration: 120 } }
+            Behavior on scale { NumberAnimation { duration: Theme.durFast } }
 
             HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
 

@@ -4,6 +4,7 @@ set -euo pipefail
 
 F=$(mktemp -d)
 trap 'rm -rf "$F"' EXIT
+export XDG_STATE_HOME=$F/state TORUS_FETCH_SHAPE=torus
 mkdir -p "$F/bin"
 cat > "$F/bin/fastfetch" <<'S'
 #!/usr/bin/env bash

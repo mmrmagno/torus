@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
+import Quickshell.Bluetooth
 import qs
 
 Singleton {
@@ -44,6 +45,41 @@ Singleton {
         const m = Object.assign({}, modes)
         m[screenName] = mode
         modes = m
+    }
+
+    function nudgePlayerVolume(delta) {
+        const p = player
+        if (!p)
+            return
+        const name = p.identity || "player"
+        if (p.volumeSupported) {
+            p.volume = Math.max(0, Math.min(1, p.volume + delta))
+            flash("osd", { icon: "󰎆", label: name + "  " + Math.round(p.volume * 100) + "%", value: p.volume })
+            return
+        }
+        const key = (p.desktopEntry || p.identity || "").toLowerCase()
+        const node = Pipewire.nodes.values.find(n => n.isStream && n.audio && key !== "" && [n.properties["application.name"], n.properties["application.process.binary"], n.name].some(v => v && String(v).toLowerCase().includes(key)))
+        if (!node) {
+            flash("osd", { icon: "󰎆", label: name + ": no volume control", value: -1 })
+            return
+        }
+        node.audio.volume = Math.max(0, Math.min(1, node.audio.volume + delta))
+        flash("osd", { icon: "󰎆", label: name + "  " + Math.round(node.audio.volume * 100) + "%", value: node.audio.volume })
+    }
+
+    property bool caps: false
+    property bool capsQuiet: false
+
+    function checkCaps() {
+        capsQuiet = false
+        if (!capsProc.running)
+            capsProc.running = true
+    }
+
+    function readCaps() {
+        capsQuiet = true
+        if (!capsProc.running)
+            capsProc.running = true
     }
 
     function notify(n) {
@@ -101,6 +137,38 @@ Singleton {
         function onRawEvent(event) {
             if (event.name === "activelayout")
                 root.flash("osd", { icon: "󰌌", label: event.data.split(",").slice(1).join(","), value: -1 })
+        }
+    }
+
+    PwObjectTracker { objects: Pipewire.nodes.values.filter(n => n.isStream) }
+
+    Process {
+        id: capsProc
+        command: ["hyprctl", "devices", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const k = JSON.parse(text).keyboards.find(k => k.main) || {}
+                    root.caps = !!k.capsLock
+                    if (root.capsQuiet)
+                        return
+                    root.flash("osd", { icon: k.capsLock ? "󰪛" : "󰬶", label: k.capsLock ? "CAPS LOCK ON" : "caps lock off", value: -1 })
+                } catch (e) {}
+            }
+        }
+    }
+
+    Instantiator {
+        model: Bluetooth.devices
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onConnectedChanged() {
+                const d = modelData
+                const icon = (d.icon || "").includes("headset") || (d.icon || "").includes("audio") ? "󰋋" : ((d.icon || "").includes("phone") ? "󰏲" : "󰂯")
+                const bat = d.connected && d.batteryAvailable ? "  ·  " + Math.round(d.battery * 100) + "%" : ""
+                root.flash("osd", { icon: d.connected ? icon : "󰂲", label: d.name + (d.connected ? bat : "  disconnected"), value: d.connected && d.batteryAvailable ? d.battery : -1 }, 2600)
+            }
         }
     }
 

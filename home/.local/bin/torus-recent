@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+import os
+import sys
+import xml.etree.ElementTree as ET
+from urllib.parse import unquote, urlparse
+
+path = os.path.join(os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "recently-used.xbel")
+try:
+    root = ET.parse(path).getroot()
+except (OSError, ET.ParseError):
+    sys.exit(0)
+seen = set()
+rows = []
+for b in root.iter("bookmark"):
+    href = b.get("href", "")
+    if not href.startswith("file://"):
+        continue
+    p = unquote(urlparse(href).path)
+    if p in seen or not os.path.exists(p):
+        continue
+    seen.add(p)
+    rows.append((b.get("modified") or b.get("visited") or "", p))
+rows.sort(reverse=True)
+for when, p in rows[: int(sys.argv[1]) if len(sys.argv) > 1 else 40]:
+    print(f"{when[:10]}\t{p}")

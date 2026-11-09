@@ -17,6 +17,6 @@ Rectangle {
     Row {
         id: row
         anchors.centerIn: parent
-        spacing: 8
+        spacing: Theme.sp4
     }
 }

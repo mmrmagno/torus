@@ -32,11 +32,52 @@ Rectangle {
 
     HoverHandler { id: hover }
 
+    readonly property bool fresh: notif && Notifs.lastAway > 0 && (Notifs.arrived[notif.id] || 0) >= Notifs.lastAway
+    property real swipe: 0
+    transform: Translate { x: card.swipe }
+    opacity: 1 - Math.min(0.8, Math.abs(swipe) / width)
+    Behavior on swipe { enabled: !drag.active; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+
+    DragHandler {
+        id: drag
+        enabled: !card.popup
+        target: null
+        xAxis.enabled: true
+        yAxis.enabled: false
+        onTranslationChanged: if (active) card.swipe = translation.x
+        onActiveChanged: {
+            if (active)
+                return
+            if (Math.abs(card.swipe) > card.width * 0.35) {
+                card.swipe = card.swipe > 0 ? card.width * 1.2 : -card.width * 1.2
+                gone.start()
+            } else {
+                card.swipe = 0
+            }
+        }
+    }
+
+    Timer {
+        id: gone
+        interval: Theme.durMed
+        onTriggered: if (card.notif) card.notif.dismiss()
+    }
+
+    Rectangle {
+        visible: card.fresh
+        x: 6
+        y: 8
+        width: 6
+        height: 6
+        radius: 3
+        color: Theme.accent
+    }
+
     RowLayout {
         id: layout
         anchors.fill: parent
         anchors.margins: 12
-        spacing: 12
+        spacing: Theme.sp6
 
         NotifIcon {
             Layout.alignment: Qt.AlignTop
@@ -48,7 +89,7 @@ Rectangle {
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 4
+            spacing: Theme.sp2
 
             RowLayout {
                 Layout.fillWidth: true
@@ -57,7 +98,7 @@ Rectangle {
                     text: card.notif ? card.notif.summary : ""
                     color: Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: 14
+                    font.pixelSize: Theme.fsLg
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
@@ -68,19 +109,26 @@ Rectangle {
                     height: 18
                     radius: 9
                     color: Qt.alpha(Theme.accent, 0.2)
-                    Text { id: timesText; anchors.centerIn: parent; text: "×" + parent.times; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 10; font.weight: Font.Bold }
+                    Text { id: timesText; anchors.centerIn: parent; text: "×" + parent.times; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs; font.weight: Font.Bold }
                 }
                 Text {
-                    text: card.notif ? card.notif.appName : ""
+                    property int tick: 0
+                    text: card.notif ? (card.popup ? card.notif.appName : Notifs.ago(card.notif) + (tick < 0 ? "" : "")) : ""
                     color: Theme.overlay
                     font.family: Theme.fontUi
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.fsSm
+                    Timer {
+                        running: !card.popup && card.visible
+                        interval: 30000
+                        repeat: true
+                        onTriggered: parent.tick++
+                    }
                 }
                 Text {
                     text: "󰅖"
                     color: closeHover.hovered ? Theme.red : Theme.overlay
                     font.family: Theme.fontMono
-                    font.pixelSize: 14
+                    font.pixelSize: Theme.fsLg
                     HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: card.notif.dismiss() }
                 }
@@ -92,7 +140,7 @@ Rectangle {
                 text: card.notif ? card.notif.body.replace(/<img\b[^>]*>/gi, "") : ""
                 color: Theme.subtext
                 font.family: Theme.fontUi
-                font.pixelSize: 12
+                font.pixelSize: Theme.fsMd
                 wrapMode: Text.Wrap
                 maximumLineCount: card.popup ? 4 : 8
                 elide: Text.ElideRight
@@ -100,7 +148,7 @@ Rectangle {
             }
 
             Row {
-                spacing: 6
+                spacing: Theme.sp3
                 visible: card.notif && card.notif.actions.length > 0
                 Repeater {
                     model: card.notif ? card.notif.actions : []
@@ -108,7 +156,7 @@ Rectangle {
                         required property var modelData
                         width: actionText.implicitWidth + 16
                         height: 24
-                        radius: 8
+                        radius: Theme.rSm
                         color: actionHover.hovered ? Theme.surface1 : Theme.surface0
                         Text {
                             id: actionText
@@ -116,7 +164,7 @@ Rectangle {
                             text: parent.modelData.text
                             color: Theme.text
                             font.family: Theme.fontUi
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.fsMd
                         }
                         HoverHandler { id: actionHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: parent.modelData.invoke() }
@@ -128,7 +176,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 visible: card.notif && card.notif.hasInlineReply
-                radius: 8
+                radius: Theme.rSm
                 color: Theme.surface0
                 border.width: reply.activeFocus ? 1 : 0
                 border.color: Theme.accent
@@ -140,7 +188,7 @@ Rectangle {
                     verticalAlignment: TextInput.AlignVCenter
                     color: Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: 12
+                    font.pixelSize: Theme.fsMd
                     clip: true
                     onAccepted: send()
                     function send() {
@@ -165,7 +213,7 @@ Rectangle {
                     text: "󰒊"
                     color: Theme.accent
                     font.family: Theme.fontMono
-                    font.pixelSize: 14
+                    font.pixelSize: Theme.fsLg
                     TapHandler { onTapped: reply.send() }
                 }
             }

@@ -4,7 +4,7 @@ set -uo pipefail
 state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
 file=$state/session.tsv
 proc=${TORUS_PROC:-/proc}
-skip='^(cs2|gamescope|steam_app_[0-9]+|org\.quickshell|hyprland-share-picker|polkit.*|.*polkit-agent.*)$'
+builtin_skip='^(cs2|gamescope|steam_app_[0-9]+|org\.quickshell|hyprland-share-picker|polkit.*|.*polkit-agent.*)$'
 
 cwd_of() {
   local pid=$1 n=$2 kids
@@ -28,48 +28,123 @@ desktop_id() {
   done
 }
 
+skipfile=$state/session-skip
+
+user_skipped() {
+  [[ -f $skipfile ]] && grep -qxF -- "$1" "$skipfile"
+}
+
+launcher_of() {
+  local class=$1 id
+  [[ $class == kitty ]] && { echo kitty; return; }
+  id=$(desktop_id "$class")
+  if [[ -n $id ]]; then
+    echo "gtk-launch $id"
+  elif command -v "${class,,}" > /dev/null; then
+    echo "${class,,}"
+  fi
+}
+
+collect() {
+  declare -A seen=() used=()
+  local class pid ws n verdict
+  while IFS=$'\t' read -r class pid ws; do
+    if [[ $class =~ $builtin_skip ]]; then
+      verdict=never
+    elif user_skipped "$class"; then
+      verdict=skipped
+    elif [[ -z $(launcher_of "$class") ]]; then
+      verdict=nolauncher
+    else
+      verdict=keep
+    fi
+    if [[ $class == kitty ]]; then
+      n=${used[$pid]:-0}
+      used[$pid]=$((n + 1))
+      printf 'kitty\t%s\t%s\t%s\n' "$ws" "$(cwd_of "$pid" "$n")" "$verdict"
+    elif [[ -z ${seen[$class]:-} ]]; then
+      seen[$class]=1
+      printf '%s\t%s\t\t%s\n' "$class" "$ws" "$verdict"
+    fi
+  done < <(jq -r '.[] | select(.mapped and .workspace.id > 0) | [.class, .pid, .workspace.id] | @tsv' <<<"$clients")
+}
+
+clients=""
+load_clients() {
+  clients=$(hyprctl clients -j 2> /dev/null) && jq -e 'type == "array"' <<<"$clients" > /dev/null 2>&1
+}
+
+is_on() {
+  [[ $(cat "$state/session-restore" 2> /dev/null) != off ]]
+}
+
+mtime() {
+  stat -c %Y "$1" 2> /dev/null || echo 0
+}
+
 case ${1:-save} in
   save)
+    load_clients || { echo "torus-session: Hyprland is not answering, keeping the last save" >&2; exit 1; }
     mkdir -p "$state"
-    declare -A seen=() used=()
     tmp=$(mktemp)
-    while IFS=$'\t' read -r class pid ws; do
-      [[ $class =~ $skip ]] && continue
-      if [[ $class == kitty ]]; then
-        n=${used[$pid]:-0}
-        used[$pid]=$((n + 1))
-        printf 'kitty\t%s\t%s\n' "$ws" "$(cwd_of "$pid" "$n")"
-      elif [[ -z ${seen[$class]:-} ]]; then
-        seen[$class]=1
-        printf '%s\t%s\t\n' "$class" "$ws"
-      fi
-    done < <(hyprctl clients -j | jq -r '.[] | select(.mapped and .workspace.id > 0) | [.class, .pid, .workspace.id] | @tsv') > "$tmp"
+    collect | awk -F'\t' -v OFS='\t' '$4 == "keep" { print $1, $2, $3 }' > "$tmp"
     mv "$tmp" "$file"
     ;;
   restore)
-    [[ $(cat "$state/session-restore" 2> /dev/null) == off ]] && exit 0
+    is_on || exit 0
     [[ -s $file ]] || exit 0
-    mv "$file" "$state/session.restored.tsv"
+    login=${HYPRLAND_INSTANCE_SIGNATURE:-}
+    [[ -n $login && $(cat "$state/session.restored-in" 2> /dev/null) == "$login" ]] && exit 0
+    echo "$login" > "$state/session.restored-in"
+    cp "$file" "$state/session.restored.tsv"
+    count=0
     while IFS=$'\t' read -r class ws dir; do
+      user_skipped "$class" && continue
       if [[ $class == kitty ]]; then
         cmd="kitty${dir:+ --directory $dir}"
       else
-        id=$(desktop_id "$class")
-        if [[ -n $id ]]; then
-          cmd="gtk-launch $id"
-        elif command -v "${class,,}" > /dev/null; then
-          cmd=${class,,}
-        else
-          continue
-        fi
+        cmd=$(launcher_of "$class")
+        [[ -n $cmd ]] || continue
       fi
       cmd=${cmd//\\/\\\\}
       cmd=${cmd//\"/\\\"}
       hyprctl eval "hl.exec_cmd(\"[workspace $ws silent] $cmd\")" > /dev/null
+      count=$((count + 1))
     done < "$state/session.restored.tsv"
+    date +%s > "$state/session.restored-at"
+    if ((count > 0)) && command -v notify-send > /dev/null; then
+      notify-send -a torus -i view-refresh "Session restored" "$count $( ((count == 1)) && echo window || echo windows) reopened on their workspaces" || true
+    fi
+    ;;
+  preview)
+    load_clients || { echo '[]'; exit 0; }
+    collect | jq -R -s -c 'split("\n") | map(select(length > 0) | split("\t") | {class: .[0], ws: (.[1] | tonumber), dir: .[2], verdict: .[3]})'
+    ;;
+  status)
+    saved=0
+    [[ -s $file ]] && saved=$(grep -c . "$file")
+    jq -n -c --argjson on "$(is_on && echo true || echo false)" --argjson savedAt "$(mtime "$file")" --argjson saved "$saved" \
+      --argjson restoredAt "$(cat "$state/session.restored-at" 2> /dev/null || echo 0)" \
+      --arg skipped "$(cat "$skipfile" 2> /dev/null)" \
+      '{on: $on, savedAt: $savedAt, saved: $saved, restoredAt: $restoredAt, skipped: ($skipped | split("\n") | map(select(length > 0)))}'
+    ;;
+  on | off)
+    mkdir -p "$state"
+    echo "$1" > "$state/session-restore"
+    ;;
+  skip | unskip)
+    [[ -n ${2:-} ]] || { echo "usage: torus-session $1 CLASS" >&2; exit 2; }
+    mkdir -p "$state"
+    touch "$skipfile"
+    grep -vxF -- "$2" "$skipfile" > "$skipfile.tmp" || true
+    [[ $1 == skip ]] && echo "$2" >> "$skipfile.tmp"
+    mv "$skipfile.tmp" "$skipfile"
+    ;;
+  clear)
+    rm -f "$file"
     ;;
   *)
-    echo "usage: torus-session save | restore" >&2
+    echo "usage: torus-session save | restore | preview | status | on | off | skip CLASS | unskip CLASS | clear" >&2
     exit 2
     ;;
 esac

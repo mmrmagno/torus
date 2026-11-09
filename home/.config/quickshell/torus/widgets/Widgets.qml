@@ -40,7 +40,7 @@ PanelWindow {
         anchors.leftMargin: 56
         anchors.verticalCenter: parent.verticalCenter
         width: 300
-        spacing: 16
+        spacing: Theme.sp7
 
         Item {
             Layout.fillWidth: true
@@ -59,13 +59,13 @@ PanelWindow {
                     text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
                     color: Theme.accent
                     font.family: Theme.fontUi
-                    font.pixelSize: 18
+                    font.pixelSize: Theme.fsTitle
                 }
             }
             layer.enabled: true
             layer.effect: MultiEffect {
                 shadowEnabled: true
-                shadowColor: Theme.crust
+                shadowColor: Theme.shadow
                 shadowBlur: 0.8
                 shadowOpacity: 0.9
             }
@@ -82,7 +82,7 @@ PanelWindow {
                 id: stats
                 anchors.fill: parent
                 anchors.margins: 14
-                spacing: 10
+                spacing: Theme.sp5
                 Meter { label: "CPU"; value: Math.round(SysStats.cpu) + "%" + (SysStats.cpuTemp >= 0 ? "  " + SysStats.cpuTemp + "°C" : ""); fraction: SysStats.cpu / 100 }
                 Meter { label: "Memory"; value: SysStats.memUsed.toFixed(1) + " / " + SysStats.memTotal.toFixed(0) + " GiB"; fraction: SysStats.memPercent / 100; tint: Theme.lavender }
                 Meter { visible: SysStats.gpuBusy >= 0; label: "GPU"; value: SysStats.gpuBusy + "%" + (SysStats.gpuTemp >= 0 ? "  " + SysStats.gpuTemp + "°C" : ""); fraction: SysStats.gpuBusy / 100; tint: Theme.sapphire }
@@ -101,11 +101,11 @@ PanelWindow {
             RowLayout {
                 anchors.fill: parent
                 anchors.margins: 12
-                spacing: 12
+                spacing: Theme.sp6
                 Rectangle {
                     Layout.preferredWidth: 52
                     Layout.preferredHeight: 52
-                    radius: 10
+                    radius: Theme.radius
                     clip: true
                     color: Theme.surface0
                     Text {
@@ -126,14 +126,14 @@ PanelWindow {
                 }
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 2
+                    spacing: Theme.sp1
                     Text {
                         Layout.fillWidth: true
                         text: Island.player ? Island.player.trackTitle : ""
                         color: Theme.text
                         elide: Text.ElideRight
                         font.family: Theme.fontUi
-                        font.pixelSize: 14
+                        font.pixelSize: Theme.fsLg
                         font.weight: Font.DemiBold
                     }
                     Text {
@@ -142,7 +142,7 @@ PanelWindow {
                         color: Theme.subtext
                         elide: Text.ElideRight
                         font.family: Theme.fontUi
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fsMd
                     }
                     Row {
                         spacing: 14
@@ -153,7 +153,7 @@ PanelWindow {
                                 text: modelData[0]
                                 color: hover.hovered ? Theme.lavender : Theme.accent
                                 font.family: Theme.fontMono
-                                font.pixelSize: 16
+                                font.pixelSize: Theme.fsXl
                                 HoverHandler { id: hover }
                                 TapHandler { onTapped: if (Island.player) Island.player[parent.modelData[1]]() }
                             }

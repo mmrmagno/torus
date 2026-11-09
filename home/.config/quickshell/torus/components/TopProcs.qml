@@ -15,7 +15,7 @@ Column {
         text: root.sort === "cpu" ? "Top processes" : "Top by memory"
         color: Theme.subtext
         font.family: Theme.fontUi
-        font.pixelSize: 11
+        font.pixelSize: Theme.fsSm
     }
 
     Repeater {
@@ -23,8 +23,8 @@ Column {
         Row {
             required property var modelData
             width: root.width
-            Text { text: modelData[0]; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: 11; width: parent.width - 90; elide: Text.ElideRight }
-            Text { text: modelData[1]; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 11; width: 90; horizontalAlignment: Text.AlignRight }
+            Text { text: modelData[0]; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm; width: parent.width - 90; elide: Text.ElideRight }
+            Text { text: modelData[1]; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm; width: 90; horizontalAlignment: Text.AlignRight }
         }
     }
 

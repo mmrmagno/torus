@@ -8,5 +8,5 @@ Chip {
     icon: "󰣇"
     tip: "Apps\nRight click: dashboard"
     onClicked: Quickshell.execDetached(["torus-menu", "drun"])
-    onRightClicked: Store.toggle("dashboard")
+    onRightClicked: Store.toggleOn("dashboard", QsWindow.window ? QsWindow.window.screen : null)
 }

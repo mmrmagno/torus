@@ -39,6 +39,17 @@ Singleton {
     property int cardsMade: 0
     property string wallpaper: "donut"
     property bool livingDonut: true
+    property bool clockDate: true
+
+    function focusWindow(t) {
+        if (t && t.address)
+            Hyprland.dispatch('hl.dsp.focus({ window = "address:0x' + t.address + '" })')
+    }
+
+    function setClockDate(on) {
+        clockDate = on
+        clockFile.setText(on ? "on\n" : "off\n")
+    }
 
     function setLivingDonut(on) {
         livingDonut = on
@@ -56,11 +67,46 @@ Singleton {
         frames[screenName] = n
     }
 
+    property var wallOf: ({})
+    property bool breathing: false
+    property bool matchAccent: true
+
+    function wallFor(screenName) {
+        return wallOf[screenName] || wallpaper
+    }
+
     function setWallpaper(mode) {
+        setWallpaperFor("", mode)
+    }
+
+    function setWallpaperFor(screenName, mode) {
         if (mode !== "donut" && mode !== "xwing" && !mode.startsWith("still:"))
             return
-        wallpaper = mode
-        wallFile.setText(mode + "\n")
+        const w = Object.assign({}, wallOf)
+        if (screenName === "") {
+            wallpaper = mode
+            wallFile.setText(mode + "\n")
+            for (const k in w)
+                delete w[k]
+        } else if (mode === wallpaper) {
+            delete w[screenName]
+        } else {
+            w[screenName] = mode
+        }
+        wallOf = w
+        wallScreensFile.setText(JSON.stringify(w))
+        if (matchAccent && mode.startsWith("still:"))
+            Quickshell.execDetached(["sh", "-c", "a=$(torus-wallcolor \"$1\") && torus accent \"$a\" > /dev/null", "torus-wallcolor", mode.slice(6)])
+    }
+
+    function setBreathing(on) {
+        breathing = on
+        breatheFile.setText(on ? "on\n" : "off\n")
+    }
+
+    function setMatchAccent(on) {
+        matchAccent = on
+        matchFile.setText(on ? "on\n" : "off\n")
     }
 
     function stepWallpaper(dir) {
@@ -77,7 +123,59 @@ Singleton {
 
     property var closedAt: ({})
 
+    property string themeSection: ""
+    property var screenOf: ({})
+    property var pendingScreen: null
+
+    readonly property var stayPut: ["palette", "clip", "ai", "logout"]
+    property var activeScreen: null
+    property bool moving: false
+
+    function screenFor(name) {
+        return screenOf[name] || activeScreen || focusedScreen
+    }
+
+    onFocusedScreenChanged: {
+        const any = Object.keys(open).some(k => open[k] === true && stayPut.indexOf(k) < 0)
+        if (!any || !activeScreen || Theme.motion === 0) {
+            activeScreen = focusedScreen
+            return
+        }
+        const so = {}
+        for (const k in screenOf)
+            if (stayPut.indexOf(k) >= 0)
+                so[k] = screenOf[k]
+        screenOf = so
+        moving = true
+        moveTimer.restart()
+    }
+
+    Timer {
+        id: moveTimer
+        interval: Theme.durFast + 30
+        onTriggered: {
+            root.activeScreen = root.focusedScreen
+            root.moving = false
+        }
+    }
+
+    function toggleOn(name, scr) {
+        pendingScreen = scr || null
+        toggle(name)
+        pendingScreen = null
+    }
+
     function setOpen(name, value) {
+        if (value && open[name] !== true) {
+            const so = Object.assign({}, screenOf)
+            if (pendingScreen)
+                so[name] = pendingScreen
+            else if (stayPut.indexOf(name) >= 0)
+                so[name] = focusedScreen
+            else
+                delete so[name]
+            screenOf = so
+        }
         if (!value && open[name] === true) {
             const c = Object.assign({}, closedAt)
             c[name] = Date.now()
@@ -155,6 +253,14 @@ Singleton {
     }
 
     FileView {
+        id: clockFile
+        path: root.stateDir + "/clock-date"
+        blockLoading: true
+        printErrors: false
+        onLoaded: root.clockDate = text().trim() !== "off"
+    }
+
+    FileView {
         id: livingFile
         path: root.stateDir + "/living-donut"
         blockLoading: true
@@ -172,6 +278,36 @@ Singleton {
             if (v === "donut" || v === "xwing" || v.startsWith("still:"))
                 root.wallpaper = v
         }
+    }
+
+    FileView {
+        id: wallScreensFile
+        path: root.stateDir + "/wallpaper-screens.json"
+        blockLoading: true
+        printErrors: false
+        onLoaded: {
+            try {
+                root.wallOf = JSON.parse(text())
+            } catch (e) {
+                root.wallOf = {}
+            }
+        }
+    }
+
+    FileView {
+        id: breatheFile
+        path: root.stateDir + "/wall-breathe"
+        blockLoading: true
+        printErrors: false
+        onLoaded: root.breathing = text().trim() === "on"
+    }
+
+    FileView {
+        id: matchFile
+        path: root.stateDir + "/wall-accent"
+        blockLoading: true
+        printErrors: false
+        onLoaded: root.matchAccent = text().trim() !== "off"
     }
 
     FileView {

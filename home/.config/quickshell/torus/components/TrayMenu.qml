@@ -47,21 +47,21 @@ PopupWindow {
         opacity: 0
         scale: 0.96
         Component.onCompleted: { opacity = 1; scale = 1; forceActiveFocus() }
-        Behavior on opacity { NumberAnimation { duration: 120 } }
-        Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+        Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
 
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 8
-            spacing: 2
+            spacing: Theme.sp1
 
             Rectangle {
                 visible: root.stack.length > 0
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
-                radius: 8
+                radius: Theme.rSm
                 color: backHover.hovered ? Theme.surface0 : "transparent"
-                Text { anchors.verticalCenter: parent.verticalCenter; x: 10; text: "󰁍  back"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: 12 }
+                Text { anchors.verticalCenter: parent.verticalCenter; x: 10; text: "󰁍  back"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
                 HoverHandler { id: backHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.stack = root.stack.slice(0, -1) }
             }
@@ -90,20 +90,20 @@ PopupWindow {
                     Rectangle {
                         visible: !row.modelData.isSeparator
                         anchors.fill: parent
-                        radius: 8
+                        radius: Theme.rSm
                         color: rowHover.hovered && row.modelData.enabled ? Qt.alpha(Theme.accent, 0.18) : "transparent"
 
                         RowLayout {
                             anchors.fill: parent
                             anchors.leftMargin: 10
                             anchors.rightMargin: 10
-                            spacing: 8
+                            spacing: Theme.sp4
                             Text {
                                 visible: row.modelData.buttonType !== 0
                                 text: row.modelData.checkState === Qt.Checked ? (row.modelData.buttonType === 2 ? "󰐾" : "󰄵") : (row.modelData.buttonType === 2 ? "󰄯" : "󰄱")
                                 color: Theme.accent
                                 font.family: Theme.fontMono
-                                font.pixelSize: 13
+                                font.pixelSize: Theme.fsBase
                             }
                             IconImage {
                                 visible: row.modelData.icon !== ""
@@ -115,7 +115,7 @@ PopupWindow {
                                 text: row.modelData.text.replace(/_(.)/g, "$1")
                                 color: row.modelData.enabled ? Theme.text : Theme.overlay
                                 font.family: Theme.fontUi
-                                font.pixelSize: 12
+                                font.pixelSize: Theme.fsMd
                                 elide: Text.ElideRight
                             }
                             Text {
@@ -123,7 +123,7 @@ PopupWindow {
                                 text: "󰅂"
                                 color: Theme.subtext
                                 font.family: Theme.fontMono
-                                font.pixelSize: 12
+                                font.pixelSize: Theme.fsMd
                             }
                         }
 

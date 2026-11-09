@@ -1,4 +1,3 @@
-//@ pragma IconTheme Tela-circle-dracula
 //@ pragma Env QT_QPA_PLATFORMTHEME=qt6ct
 import Quickshell
 import qs.bar
@@ -12,6 +11,7 @@ import qs.ai
 import qs.polkit
 import qs.corners
 import qs.session
+import qs.studio
 import qs.background
 import qs.dashboard
 import qs.overview
@@ -53,6 +53,8 @@ ShellRoot {
     Popups {}
     Center {}
     Logout {}
+    SessionPanel {}
+    ThemeStudio {}
     Dashboard {}
     Overview {}
     AltTab {}

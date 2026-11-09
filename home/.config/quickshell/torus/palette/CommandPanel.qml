@@ -10,8 +10,8 @@ import qs.services
 PanelWindow {
     id: root
 
-    screen: Store.focusedScreen
-    visible: Store.isOpen("palette")
+    screen: Store.screenFor("palette")
+    visible: Store.isOpen("palette") || motion.leaving
     implicitWidth: 660
     implicitHeight: 520
     exclusiveZone: 0
@@ -29,11 +29,12 @@ PanelWindow {
 
     Rectangle {
         PanelMotion {
+            id: motion
             target: parent
-            shown: root.visible
+            shown: Store.isOpen("palette")
         }
         anchors.fill: parent
-        radius: 18
+        radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
@@ -41,7 +42,7 @@ PanelWindow {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 14
-            spacing: 10
+            spacing: Theme.sp5
 
             Rectangle {
                 Layout.fillWidth: true
@@ -55,19 +56,26 @@ PanelWindow {
                     anchors.fill: parent
                     anchors.leftMargin: 16
                     anchors.rightMargin: 16
-                    spacing: 12
+                    spacing: Theme.sp6
                     Text {
-                        text: ({ all: "󰍉", calc: "󰃬", files: "󰈔", kb: "󰈙", ai: "󰚩", emoji: "󰞅", pass: "󰟵", notifs: "󰂚" })[Commands.mode]
+                        text: ({ all: "󰍉", calc: "󰃬", files: "󰈔", kb: "󰈙", ai: "󰚩", emoji: "󰞅", pass: "󰟵", notifs: "󰂚", colors: "󰏘", recent: "󰋚", timer: "󰔛" })[Commands.mode]
                         color: Theme.accent
                         font.family: Theme.fontMono
-                        font.pixelSize: 18
+                        font.pixelSize: Theme.fsTitle
                     }
                     TextInput {
                         id: search
+                        Connections {
+                            target: Commands
+                            function onFill(text) {
+                                search.text = text
+                                search.cursorPosition = text.length
+                            }
+                        }
                         Layout.fillWidth: true
                         color: Theme.text
                         font.family: Theme.fontUi
-                        font.pixelSize: 16
+                        font.pixelSize: Theme.fsXl
                         clip: true
                         onTextChanged: {
                             Commands.query = text
@@ -102,7 +110,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
-                spacing: 4
+                spacing: Theme.sp2
                 model: Commands.results
                 highlightMoveDuration: 100
                 delegate: Rectangle {
@@ -111,7 +119,7 @@ PanelWindow {
                     required property int index
                     width: ListView.view.width
                     height: 52
-                    radius: 12
+                    radius: Theme.rCard
                     color: ListView.isCurrentItem ? Qt.alpha(Theme.accent, 0.18) : (hover.hovered ? Theme.surface0 : "transparent")
                     border.width: ListView.isCurrentItem ? 1 : 0
                     border.color: Qt.alpha(Theme.accent, 0.5)
@@ -120,7 +128,7 @@ PanelWindow {
                         anchors.fill: parent
                         anchors.leftMargin: 12
                         anchors.rightMargin: 14
-                        spacing: 12
+                        spacing: Theme.sp6
 
                         Item {
                             Layout.preferredWidth: 30
@@ -130,9 +138,19 @@ PanelWindow {
                                 visible: !!row.modelData.icon
                                 source: row.modelData.icon || ""
                             }
+                            Rectangle {
+                                anchors.centerIn: parent
+                                visible: !!row.modelData.swatch
+                                width: 24
+                                height: 24
+                                radius: 7
+                                color: row.modelData.swatch || "transparent"
+                                border.width: 1
+                                border.color: Qt.alpha(Theme.text, 0.15)
+                            }
                             Text {
                                 anchors.centerIn: parent
-                                visible: !row.modelData.icon
+                                visible: !row.modelData.icon && !row.modelData.swatch
                                 text: row.modelData.glyph || "󰀻"
                                 color: Theme.accent
                                 font.family: Theme.fontMono
@@ -148,7 +166,7 @@ PanelWindow {
                                 text: row.modelData.title
                                 color: Theme.text
                                 font.family: Theme.fontUi
-                                font.pixelSize: 14
+                                font.pixelSize: Theme.fsLg
                                 font.weight: Font.Medium
                                 elide: Text.ElideRight
                             }
@@ -158,7 +176,7 @@ PanelWindow {
                                 text: row.modelData.sub || ""
                                 color: Theme.subtext
                                 font.family: Theme.fontUi
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fsSm
                                 elide: Text.ElideMiddle
                             }
                         }
@@ -166,7 +184,7 @@ PanelWindow {
                         Rectangle {
                             Layout.preferredHeight: 20
                             Layout.preferredWidth: kind.implicitWidth + 14
-                            radius: 10
+                            radius: Theme.radius
                             color: Theme.surface1
                             Text {
                                 id: kind
@@ -174,7 +192,7 @@ PanelWindow {
                                 text: row.modelData.kind
                                 color: Theme.subtext
                                 font.family: Theme.fontUi
-                                font.pixelSize: 10
+                                font.pixelSize: Theme.fsXs
                             }
                         }
                     }
@@ -189,7 +207,7 @@ PanelWindow {
                     text: Commands.mode === "all" ? "nothing matches" : (Commands.term === "" ? "type to search" : "searching…")
                     color: Theme.overlay
                     font.family: Theme.fontUi
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.fsBase
                 }
             }
 
@@ -197,18 +215,18 @@ PanelWindow {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: 14
                 Repeater {
-                    model: [["=", "calc"], ["/", "files"], ["?", "kb"], ["!", "ask AI"], [":", "emoji"], ["p ", "pass"], ["n ", "notifications"]]
+                    model: [["=", "calc"], ["/", "files"], ["r ", "recent"], ["?", "kb"], ["!", "ask AI"], [":", "emoji"], ["#", "colors"], ["t ", "timer"], ["p ", "pass"], ["n ", "notifications"]]
                     Row {
                         required property var modelData
-                        spacing: 4
+                        spacing: Theme.sp2
                         Rectangle {
                             width: key.implicitWidth + 10
                             height: 18
                             radius: 5
                             color: Theme.surface0
-                            Text { id: key; anchors.centerIn: parent; text: parent.parent.modelData[0].trim(); color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 11 }
+                            Text { id: key; anchors.centerIn: parent; text: parent.parent.modelData[0].trim(); color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm }
                         }
-                        Text { text: parent.modelData[1]; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: parent.modelData[1]; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
                     }
                 }
             }

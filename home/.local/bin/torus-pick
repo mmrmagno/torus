@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+hex=$(hyprpicker -f hex 2> /dev/null | tr -d '[:space:]')
+[[ $hex =~ ^#[0-9a-fA-F]{6}$ ]] || exit 0
+hex=${hex,,}
+r=$((16#${hex:1:2})) g=$((16#${hex:3:2})) b=$((16#${hex:5:2}))
+hsl=$(awk -v r="$r" -v g="$g" -v b="$b" 'BEGIN {
+  r /= 255; g /= 255; b /= 255
+  mx = r; if (g > mx) mx = g; if (b > mx) mx = b
+  mn = r; if (g < mn) mn = g; if (b < mn) mn = b
+  l = (mx + mn) / 2; h = 0; s = 0
+  if (mx != mn) {
+    d = mx - mn
+    s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+    if (mx == r) h = (g - b) / d + (g < b ? 6 : 0)
+    else if (mx == g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60
+  }
+  printf "hsl(%d, %d%%, %d%%)", h + 0.5, s * 100 + 0.5, l * 100 + 0.5
+}')
+printf '%s' "$hex" | wl-copy
+dir=${XDG_CACHE_HOME:-$HOME/.cache}/torus/swatches
+mkdir -p "$dir"
+icon=$dir/pick-${hex:1}.svg
+printf "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect x='4' y='4' width='56' height='56' rx='14' fill='%s'/></svg>\n" "$hex" > "$icon"
+hist=${XDG_STATE_HOME:-$HOME/.local/state}/torus/colors
+[[ -f ${hist%colors}colours && ! -f $hist ]] && mv "${hist%colors}colours" "$hist"
+mkdir -p "$(dirname "$hist")"
+{
+  echo "$hex"
+  grep -vx -- "$hex" "$hist" 2> /dev/null | head -n 19
+} > "$hist.tmp"
+mv "$hist.tmp" "$hist"
+notify-send -a "Color picker" -i "$icon" "$hex copied" "rgb($r, $g, $b)  ·  $hsl"

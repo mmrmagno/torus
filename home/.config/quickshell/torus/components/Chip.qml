@@ -25,7 +25,7 @@ Item {
 
     Row {
         id: content
-        spacing: 4
+        spacing: Theme.sp2
         anchors.verticalCenter: parent.verticalCenter
 
         Text {
@@ -33,9 +33,9 @@ Item {
             visible: root.icon !== ""
             color: hover.hovered ? Theme.lavender : root.iconColor
             font.family: Theme.fontMono
-            font.pixelSize: Theme.fontSize + 1
+            font.pixelSize: Theme.icon
             anchors.verticalCenter: parent.verticalCenter
-            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on color { ColorAnimation { duration: Theme.durFast } }
         }
 
         Text {
@@ -94,6 +94,15 @@ Item {
                 color: Qt.alpha(Theme.mantle, 0.94)
                 border.width: 1
                 border.color: Qt.alpha(Theme.accent, 0.35)
+                opacity: 0
+                scale: 0.97
+                transformOrigin: Item.Top
+                Component.onCompleted: {
+                    opacity = 1
+                    scale = 1
+                }
+                Behavior on opacity { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
+                Behavior on scale { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
 
                 Loader {
                     id: body
@@ -118,7 +127,7 @@ Item {
             text: root.tip
             color: Theme.text
             font.family: Theme.fontUi
-            font.pixelSize: 12
+            font.pixelSize: Theme.fsMd
         }
     }
 

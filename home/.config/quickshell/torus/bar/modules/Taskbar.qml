@@ -12,7 +12,7 @@ Row {
     property bool available: true
     readonly property bool shown: windows.count > 0
     property var monitor: QsWindow.window ? Hyprland.monitorFor(QsWindow.window.screen) : null
-    spacing: 8
+    spacing: Theme.sp4
 
     Repeater {
         id: windows
@@ -30,7 +30,7 @@ Row {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: parent.modelData.wayland ? parent.modelData.wayland.activate() : null
+                onClicked: Store.focusWindow(parent.modelData)
             }
         }
     }

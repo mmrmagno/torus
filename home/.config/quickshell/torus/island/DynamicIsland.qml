@@ -14,7 +14,7 @@ PanelWindow {
     readonly property bool narrow: screen ? screen.width < 1400 : false
     readonly property bool focused: Store.focusedScreen === screen
     readonly property bool flashing: Island.state === "osd" || Island.state === "notification" || Island.state === "shot"
-    readonly property string resting: Island.recording ? "recording" : (Focus.running ? "focus" : (narrow ? "" : (Island.player ? "media" : "idle")))
+    readonly property string resting: Island.recording ? "recording" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player ? "media" : "idle"))))
     readonly property string mode: flashing && focused ? Island.state : resting
     readonly property bool lyricRow: mode === "media" && Lyrics.line !== ""
     readonly property int pillWidth: {
@@ -24,6 +24,7 @@ PanelWindow {
         case "shot": return 460
         case "recording": return 170
         case "focus": return 150
+        case "timer": return Math.max(150, timerText.implicitWidth + 56)
         case "media": return lyricRow ? 440 : 380
         case "idle": return Math.min(360, Math.max(170, idleText.implicitWidth + 64))
         default: return 0
@@ -57,9 +58,9 @@ PanelWindow {
         border.color: root.mode === "recording" ? Qt.alpha(Theme.red, 0.7) : Qt.alpha(Theme.accent, 0.35)
         opacity: root.mode === "" ? 0 : 1
         clip: true
-        Behavior on width { NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-        Behavior on height { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
-        Behavior on opacity { NumberAnimation { duration: 200 } }
+        Behavior on width { NumberAnimation { duration: Theme.durSlow; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+        Behavior on height { NumberAnimation { duration: Theme.durSlow; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.durMed } }
 
         MouseArea {
             anchors.fill: parent
@@ -68,6 +69,8 @@ PanelWindow {
             onClicked: mouse => {
                 if (root.mode === "focus" && mouse.button === Qt.RightButton)
                     Focus.stop()
+                else if (root.mode === "timer")
+                    mouse.button === Qt.RightButton ? Timers.stop() : Timers.togglePause()
                 else if (root.mode === "notification")
                     Store.setOpen("center", true)
                 else if (root.mode === "recording")
@@ -75,18 +78,24 @@ PanelWindow {
                 else if (root.mode === "media" && mouse.button === Qt.RightButton && Island.player)
                     Island.player.togglePlaying()
                 else
-                    Store.toggle("dashboard")
+                    Store.toggleOn("dashboard", root.screen)
             }
             onWheel: wheel => {
-                if (root.mode === "media" && Island.player)
-                    wheel.angleDelta.y > 0 ? Island.player.next() : Island.player.previous()
+                if (root.mode !== "media" || !Island.player)
+                    return
+                const sideways = wheel.angleDelta.x !== 0 || (wheel.modifiers & Qt.ShiftModifier)
+                const d = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x
+                if (sideways)
+                    d > 0 ? Island.player.next() : Island.player.previous()
+                else
+                    Island.nudgePlayerVolume(d > 0 ? 0.05 : -0.05)
             }
         }
 
         RowLayout {
             visible: root.mode === "idle"
             anchors.centerIn: parent
-            spacing: 8
+            spacing: Theme.sp4
             readonly property var win: Hyprland.activeToplevel
             readonly property string appId: win && win.wayland && win.wayland.appId ? win.wayland.appId : ""
             IconImage {
@@ -113,7 +122,7 @@ PanelWindow {
             anchors.fill: parent
             anchors.leftMargin: 5
             anchors.rightMargin: 14
-            spacing: 8
+            spacing: Theme.sp4
 
             Item {
                 Layout.preferredWidth: root.pillHeight - 6
@@ -133,7 +142,7 @@ PanelWindow {
                         text: "󰎆"
                         color: Theme.accent
                         font.family: Theme.fontMono
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.fsMd
                     }
                     Image {
                         id: art
@@ -156,7 +165,7 @@ PanelWindow {
                     }
                     RotationAnimation on rotation {
                         running: root.mode === "media"
-                        paused: running && !(Island.player && Island.player.isPlaying)
+                        paused: running && !(Island.player && Island.player.isPlaying && root.focused)
                         from: 0
                         to: 360
                         duration: 6000
@@ -190,21 +199,21 @@ PanelWindow {
                     elide: Text.ElideRight
                     Behavior on text {
                         SequentialAnimation {
-                            NumberAnimation { target: lyric; property: "opacity"; to: 0; duration: 120 }
+                            NumberAnimation { target: lyric; property: "opacity"; to: 0; duration: Theme.durFast }
                             PropertyAction {}
-                            NumberAnimation { target: lyric; property: "opacity"; to: 1; duration: 220 }
+                            NumberAnimation { target: lyric; property: "opacity"; to: 1; duration: Theme.durMed }
                         }
                     }
                 }
             }
 
-            Bars { count: 8; maxHeight: 14; barWidth: 3 }
+            Bars { count: 8; maxHeight: 14; barWidth: 3; live: root.focused }
         }
 
         RowLayout {
             visible: root.mode === "osd"
             anchors.centerIn: parent
-            spacing: 10
+            spacing: Theme.sp5
             Text {
                 text: Island.flashData.icon || ""
                 color: Theme.accent
@@ -215,14 +224,14 @@ PanelWindow {
                 visible: Island.flashData.value !== undefined && Island.flashData.value >= 0
                 Layout.preferredWidth: 150
                 Layout.preferredHeight: 6
-                radius: 3
+                radius: Theme.rXs
                 color: Theme.surface1
                 Rectangle {
                     width: parent.width * Math.min(1, Math.max(0, Island.flashData.value || 0))
                     height: parent.height
-                    radius: 3
+                    radius: Theme.rXs
                     color: (Island.flashData.value || 0) > 1 ? Theme.peach : Theme.accent
-                    Behavior on width { NumberAnimation { duration: 120 } }
+                    Behavior on width { NumberAnimation { duration: Theme.durFast } }
                 }
             }
             Text {
@@ -238,7 +247,7 @@ PanelWindow {
             anchors.fill: parent
             anchors.leftMargin: 14
             anchors.rightMargin: 16
-            spacing: 10
+            spacing: Theme.sp5
             NotifIcon {
                 size: 28
                 image: Island.flashData.image || ""
@@ -274,7 +283,7 @@ PanelWindow {
             visible: root.mode === "shot"
             anchors.fill: parent
             anchors.margins: 10
-            spacing: 12
+            spacing: Theme.sp6
             readonly property string path: Island.flashData.path || ""
 
             HoverHandler { onHoveredChanged: Island.hold(hovered) }
@@ -282,7 +291,7 @@ PanelWindow {
             ClippingRectangle {
                 Layout.preferredWidth: 112
                 Layout.preferredHeight: 63
-                radius: 10
+                radius: Theme.radius
                 color: Theme.crust
                 Image {
                     anchors.fill: parent
@@ -296,7 +305,7 @@ PanelWindow {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 6
+                spacing: Theme.sp3
                 Text {
                     text: "Screenshot copied"
                     color: Theme.text
@@ -305,7 +314,7 @@ PanelWindow {
                     font.weight: Font.DemiBold
                 }
                 Row {
-                    spacing: 6
+                    spacing: Theme.sp3
                     Repeater {
                         model: [["󰏫", "Edit"], ["󰊄", "Text"], ["󰉋", "Folder"], ["󰆴", "Delete"]]
                         Rectangle {
@@ -315,12 +324,12 @@ PanelWindow {
                             height: 26
                             radius: 13
                             color: shotHover.hovered ? (modelData[1] === "Delete" ? Theme.red : Theme.accent) : Theme.surface0
-                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
                             Row {
                                 anchors.centerIn: parent
                                 spacing: 5
-                                Text { text: shotBtn.modelData[0]; color: shotHover.hovered ? Theme.crust : Theme.accent; font.family: Theme.fontMono; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
-                                Text { id: shotLabel; text: shotBtn.modelData[1]; color: shotHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: shotBtn.modelData[0]; color: shotHover.hovered ? Theme.crust : Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd; anchors.verticalCenter: parent.verticalCenter }
+                                Text { id: shotLabel; text: shotBtn.modelData[1]; color: shotHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
                             }
                             HoverHandler { id: shotHover; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
@@ -349,7 +358,7 @@ PanelWindow {
         RowLayout {
             visible: root.mode === "focus"
             anchors.centerIn: parent
-            spacing: 8
+            spacing: Theme.sp4
             Canvas {
                 id: ring
                 Layout.preferredWidth: 16
@@ -375,9 +384,38 @@ PanelWindow {
         }
 
         RowLayout {
+            visible: root.mode === "timer"
+            anchors.centerIn: parent
+            spacing: Theme.sp4
+            Canvas {
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                property real p: Timers.progress
+                property bool sw: Timers.stopwatch
+                onPChanged: requestPaint()
+                onPaint: {
+                    const c = getContext("2d")
+                    c.reset()
+                    c.lineWidth = 2.5
+                    c.strokeStyle = Theme.surface1
+                    c.beginPath(); c.arc(8, 8, 6, 0, 2 * Math.PI); c.stroke()
+                    c.strokeStyle = Timers.paused ? Theme.overlay : (sw ? Theme.teal : Theme.peach)
+                    c.beginPath(); c.arc(8, 8, 6, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * (sw ? p : 1 - p)); c.stroke()
+                }
+            }
+            Text {
+                id: timerText
+                text: (Timers.stopwatch ? "󱎫 " : "󰔛 ") + Timers.text + (Timers.label ? "  " + Timers.label : "") + (Timers.paused ? "  paused" : "")
+                color: Timers.paused ? Theme.overlay : Theme.text
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSize
+            }
+        }
+
+        RowLayout {
             visible: root.mode === "recording"
             anchors.centerIn: parent
-            spacing: 8
+            spacing: Theme.sp4
             Rectangle {
                 Layout.preferredWidth: 10
                 Layout.preferredHeight: 10

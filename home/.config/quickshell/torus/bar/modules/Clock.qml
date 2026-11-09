@@ -5,12 +5,11 @@ import qs.components
 import qs.services
 
 Chip {
-    property bool alt: false
     icon: "󰥔"
-    tip: Qt.formatDateTime(clock.date, "dddd, d MMMM yyyy") + "\nClick: dashboard, right click: show date"
-    label: Qt.formatDateTime(clock.date, alt ? "ddd dd MMM  hh:mm:ss AP" : "hh:mm:ss AP")
-    onClicked: Store.toggle("dashboard")
-    onRightClicked: alt = !alt
+    tip: Qt.formatDateTime(clock.date, "dddd, d MMMM yyyy") + "\nClick: dashboard, right click: " + (Store.clockDate ? "hide" : "show") + " date"
+    label: Qt.formatDateTime(clock.date, Store.clockDate ? "ddd dd MMM  HH:mm:ss" : "HH:mm:ss")
+    onClicked: Store.toggleOn("dashboard", QsWindow.window ? QsWindow.window.screen : null)
+    onRightClicked: Store.setClockDate(!Store.clockDate)
 
     SystemClock {
         id: clock
