@@ -183,7 +183,7 @@ Singleton {
             if (!line || !words.every(w => line.toLowerCase().includes(w)))
                 continue
             const ch = line.split(" ")[0]
-            out.push({ id: "e:" + ch, kind: "emoji", glyph: ch, title: line.slice(ch.length + 1).split(/\s+/).slice(0, 4).join(" "), sub: "copy", act: () => Quickshell.execDetached(["wl-copy", ch]) })
+            out.push({ id: "e:" + ch, kind: "emoji", glyph: ch, title: line.slice(ch.length + 1).split(/\s+/).slice(0, 4).join(" "), sub: "copy", act: () => Quickshell.execDetached(["wl-copy", "--", ch]) })
             if (out.length >= 40)
                 break
         }
@@ -245,7 +245,7 @@ Singleton {
                     return
                 const r = text.trim()
                 const plain = r.replace(/\u2212/g, "-")
-                root.calc = r === "" ? [] : [{ id: "calc", kind: "calc", glyph: "󰃬", title: r, sub: "enter copies", act: () => Quickshell.execDetached(["wl-copy", plain]) }]
+                root.calc = r === "" ? [] : [{ id: "calc", kind: "calc", glyph: "󰃬", title: r, sub: "enter copies", act: () => Quickshell.execDetached(["wl-copy", "--", plain]) }]
             }
         }
     }

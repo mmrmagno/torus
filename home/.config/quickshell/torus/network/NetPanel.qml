@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import Quickshell.Bluetooth
 import qs
 import qs.components
@@ -102,7 +103,15 @@ PanelWindow {
         TapHandler { onTapped: sb.clicked() }
     }
 
+    HyprlandFocusGrab {
+        active: root.visible
+        windows: [root]
+        onCleared: Store.setOpen("network", false)
+    }
+
     Rectangle {
+        focus: true
+        Keys.onEscapePressed: Store.setOpen("network", false)
         PanelMotion {
             target: parent
             shown: root.visible

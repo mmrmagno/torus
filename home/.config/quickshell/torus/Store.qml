@@ -75,7 +75,14 @@ Singleton {
         modules = m
     }
 
+    property var closedAt: ({})
+
     function setOpen(name, value) {
+        if (!value && open[name] === true) {
+            const c = Object.assign({}, closedAt)
+            c[name] = Date.now()
+            closedAt = c
+        }
         const o = Object.assign({}, open)
         o[name] = value
         open = o
@@ -86,6 +93,8 @@ Singleton {
     }
 
     function toggle(name) {
+        if (!isOpen(name) && Date.now() - (closedAt[name] || 0) < 250)
+            return
         setOpen(name, !isOpen(name))
     }
 

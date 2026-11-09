@@ -18,24 +18,36 @@ Row {
         IconImage {
             id: icon
             required property var modelData
+            property bool menuOpen: false
             implicitSize: 14
             anchors.verticalCenter: parent.verticalCenter
             source: modelData.icon
+            scale: hover.hovered ? 1.15 : 1
+            Behavior on scale { NumberAnimation { duration: 120 } }
+
+            HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
 
             MouseArea {
                 anchors.fill: parent
+                anchors.margins: -4
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                cursorShape: Qt.PointingHandCursor
                 onClicked: mouse => {
                     const item = icon.modelData
-                    if (mouse.button === Qt.RightButton || item.onlyMenu) {
-                        const p = icon.mapToItem(null, 0, icon.height + 6)
-                        item.display(root.QsWindow.window, p.x, p.y)
-                    } else if (mouse.button === Qt.MiddleButton) {
+                    if (mouse.button === Qt.MiddleButton)
                         item.secondaryActivate()
-                    } else {
+                    else if (item.hasMenu && (mouse.button === Qt.RightButton || item.onlyMenu || /nm-applet|udiskie|blueman/i.test(item.id + " " + item.title)))
+                        icon.menuOpen = !icon.menuOpen
+                    else
                         item.activate()
-                    }
+                }
+            }
+
+            LazyLoader {
+                active: icon.menuOpen
+                TrayMenu {
+                    anchorItem: icon
+                    root_menu: icon.modelData.menu
+                    onClosed: icon.menuOpen = false
                 }
             }
         }

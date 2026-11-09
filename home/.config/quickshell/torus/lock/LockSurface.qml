@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Widgets
 import Quickshell.Services.Mpris
 import qs
 import qs.background
@@ -63,6 +62,8 @@ Item {
             GradientStop { position: 1; color: Qt.alpha(Theme.base, shot.status === Image.Ready ? 0.7 : 1) }
         }
     }
+
+    readonly property var lockPlayer: Island.player || (Mpris.players.values.length > 0 ? Mpris.players.values[0] : null)
 
     ColumnLayout {
         anchors.centerIn: parent
@@ -179,7 +180,7 @@ Item {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         anchors.margins: 24
-        visible: Island.player !== null
+        visible: root.lockPlayer !== null
         width: Math.min(420, root.width - 48)
         height: 48
         radius: 24
@@ -194,14 +195,14 @@ Item {
             spacing: 10
             Text {
                 Layout.fillWidth: true
-                text: Island.player ? Island.player.trackTitle + (Island.player.trackArtist ? "  ·  " + Island.player.trackArtist : "") : ""
+                text: root.lockPlayer ? root.lockPlayer.trackTitle + (root.lockPlayer.trackArtist ? "  ·  " + root.lockPlayer.trackArtist : "") : ""
                 color: Theme.text
                 elide: Text.ElideRight
                 font.family: Theme.fontUi
                 font.pixelSize: 13
             }
             Repeater {
-                model: [["󰒮", "previous"], [Island.player && Island.player.isPlaying ? "󰏤" : "󰐊", "togglePlaying"], ["󰒭", "next"]]
+                model: [["󰒮", "previous"], [root.lockPlayer && root.lockPlayer.isPlaying ? "󰏤" : "󰐊", "togglePlaying"], ["󰒭", "next"]]
                 Text {
                     required property var modelData
                     text: modelData[0]
@@ -209,7 +210,7 @@ Item {
                     font.family: Theme.fontMono
                     font.pixelSize: 18
                     HoverHandler { id: hover }
-                    TapHandler { onTapped: if (Island.player) Island.player[parent.modelData[1]]() }
+                    TapHandler { onTapped: if (root.lockPlayer) root.lockPlayer[parent.modelData[1]]() }
                 }
             }
         }
@@ -241,75 +242,4 @@ Item {
         precision: SystemClock.Minutes
     }
 
-    Rectangle {
-        id: nowPlaying
-        readonly property var player: Island.player || (Mpris.players.values.length > 0 ? Mpris.players.values[0] : null)
-        visible: player !== null
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Math.round(root.side * 0.08)
-        width: Math.min(420, parent.width - 48)
-        height: 76
-        radius: 18
-        color: Qt.alpha(Theme.base, Theme.glassCard)
-        border.width: 1
-        border.color: Qt.alpha(Theme.accent, 0.3)
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 12
-            ClippingRectangle {
-                Layout.preferredWidth: 56
-                Layout.preferredHeight: 56
-                radius: 10
-                color: Theme.surface0
-                Image {
-                    anchors.fill: parent
-                    source: nowPlaying.player ? nowPlaying.player.trackArtUrl : ""
-                    sourceSize.width: 112
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                }
-            }
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 2
-                Text { Layout.fillWidth: true; text: nowPlaying.player ? nowPlaying.player.trackTitle : ""; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                Text { Layout.fillWidth: true; text: nowPlaying.player ? nowPlaying.player.trackArtist : ""; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: 12; elide: Text.ElideRight }
-            }
-            Repeater {
-                model: [["󰒮", "previous"], ["play", "toggle"], ["󰒭", "next"]]
-                Rectangle {
-                    id: mediaBtn
-                    required property var modelData
-                    Layout.preferredWidth: 34
-                    Layout.preferredHeight: 34
-                    radius: 17
-                    color: mediaHover.hovered ? Theme.accent : Theme.surface0
-                    Text {
-                        anchors.centerIn: parent
-                        text: mediaBtn.modelData[0] === "play" ? (nowPlaying.player && nowPlaying.player.isPlaying ? "󰏤" : "󰐊") : mediaBtn.modelData[0]
-                        color: mediaHover.hovered ? Theme.crust : Theme.accent
-                        font.family: Theme.fontMono
-                        font.pixelSize: 15
-                    }
-                    HoverHandler { id: mediaHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler {
-                        onTapped: {
-                            const p = nowPlaying.player
-                            if (!p)
-                                return
-                            if (mediaBtn.modelData[1] === "previous")
-                                p.previous()
-                            else if (mediaBtn.modelData[1] === "next")
-                                p.next()
-                            else
-                                p.togglePlaying()
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

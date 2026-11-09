@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import qs
 import qs.components
 import qs.services
@@ -31,7 +32,15 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
+    HyprlandFocusGrab {
+        active: root.visible
+        windows: [root]
+        onCleared: Store.setOpen("updates", false)
+    }
+
     Rectangle {
+        focus: true
+        Keys.onEscapePressed: Store.setOpen("updates", false)
         PanelMotion {
             target: parent
             shown: root.visible
@@ -42,8 +51,6 @@ PanelWindow {
         border.width: 1
         border.color: Qt.alpha(Theme.accent, 0.35)
         clip: true
-        focus: true
-        Keys.onEscapePressed: Store.setOpen("updates", false)
 
         Flickable {
             anchors.fill: parent

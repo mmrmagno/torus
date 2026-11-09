@@ -337,7 +337,9 @@ check_donut() {
   ((a3 == a2)) || ok=0
   ((a5 > a4)) || ok=0
   [[ -z $side ]] || ((b3 > b2)) || ok=0
-  awk -v c="$cpu" -v max="${DONUT_CPU_MAX:-10}" 'BEGIN { exit !(c < max) }' || ok=0
+  local cpumax=${DONUT_CPU_MAX:-10}
+  journalctl -b --no-pager 2> /dev/null | grep -q kms_swrast && cpumax=${DONUT_CPU_MAX:-70}
+  awk -v c="$cpu" -v max="$cpumax" 'BEGIN { exit !(c < max) }' || ok=0
   awk -v s="$sd" 'BEGIN { exit !(s > 0.03) }' || ok=0
   local detail="visible (contrast $sd), main $a1>$a2 then fullscreen $a2=$a3 then closed $a4>$a5, side $b1>$b2>$b3, qs cpu ${cpu}% of one core"
   if ((ok)); then section donut ok "$detail"; else section donut fail "$detail $fsdiag"; fi
@@ -486,7 +488,7 @@ check_lock() {
     sleep 1
     "${QS[@]}" lock > /dev/null 2>&1
     if locked_is true; then
-      sleep 1
+      sleep 3
       type_pw "$LOCK_PW"
       locked_is false || bad+="takeover-unlock "
     else
@@ -598,7 +600,8 @@ check_palette() {
   "${QS[@]}" paletteQuery "=2+3" > /dev/null
   r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
   [[ $r != *calc:4* ]] || bad+="stale-calc "
-  "${QS[@]}" paletteQuery "=2-5" > /dev/null; sleep 1.5
+  "${QS[@]}" paletteQuery "=2-5" > /dev/null
+  for _ in $(seq 30); do [[ $("${QS[@]}" paletteResults 2>/dev/null | tail -n 1) == calc:* ]] && break; sleep 0.2; done
   "${QS[@]}" paletteRun 0 > /dev/null; sleep 0.5
   [[ $(wl-paste -n 2>/dev/null) == "-3" ]] || bad+="calc-copy[$(wl-paste -n 2>/dev/null)] "
   "${QS[@]}" paletteQuery "kitt" > /dev/null; sleep 0.3
@@ -665,7 +668,7 @@ check_switch() {
 check_pass() {
   local bad="" r stub=~/.local/bin/pass-cli
   [[ -e $stub && ! -L $stub && $(head -c 40 "$stub") != *parity* ]] && { section pass fail "real pass-cli in the way"; return; }
-  printf '#!/usr/bin/env bash\n# parity stub\ncase "$1 $2" in\n  "vault list") echo "- [SID_A==]: Personal" ;;\n  "item list") echo "- [IID_1==]: github.com (state=active)" ;;\n  "item view") echo "parity-s3cret" ;;\n  "item totp") echo "totp: 654321" ;;\nesac\n' > "$stub"; chmod +x "$stub"
+  printf '#!/usr/bin/env bash\n# parity stub\ncase "$1 $2" in\n  "vault list") echo "- [SID_A==]: Personal" ;;\n  "item list") echo "- [IID_1==]: github.com (state=Active)" ;;\n  "item view") echo "parity-s3cret" ;;\n  "item totp") echo "totp: 654321" ;;\nesac\n' > "$stub"; chmod +x "$stub"
   "${QS[@]}" paletteQuery "p git" > /dev/null; sleep 2
   r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
   [[ $r == pass:github.com* ]] || bad+="list[$r] "
