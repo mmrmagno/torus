@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
+import Quickshell.Services.UPower
 import qs
 import qs.components
 import qs.services
@@ -183,7 +184,13 @@ PanelWindow {
                         PanelButton { icon: "󰊴"; label: "Game"; active: Store.gamemode; onClicked: Quickshell.execDetached(["torus-gamemode"]) }
                         PanelButton { icon: "󰖔"; label: "Night"; active: NightLight.on; onClicked: NightLight.toggle() }
                         PanelButton { icon: "󰑓"; label: Session.on ? "Session: on" : "Session: off"; active: Session.on; onClicked: { Store.setOpen("dashboard", false); Store.setOpen("session", true) } }
-                        PanelButton { icon: "󰓅"; label: "Power"; onClicked: Quickshell.execDetached(["sh", "-c", "p=$(powerprofilesctl get); case $p in performance) n=balanced;; balanced) n=power-saver;; *) n=performance;; esac; powerprofilesctl set $n; notify-send -a torus \"Power profile\" $n"]) }
+                        PanelButton {
+                            readonly property var names: ["Power saver", "Balanced", "Performance"]
+                            icon: PowerProfiles.profile === PowerProfile.Performance ? "󰓅" : (PowerProfiles.profile === PowerProfile.PowerSaver ? "󰾆" : "󰾅")
+                            label: "Power: " + names[PowerProfiles.profile]
+                            active: PowerProfiles.profile === PowerProfile.Performance
+                            onClicked: Island.cyclePower()
+                        }
                         PanelButton { icon: "󰏘"; label: "Theme"; onClicked: { Store.setOpen("dashboard", false); Store.setOpen("theme", true) } }
                         PanelButton { icon: "󰖲"; label: "Widgets: " + Store.widgets; active: Store.widgets !== "off"; onClicked: Store.setWidgets("next") }
                     }

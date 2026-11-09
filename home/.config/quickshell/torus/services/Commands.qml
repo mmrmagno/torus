@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Services.UPower
 import qs
 
 Singleton {
@@ -47,6 +48,9 @@ Singleton {
         { id: "a:night", glyph: "󰖔", title: "Night light", sub: NightLight.on ? "on, turn off" : "off, turn on", act: () => NightLight.toggle() },
         { id: "a:nightauto", glyph: "󰖚", title: NightLight.auto ? "Stop the night light schedule" : "Night light at sunset", sub: NightLight.auto ? "on at " + NightLight.sunset + ", off at " + NightLight.sunrise : "on at " + NightLight.sunset + ", off at " + NightLight.sunrise + ", follows your weather location", keys: "night light schedule sunset sunrise auto", act: () => NightLight.setAuto(!NightLight.auto) },
         { id: "a:awake", glyph: Store.stayAwake ? "󰅶" : "󰾪", title: "Stay awake", sub: Store.stayAwake ? "on, the screens never sleep; turn off" : "off, keep the screens from sleeping", keys: "coffee caffeine idle sleep inhibit awake", act: () => Store.stayAwake = !Store.stayAwake },
+        { id: "a:perf", glyph: "󰓅", title: "Power: performance", sub: PowerProfiles.profile === PowerProfile.Performance ? "active now" : "full speed, more heat and noise", keys: "power profile performance fast gaming", act: () => Island.setPower(PowerProfile.Performance) },
+        { id: "a:balanced", glyph: "󰾅", title: "Power: balanced", sub: PowerProfiles.profile === PowerProfile.Balanced ? "active now" : "the everyday default", keys: "power profile balanced normal", act: () => Island.setPower(PowerProfile.Balanced) },
+        { id: "a:saver", glyph: "󰾆", title: "Power: power saver", sub: PowerProfiles.profile === PowerProfile.PowerSaver ? "active now" : "quieter and cooler, saves battery", keys: "power profile saver battery quiet", act: () => Island.setPower(PowerProfile.PowerSaver) },
         { id: "a:dnd", glyph: "󰂛", title: "Do not disturb", sub: Store.dnd ? "on, turn off" : "off, turn on", act: () => Store.dnd = !Store.dnd },
         { id: "a:focus25", glyph: "󰔟", title: "Focus 25 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(25) },
         { id: "a:focus50", glyph: "󰔟", title: "Focus 50 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(50) },
@@ -171,7 +175,7 @@ Singleton {
             { glyph: "󰍹", title: "Always open on workspace " + f.ws, hidden: !/^[0-9]+$/.test(f.ws), act: add("workspace", f.ws) },
             { glyph: "󰍹", title: "Always open on " + f.mon, hidden: !f.mon, act: add("monitor", f.mon) },
             { glyph: "󰂵", title: "Slightly transparent", act: add("opacity") },
-            { glyph: "󰍽", title: "Keep the mouse inside when fullscreen", sub: "for games", act: add("cursor") }
+            { glyph: "󰍽", title: "Keep the mouse inside this app", sub: "for games", act: add("cursor") }
         ].filter(o => !o.hidden).map(o => Object.assign({ id: "r", kind: "rule", sub: o.sub || f.cls }, o))
         const mine = rulesFile.text().split("\n").filter(l => l.split("\t")[0] === f.cls)
         if (mine.length > 0)

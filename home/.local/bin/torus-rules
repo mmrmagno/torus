@@ -22,7 +22,7 @@ render() {
         workspace) props="workspace = \"$value\"" ;;
         monitor) props="monitor = \"$value\"" ;;
         opacity) props="opacity = \"0.92 0.85 1\"" ;;
-        cursor) match="$match, fullscreen = true"; props="confine_pointer = true" ;;
+        cursor) props="confine_pointer = true" ;;
         *) continue ;;
       esac
       printf 'hl.window_rule({ name = "torus_local_%s", match = { %s }, %s })\n' "$n" "$match" "$props"

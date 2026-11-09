@@ -106,6 +106,18 @@ Singleton {
         }
     }
 
+    function setPower(p) {
+        PowerProfiles.profile = p
+        const names = ["Power saver", "Balanced", "Performance"]
+        flash("osd", { icon: p === PowerProfile.Performance ? "󰓅" : (p === PowerProfile.PowerSaver ? "󰾆" : "󰾅"), label: names[p], value: -1 }, 1800)
+    }
+
+    function cyclePower() {
+        const order = [PowerProfile.PowerSaver, PowerProfile.Balanced, PowerProfile.Performance]
+        const i = order.indexOf(PowerProfiles.profile)
+        setPower(order[(i + 1) % order.length])
+    }
+
     property bool caps: false
     property bool capsQuiet: false
 

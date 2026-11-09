@@ -17,7 +17,7 @@ L=$HOME/.config/hypr/rules.local.lua
 "$T" add org.gnome.Calculator workspace 4
 "$T" add org.gnome.Calculator workspace 5
 assert_eq "$(printf 'cs2\tcursor\t\norg.gnome.Calculator\tfloat\t\norg.gnome.Calculator\tworkspace\t5')" "$("$T" list)" "list: one rule per kind, last wins"
-assert_contains "$L" 'match = { class = "^(cs2)$", fullscreen = true }, confine_pointer = true'
+assert_contains "$L" 'match = { class = "^(cs2)$" }, confine_pointer = true'
 assert_contains "$L" 'match = { class = "^(org\\.gnome\\.Calculator)$" }, float = true'
 assert_contains "$L" 'workspace = "5"'
 grep -q 'workspace = "4"' "$L" && fail "old workspace rule kept"

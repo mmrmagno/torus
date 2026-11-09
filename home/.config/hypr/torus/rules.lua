@@ -223,6 +223,6 @@ hl.layer_rule({ name = "torus_layer_no_anim", match = { namespace = any({ "selec
 
 hl.window_rule({
 	name = "torus_games_keep_cursor",
-	match = { class = "^(cs2|gamescope|steam_app_[0-9]+)$", fullscreen = true },
+	match = { class = "^(gamescope|steam_app_[0-9]+)$", fullscreen = true },
 	confine_pointer = true,
 })
