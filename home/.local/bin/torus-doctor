@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+SELF=$(readlink -f "$0")
+REPO=$(cd "$(dirname "$SELF")/../../.." && pwd)
+STATE=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+RUN=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+export HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE:-$(ls -t "$RUN/hypr" 2> /dev/null | head -1)}
+
+fails=0
+fix=0
+if [[ -t 1 ]]; then G=$'\e[32m' R=$'\e[31m' Y=$'\e[33m' D=$'\e[2m' N=$'\e[0m'; else G="" R="" Y="" D="" N=""; fi
+
+ok() { printf '  %sok%s    %-10s %s\n' "$G" "$N" "$1" "$2"; }
+bad() { printf '  %sFAIL%s  %-10s %s\n' "$R" "$N" "$1" "$2"; fails=$((fails + 1)); }
+note() { printf '  %swarn%s  %-10s %s\n' "$Y" "$N" "$1" "$2"; }
+did() { printf '  %sfixed%s %-10s %s\n' "$G" "$N" "$1" "$2"; }
+
+ipc() { timeout 3 qs -c torus ipc call torus "$@" 2> /dev/null | tail -n 1; }
+
+check_shell() {
+  if ! systemctl --user is-active --quiet torus-shell.service; then
+    if systemctl --user is-active --quiet torus-safe.service; then
+      bad shell "not running, safe mode is up (torus unsafe to retry)"
+    else
+      bad shell "torus-shell.service is not running"
+    fi
+    ((fix)) && systemctl --user reset-failed torus-shell.service 2> /dev/null && systemctl --user start torus-shell.service && did shell "started"
+    return
+  fi
+  if [[ -z $(ipc isLocked) ]]; then
+    bad shell "running but not answering IPC"
+    ((fix)) && systemctl --user restart torus-shell.service && did shell "restarted"
+    return
+  fi
+  ok shell "running, answers IPC"
+}
+
+check_lock() {
+  local secure hyprlock marker
+  secure=$(ipc isLocked)
+  pgrep -x hyprlock > /dev/null && hyprlock=1 || hyprlock=0
+  [[ -e $RUN/torus-lock/locked ]] && marker=1 || marker=0
+  pgrep -x hypridle > /dev/null || bad lock "hypridle is not running, the screen never locks on idle"
+  command -v hyprlock > /dev/null || bad lock "hyprlock missing, there is no fallback lock screen"
+  if ((marker)) && [[ $secure != true ]] && ((!hyprlock)); then
+    bad lock "lock marker left but nothing holds the lock"
+    ((fix)) && rm -f "$RUN/torus-lock/locked" && did lock "removed the stale marker"
+  elif ((marker || hyprlock)); then
+    ok lock "locked ($([[ $secure == true ]] && echo shell || echo hyprlock))"
+  else
+    ok lock "unlocked, hypridle and hyprlock present"
+  fi
+}
+
+check_config() {
+  local errors
+  errors=$(hyprctl configerrors 2> /dev/null | sed '/^\s*$/d')
+  if [[ -n $errors ]]; then
+    bad hyprland "config errors: $(head -1 <<< "$errors")"
+  else
+    ok hyprland "config loads without errors"
+  fi
+}
+
+check_links() {
+  local src rel dst missing=0 wrong=0 first=""
+  while IFS= read -r -d '' src; do
+    rel=${src#"$REPO/home/"}
+    [[ $rel == .config/hypr/monitors.lua ]] && continue
+    dst=$HOME/$rel
+    if [[ ! -e $dst && ! -L $dst ]]; then
+      missing=$((missing + 1))
+      first=${first:-$rel}
+      if ((fix)); then mkdir -p "$(dirname "$dst")" && ln -s "$src" "$dst"; fi
+    elif [[ $(readlink -f "$dst") != "$(readlink -f "$src")" ]]; then
+      wrong=$((wrong + 1))
+      first=${first:-$rel}
+    fi
+  done < <(find "$REPO/home" \( -type f -o -type l \) -print0)
+  if ((missing + wrong == 0)); then
+    ok links "every file from the repo is linked"
+  else
+    bad links "$missing missing, $wrong not pointing at the repo (first: $first)"
+    ((fix && missing)) && did links "linked the $missing missing ones, run install.sh for the rest"
+  fi
+}
+
+check_packages() {
+  local want missing
+  mapfile -t want < <(cat "$REPO/packages/native.txt" "$REPO/packages/aur.txt" 2> /dev/null | sed 's/#.*//; /^\s*$/d')
+  ((${#want[@]})) || return
+  missing=$(pacman -T "${want[@]}" 2> /dev/null | tr '\n' ' ')
+  if [[ -n $missing ]]; then
+    bad packages "not installed: $missing"
+  else
+    ok packages "${#want[@]} packages installed"
+  fi
+}
+
+check_state() {
+  local f broken=""
+  for f in "$STATE"/*.json "$STATE"/theme/*.json; do
+    [[ -f $f ]] || continue
+    jq -e . "$f" > /dev/null 2>&1 || broken+="${f#"$STATE/"} "
+  done
+  if [[ -n $broken ]]; then
+    bad state "invalid JSON: $broken"
+  else
+    ok state "settings files are valid"
+  fi
+}
+
+check_units() {
+  local failed
+  systemctl --user cat torus-shell-rescue.service > /dev/null 2>&1 || bad units "torus-shell-rescue.service is not installed"
+  failed=$(systemctl --user --failed --no-legend --plain 2> /dev/null | awk '{print $1}' | tr '\n' ' ')
+  if [[ -n $failed ]]; then
+    note units "failed: $failed"
+  else
+    ok units "no failed user services"
+  fi
+}
+
+check_guard() {
+  local far game
+  far=$(hyprctl monitors -j 2> /dev/null | jq -r '[.[] | select(.x > 50000 or .y > 50000) | .name] | join(" ")')
+  game=$(hyprctl activewindow -j 2> /dev/null | jq -r 'select(.fullscreen > 0) | .class' 2> /dev/null)
+  if [[ -n $far && -z $game ]]; then
+    bad screens "$far moved away by the game guard with no game running"
+    if ((fix)) && [[ -f $STATE/gameguard-moat ]]; then
+      while IFS=$'\t' read -r name x y; do
+        hyprctl eval "hl.monitor({ output = \"$name\", position = \"${x}x${y}\" })" > /dev/null
+      done < "$STATE/gameguard-moat"
+      rm -f "$STATE/gameguard-moat"
+      did screens "put back"
+    fi
+  elif [[ -n $far ]]; then
+    ok screens "$far parked while $game is fullscreen"
+  else
+    ok screens "all screens in place"
+  fi
+}
+
+check_journal() {
+  local n
+  n=$(journalctl --user -u torus-shell --since "-1 hour" --no-pager -o cat 2> /dev/null |
+    grep -E 'WARN|ERROR' | grep -cvE 'dmabuf|dbus\.properties|textinput|portal|objectmanager|qt\.svg')
+  if ((n > 0)); then
+    note journal "$n shell warnings in the last hour (journalctl --user -u torus-shell)"
+  else
+    ok journal "no shell warnings in the last hour"
+  fi
+}
+
+snapshot() {
+  local dir
+  dir=${XDG_CACHE_HOME:-$HOME/.cache}/torus/snapshots/$(date +%Y%m%d-%H%M%S)
+  mkdir -p -m 700 "$dir"
+  for what in layers clients monitors devices workspaces; do
+    hyprctl "$what" -j > "$dir/$what.json" 2> /dev/null
+  done
+  hyprctl configerrors > "$dir/configerrors.txt" 2> /dev/null
+  cp "$RUN/hypr/$HYPRLAND_INSTANCE_SIGNATURE/hyprland.log" "$dir/" 2> /dev/null
+  journalctl --user -u torus-shell --since "-2 hours" --no-pager > "$dir/shell.log" 2> /dev/null
+  journalctl --user --since "-30 min" --no-pager > "$dir/user.log" 2> /dev/null
+  systemctl --user --failed --no-pager > "$dir/failed.txt" 2> /dev/null
+  ls -la "$RUN/torus-lock" > "$dir/lock.txt" 2> /dev/null
+  pgrep -a 'hyprlock|qs|hypridle|slurp|hyprpicker' > "$dir/processes.txt" 2> /dev/null
+  run_checks > "$dir/doctor.txt" 2>&1
+  chmod -R go-rwx "$dir"
+  echo "$dir"
+}
+
+run_checks() {
+  check_shell
+  check_lock
+  check_config
+  check_guard
+  check_links
+  check_packages
+  check_state
+  check_units
+  check_journal
+}
+
+case ${1:-} in
+  --snapshot) snapshot; exit 0 ;;
+  --fix) fix=1 ;;
+  "") ;;
+  *) echo "usage: torus doctor [--fix | --snapshot]" >&2; exit 2 ;;
+esac
+echo "torus doctor${D} $REPO${N}"
+run_checks
+((fails)) && echo "  $fails problem(s)$( ((fix)) || echo ", torus doctor --fix repairs the safe ones")"
+exit "$fails"
