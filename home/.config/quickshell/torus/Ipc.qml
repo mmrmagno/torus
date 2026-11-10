@@ -215,6 +215,10 @@ IpcHandler {
         Store.toggle("dashboard")
     }
 
+    function processesToggle(): void {
+        Store.toggle("processes")
+    }
+
     function ocrShow(): void {
         Store.setOpen("ocr", true)
     }

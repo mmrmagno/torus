@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Process list for the torus process panel: CPU since the last call, memory, GPU memory, and kill."""
+import json
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+PROC = Path(os.environ.get("TORUS_PS_PROC", "/proc"))
+STATE = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp") / "torus-ps.json"
+TICK = os.sysconf("SC_CLK_TCK")
+PAGE = os.sysconf("SC_PAGE_SIZE")
+CPUS = os.cpu_count() or 1
+
+
+def gpu_memory(pid):
+    seen, total = set(), 0
+    try:
+        fds = os.listdir(PROC / str(pid) / "fdinfo")
+    except OSError:
+        return 0
+    for fd in fds:
+        try:
+            text = (PROC / str(pid) / "fdinfo" / fd).read_text()
+        except OSError:
+            continue
+        if "drm-client-id" not in text:
+            continue
+        info = dict(line.split(":", 1) for line in text.splitlines() if ":" in line)
+        client = info.get("drm-client-id", "").strip()
+        if client in seen:
+            continue
+        seen.add(client)
+        for key in ("drm-memory-vram", "drm-total-vram"):
+            if key in info:
+                value, *unit = info[key].split()
+                total += int(value) * {"KiB": 1024, "MiB": 1048576, "GiB": 1073741824}.get(unit[0] if unit else "", 1)
+                break
+    return total
+
+
+def sample():
+    me = os.getuid()
+    rows = {}
+    for entry in os.listdir(PROC):
+        if not entry.isdigit():
+            continue
+        base = PROC / entry
+        try:
+            stat = (base / "stat").read_text()
+            uid = os.stat(base).st_uid
+            cmd = (base / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace").strip()
+        except OSError:
+            continue
+        name = stat[stat.index("(") + 1:stat.rindex(")")]
+        if len(name) == 15 and cmd:
+            full = os.path.basename(cmd.split(" ")[0])
+            if full.startswith(name):
+                name = full
+        fields = stat[stat.rindex(")") + 2:].split()
+        if fields[0] == "Z":
+            continue
+        rows[entry] = {"pid": int(entry), "name": name, "cmd": cmd or "[" + name + "]", "mine": uid == me,
+                       "ticks": int(fields[11]) + int(fields[12]), "rss": int(fields[21]) * PAGE,
+                       "ppid": int(fields[1])}
+    return rows
+
+
+def snapshot():
+    now = time.monotonic()
+    rows = sample()
+    try:
+        prev = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        prev = {"at": now, "ticks": {}}
+    span = max(0.2, now - prev.get("at", now))
+    STATE.write_text(json.dumps({"at": now, "ticks": {k: v["ticks"] for k, v in rows.items()}}))
+    out = []
+    for key, row in rows.items():
+        before = prev["ticks"].get(key, row["ticks"])
+        row["cpu"] = round(max(0, row["ticks"] - before) / TICK / span * 100 / CPUS, 1)
+        row["gpu"] = gpu_memory(row["pid"]) if row["mine"] else 0
+        del row["ticks"]
+        out.append(row)
+    out.sort(key=lambda r: (-r["cpu"], -r["rss"]))
+    return out
+
+
+def kill(pid):
+    if pid <= 1 or pid == os.getpid():
+        return {"ok": False, "message": "refusing to stop that process"}
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return {"ok": True, "message": "already gone"}
+    except PermissionError:
+        return {"ok": False, "message": "not yours to stop"}
+    for _ in range(30):
+        time.sleep(0.1)
+        if not (PROC / str(pid)).exists():
+            return {"ok": True, "message": "stopped"}
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return {"ok": True, "message": "stopped"}
+    return {"ok": True, "message": "killed after 3 s"}
+
+
+def main():
+    if len(sys.argv) > 2 and sys.argv[1] == "kill" and sys.argv[2].isdigit():
+        result = kill(int(sys.argv[2]))
+    elif len(sys.argv) == 1 or sys.argv[1] == "list":
+        result = {"ok": True, "cpus": CPUS, "processes": snapshot()}
+    else:
+        print("usage: torus-ps [list] | torus-ps kill PID", file=sys.stderr)
+        return 2
+    print(json.dumps(result))
+    return 0 if result["ok"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

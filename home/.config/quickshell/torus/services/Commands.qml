@@ -56,6 +56,7 @@ Singleton {
         { id: "a:focus50", glyph: "󰔟", title: "Focus 50 minutes", sub: "timer in the island, notifications held", act: () => Focus.start(50) },
         { id: "a:focusstop", glyph: "󰓛", title: "Stop focus", sub: "timer running", hidden: !Focus.running, act: () => Focus.stop() },
         { id: "a:living", glyph: "󰟪", title: "Living donut", sub: Store.livingDonut ? "on, turn off" : "off, turn on", act: () => Store.setLivingDonut(!Store.livingDonut) },
+        { id: "a:processes", glyph: "󰍛", title: "Processes", sub: "CPU, memory and GPU per app, stop one", act: () => Store.setOpen("processes", true) },
         { id: "a:session", glyph: "󰑓", title: "Session restore", sub: "see what reopens after a reboot", act: () => Store.setOpen("session", true) },
         { id: "a:sessiontoggle", glyph: Session.on ? "󰜺" : "󰑓", title: Session.on ? "Turn session restore off" : "Turn session restore on", sub: Session.on ? "currently on: windows reopen after reboot" : "currently off: nothing reopens after reboot", act: () => Session.setOn(!Session.on) },
         { id: "a:game", glyph: "󰊴", title: "Game mode", sub: "animations, blur and donut off", act: () => Quickshell.execDetached(["torus-gamemode"]) },

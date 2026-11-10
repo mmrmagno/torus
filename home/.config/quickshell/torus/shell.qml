@@ -22,6 +22,7 @@ import qs.palette
 import qs.network
 import qs.updates
 import qs.ocr
+import qs.processes
 
 ShellRoot {
     Variants {
@@ -57,6 +58,7 @@ ShellRoot {
     Logout {}
     SessionPanel {}
     OcrPanel {}
+    ProcPanel {}
     ThemeStudio {}
     CaptureStudio {}
     Dashboard {}

@@ -44,6 +44,7 @@ bind(MOD .. " + E", "dolphin", "[Launcher|Apps] file explorer")
 bind(MOD .. " + F", "zen", "[Launcher|Apps] browser")
 bind(MOD .. " + C", "kitty -e nvim", "[Launcher|Apps] text editor")
 bind("CTRL + SHIFT + ESCAPE", "kitty --title btop -e btop", "[Launcher|Apps] system monitor")
+bind(MOD .. " + ESCAPE", ipc("processesToggle"), "[Launcher|Shell] processes")
 
 bind(MOD .. " + Q", hl.dsp.window.close(), "[Window Management] close focused window")
 bind("ALT + F4", hl.dsp.window.close(), "[Window Management] close focused window")
