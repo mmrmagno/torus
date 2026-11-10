@@ -49,6 +49,10 @@ for f in mocha macchiato frappe latte; do
   assert_contains "$S/theme/zsh-colors.zsh" "BAT_THEME=\"Catppuccin ${f^}\""
   assert_file "$REPO/home/.config/bat/themes/Catppuccin ${f^}.tmTheme"
   assert_contains "$S/theme/starship.toml" "palette = \"catppuccin_$f\""
+  assert_contains "$S/theme/starship.toml" "accent = \"$(jq -r .blue "$P/$f.json")\""
+  assert_contains "$S/theme/starship.toml" 'style = "bold accent"'
+  assert_contains "$S/theme/starship.toml" 'style = "accent"'
+  assert_contains "$S/theme/starship.toml" 'success_symbol = "[❯](bold accent)"'
   assert_contains "$S/theme/delta.gitconfig" "syntax-theme = Catppuccin ${f^}"
   assert_contains "$HOME/.config/vesktop/themes/torus.theme.css" "catppuccin-$f-blue.theme.css"
   assert_contains "$HOME/.config/nvim/lua/chadrc.lua" "M.torus_flavour = \"$f\""

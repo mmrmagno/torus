@@ -2,7 +2,7 @@
 add_newline = false
 palette = "catppuccin_@flavour@"
 format = """\
-[󰣇 ](mauve)\
+[󰣇 ](accent)\
 $directory\
 $git_branch$git_commit$git_state $git_status\
 $character
@@ -10,23 +10,23 @@ $character
 right_format = """$kubernetes$golang$python$nodejs$rust$deno$lua$terraform$docker_context$cmd_duration"""
 
 [directory]
-style = "bold lavender"
+style = "bold accent"
 truncation_length = 4
 truncate_to_repo = true
 read_only = ""
 
 [git_branch]
 symbol = " "
-style = "mauve"
+style = "accent"
 format = "[$symbol$branch]($style)"
 
 [git_status]
 style = "peach"
 
 [character]
-success_symbol = "[❯](bold mauve)"
+success_symbol = "[❯](bold accent)"
 error_symbol = "[❯](bold red)"
-vimcmd_symbol = "[❮](bold green)"
+vimcmd_symbol = "[❮](bold accent)"
 
 [cmd_duration]
 style = "overlay1"
@@ -56,6 +56,7 @@ style = "peach"
 format = "[ $version]($style) "
 
 [palettes.catppuccin_@flavour@]
+accent = "@accent@"
 rosewater = "@rosewater@"
 flamingo = "@flamingo@"
 pink = "@pink@"
