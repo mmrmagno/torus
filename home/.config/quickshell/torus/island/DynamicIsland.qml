@@ -341,7 +341,7 @@ PanelWindow {
                                     if (what === "Edit")
                                         Quickshell.execDetached(["satty", "--filename", p, "--output-filename", p, "--early-exit", "--copy-command", "wl-copy"])
                                     else if (what === "Text")
-                                        Quickshell.execDetached(["sh", "-c", 'tesseract "$1" - -l eng 2> /dev/null | wl-copy && notify-send -a torus "Text copied" "from the screenshot"', "torus-ocr", p])
+                                        Quickshell.execDetached(["torus-ocr", p])
                                     else if (what === "Folder")
                                         Quickshell.execDetached(["xdg-open", p.substring(0, p.lastIndexOf("/"))])
                                     else if (what === "Delete")

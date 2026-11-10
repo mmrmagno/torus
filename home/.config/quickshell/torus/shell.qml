@@ -21,6 +21,7 @@ import qs.cheatsheet
 import qs.palette
 import qs.network
 import qs.updates
+import qs.ocr
 
 ShellRoot {
     Variants {
@@ -55,6 +56,7 @@ ShellRoot {
     Center {}
     Logout {}
     SessionPanel {}
+    OcrPanel {}
     ThemeStudio {}
     CaptureStudio {}
     Dashboard {}

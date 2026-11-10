@@ -17,6 +17,7 @@ slurp
 satty
 tesseract
 tesseract-data-eng
+tesseract-data-deu
 gpu-screen-recorder
 kitty
 zsh

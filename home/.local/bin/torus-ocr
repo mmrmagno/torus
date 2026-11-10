@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+conf=${XDG_CONFIG_HOME:-$HOME/.config}/torus/ocr
+out=${XDG_RUNTIME_DIR:-/tmp}/torus-ocr.txt
+
+langs() {
+  local have want=() l
+  have=" $(tesseract --list-langs 2> /dev/null | tail -n +2 | tr '\n' ' ') "
+  if [[ -r $conf ]]; then
+    mapfile -t want < <(sed 's/#.*//; /^\s*$/d' "$conf")
+  else
+    want=(eng deu)
+  fi
+  local use=()
+  for l in "${want[@]}"; do [[ $have == *" $l "* ]] && use+=("$l"); done
+  ((${#use[@]})) || use=(eng)
+  local IFS=+
+  echo "${use[*]}"
+}
+
+tidy() {
+  perl -CS -0777 -pe 's/[ \t]+$//mg; s/(\p{L})-\n(\p{Ll})/$1$2/g; s/\n{3,}/\n\n/g; s/\A\s+|\s+\z//g'
+}
+
+img=
+big=
+trap 'rm -f ${img:+"$img"} ${big:+"$big"}' EXIT
+case ${1:-} in
+  --region)
+    geo=$(slurp -d) || exit 0
+    img=$(mktemp --suffix=.png)
+    grim -g "$geo" "$img" || exit 1
+    src=$img
+    ;;
+  --langs) langs; exit 0 ;;
+  "" | -h | --help) echo "usage: torus-ocr FILE | --region | --langs" >&2; exit 2 ;;
+  *) src=$1 ;;
+esac
+
+big=$(mktemp --suffix=.png)
+magick "$src" -colorspace Gray -resize 200% "$big" 2> /dev/null && src=$big
+text=$(tesseract "$src" - -l "$(langs)" 2> /dev/null | tidy)
+if [[ -z ${text//[[:space:]]/} ]]; then
+  notify-send -a torus "No text found" "nothing readable in that picture"
+  exit 1
+fi
+umask 077
+printf '%s\n' "$text" > "$out"
+printf '%s' "$text" | wl-copy
+qs -c torus ipc call torus ocrShow > /dev/null 2>&1 ||
+  notify-send -a torus "Text copied" "$(head -c 120 <<< "$text")"

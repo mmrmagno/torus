@@ -49,9 +49,7 @@ case ${1:-s} in
     grim "$file"
     ;;
   sc)
-    geo=$(slurp -d) || exit 0
-    grim -g "$geo" - | tesseract - - -l eng 2> /dev/null | wl-copy
-    notify-send -a torus "OCR" "text copied to clipboard"
+    "$(dirname "$(readlink -f "$0")")"/torus-ocr --region || true
     exit 0
     ;;
   *)

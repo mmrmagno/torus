@@ -45,7 +45,10 @@ sleep 0.3; "$B/torus-shot" s; wait "$first"
 (( $(grep -c '^slurp' "$STUB_LOG") == 1 )) || fail "s: a second press while selecting must not stack another selection"
 mv "$F/bin/hyprpicker.real" "$F/bin/hyprpicker"; mv "$F/bin/slurp.real" "$F/bin/slurp"
 
+printf '#!/usr/bin/env bash\necho "tesseract $*" >> "$STUB_LOG"\n[[ $1 == --list-langs ]] && printf "List of available languages:\\neng\\nosd\\n" || printf "Total fo-\\nr you\\n"\n' > "$F/bin/tesseract"; chmod +x "$F/bin/tesseract"
 : > "$STUB_LOG"; "$B/torus-shot" sc
+grep -q 'tesseract .* -l eng$' "$STUB_LOG" || fail "sc: only installed languages: $(grep tesseract "$STUB_LOG")"
+assert_eq "Total for you" "$(cat "$XDG_RUNTIME_DIR/torus-ocr.txt" | tr '\n' ' ' | sed 's/ $//')" "sc: hyphenation joined"
 grep -q '^tesseract' "$STUB_LOG" || fail "sc: tesseract"
 grep -q '^wl-copy' "$STUB_LOG" || fail "sc: clipboard"
 

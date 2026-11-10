@@ -418,7 +418,7 @@ PanelWindow {
                                                 else if (what === "edit")
                                                     root.act("satty --filename '" + p.replace(/'/g, "'\\''") + "' --early-exit --copy-command wl-copy")
                                                 else if (what === "text")
-                                                    Quickshell.execDetached(["sh", "-c", "tesseract \"$1\" - -l eng 2> /dev/null | wl-copy && notify-send -a torus 'Text copied' 'from the screenshot'", "sh", p])
+                                                    Quickshell.execDetached(["torus-ocr", p])
                                                 else if (what === "folder")
                                                     Quickshell.execDetached(["xdg-open", p.substring(0, p.lastIndexOf("/"))])
                                                 else if (what === "delete") {

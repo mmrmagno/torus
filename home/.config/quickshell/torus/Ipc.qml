@@ -215,6 +215,10 @@ IpcHandler {
         Store.toggle("dashboard")
     }
 
+    function ocrShow(): void {
+        Store.setOpen("ocr", true)
+    }
+
     function configErrors(): string {
         return HyprConfig.errors
     }
