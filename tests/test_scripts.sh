@@ -77,6 +77,26 @@ sleep 1.5
 assert_file "$XDG_STATE_HOME/torus/recording"
 [[ ! -s $XDG_STATE_HOME/torus/recording ]] || fail "record: marker must clear when the recorder exits"
 
+cat > "$F/bin/gpu-screen-recorder" <<'S'
+#!/usr/bin/env bash
+if [[ $1 == --list-audio-devices ]]; then
+  printf 'default_output|Default output\ndefault_input|Default input\nalsa_output.usb-a.monitor|Monitor of A\nalsa_input.usb-mic|USB Mic\n'
+  exit 0
+fi
+echo "gpu-screen-recorder $*" >> "$STUB_LOG"
+S
+chmod +x "$F/bin/gpu-screen-recorder"
+assert_eq "default_input alsa_input.usb-mic" "$("$B/torus-record" replay-mics | cut -f1 | tr '\n' ' ' | sed 's/ $//')" "replay mics: inputs only, no monitors"
+: > "$STUB_LOG"; "$B/torus-record" replay-save; sleep 0.3
+grep -q -- '-a default_output -c mp4 -r 60' "$STUB_LOG" || fail "replay: desktop sound only by default"
+"$B/torus-record" replay-mic alsa_input.usb-mic
+assert_eq alsa_input.usb-mic "$("$B/torus-record" replay-mic)" "replay mic remembered"
+: > "$STUB_LOG"; "$B/torus-record" replay-save; sleep 0.3
+grep -q -- '-a default_output|alsa_input.usb-mic -c mp4' "$STUB_LOG" || fail "replay: mic merged into the sound track: $(cat "$STUB_LOG")"
+"$B/torus-record" replay-mic nope 2> /dev/null && fail "replay: unknown input must be refused"
+"$B/torus-record" replay-mic off
+assert_eq "" "$("$B/torus-record" replay-mic)" "replay mic off"
+
 : > "$STUB_LOG"; STUB_ROFI_PICK=sf_marc "$B/torus-menu" hyprlock
 assert_link "$XDG_STATE_HOME/torus/hyprlock-layout.conf" "$HOME/.config/hypr/hyprlock/sf_marc.conf"
 assert_eq hyprlock "$(cat "$XDG_STATE_HOME/torus/lock")" "hyprlock layout pick selects hyprlock"

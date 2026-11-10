@@ -15,6 +15,8 @@ PanelWindow {
     property string tab: "all"
     property string armed: ""
     property bool replayOn: false
+    property var mics: []
+    property string mic: ""
     onArmedChanged: if (armed !== "") disarm.restart()
 
     Timer {
@@ -56,6 +58,30 @@ PanelWindow {
         refresh()
         if (!replayProc.running)
             replayProc.running = true
+        if (!micsProc.running)
+            micsProc.running = true
+    }
+
+    function pickMic(name) {
+        mic = name
+        Quickshell.execDetached(["torus-record", "replay-mic", name === "" ? "off" : name])
+    }
+
+    Process {
+        id: micsProc
+        command: ["sh", "-c", "torus-record replay-mic; echo; torus-record replay-mics"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = text.split("\n")
+                root.mic = (lines.shift() || "").trim()
+                root.mics = lines.filter(l => l.indexOf("\t") > 0).map(l => {
+                    const parts = l.split("\t")
+                    const name = parts[0]
+                    const label = parts[1] || name
+                    return { name: name, label: name === "default_input" ? "Default mic" : label.replace(/ Analog Stereo| Digital Stereo.*$/, "") }
+                })
+            }
+        }
     }
 
     Process {
@@ -144,6 +170,45 @@ PanelWindow {
                     }
                 }
 
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: root.mics.length > 0
+                    spacing: Theme.sp4
+                    Text {
+                        text: "󰍬  Mic in instant replay"
+                        color: Theme.subtext
+                        font.family: Theme.fontUi
+                        font.pixelSize: Theme.fsSm
+                    }
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: Theme.sp3
+                        Repeater {
+                            model: [{ name: "", label: "Off" }].concat(root.mics)
+                            Rectangle {
+                                id: micChip
+                                required property var modelData
+                                readonly property bool on: root.mic === modelData.name
+                                width: micText.implicitWidth + 20
+                                height: 26
+                                radius: 13
+                                color: on ? Theme.accent : (micHover.hovered ? Theme.surface1 : Theme.surface0)
+                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                                Text {
+                                    id: micText
+                                    anchors.centerIn: parent
+                                    text: micChip.modelData.label
+                                    color: micChip.on ? Theme.crust : Theme.text
+                                    font.family: Theme.fontUi
+                                    font.pixelSize: Theme.fsSm
+                                }
+                                HoverHandler { id: micHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: root.pickMic(micChip.modelData.name) }
+                            }
+                        }
+                    }
+                }
+
                 GridLayout {
                     Layout.fillWidth: true
                     columns: root.width > 640 ? 4 : 2
@@ -156,7 +221,7 @@ PanelWindow {
                             ["󰍺", "Screenshot all", "every monitor in one image", "torus-shot p", "Super Ctrl Alt P"],
                             ["󰊄", "Copy text", "select an area, its text goes to the clipboard", "torus-shot sc", "Super Ctrl S"],
                             ["󰑋", Island.recording ? "Stop recording" : "Record video", Island.recording ? "saves to ~/Videos" : "whole screen with sound", "torus-record toggle", "Super Shift R"],
-                            ["󰕧", root.replayOn ? "Save last 60 s" : "Instant replay", root.replayOn ? "replay is running, this saves a clip" : "keeps the last 60 s in memory", "torus-record replay-save", "Super Alt R"],
+                            ["󰕧", root.replayOn ? "Save last 60 s" : "Instant replay", root.replayOn ? "replay is running, this saves a clip" : (root.mic ? "last 60 s in memory, with your mic" : "keeps the last 60 s in memory"), "torus-record replay-save", "Super Alt R"],
                             ["󰒉", "Screenshot frozen", "freezes the screen, then select", "torus-shot sf", "Super Ctrl P"],
                             ["󰉋", "Open folder", "your screenshots", "xdg-open \"${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots\"", ""]
                         ]

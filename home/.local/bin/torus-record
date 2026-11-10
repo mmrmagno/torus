@@ -4,6 +4,21 @@ set -euo pipefail
 dir=${XDG_VIDEOS_DIR:-$HOME/Videos}
 state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
 mkdir -p "$dir" "$state"
+micfile=$state/replay-mic
+
+replay_audio() {
+  local mic
+  mic=$(cat "$micfile" 2> /dev/null || true)
+  [[ -n $mic ]] && echo "default_output|$mic" || echo default_output
+}
+
+replay_start() {
+  setsid -f gpu-screen-recorder -w portal -f 60 -a "$(replay_audio)" -c mp4 -r 60 -o "$dir" > /dev/null 2>&1
+}
+
+mics() {
+  gpu-screen-recorder --list-audio-devices 2> /dev/null | awk -F'|' '$1 != "default_output" && $1 !~ /\.monitor$/ && NF >= 2 { print $1 "\t" $2 }'
+}
 
 case ${1:-toggle} in
   toggle)
@@ -22,7 +37,7 @@ case ${1:-toggle} in
       pkill -USR1 -f 'gpu-screen-recorder .*-r '
       notify-send -a torus "Replay" "last 60 s saved to $dir"
     else
-      setsid -f gpu-screen-recorder -w portal -f 60 -a default_output -c mp4 -r 60 -o "$dir" > /dev/null 2>&1
+      replay_start
       notify-send -a torus -u low "Replay" "buffer started, SUPER+ALT+R again saves the last 60 s"
     fi
     ;;
@@ -31,11 +46,35 @@ case ${1:-toggle} in
       notify-send -a torus -u low "Replay" "stopped, nothing is buffered anymore"
     fi
     ;;
+  replay-mics)
+    mics
+    ;;
+  replay-mic)
+    if (($# < 2)); then
+      cat "$micfile" 2> /dev/null || true
+      exit 0
+    fi
+    if [[ $2 == off ]]; then
+      rm -f "$micfile"
+      label="without a mic"
+    else
+      label=$(mics | awk -F'\t' -v n="$2" '$1 == n { print $2 }')
+      [[ -n $label ]] || { echo "unknown input: $2" >&2; exit 2; }
+      printf '%s\n' "$2" > "$micfile"
+      label="with $label"
+    fi
+    if pgrep -f 'gpu-screen-recorder .*-r ' > /dev/null; then
+      pkill -INT -f 'gpu-screen-recorder .*-r ' || true
+      for _ in $(seq 30); do pgrep -f 'gpu-screen-recorder .*-r ' > /dev/null || break; sleep 0.1; done
+      replay_start
+      notify-send -a torus -u low "Replay" "restarted $label, the buffer starts fresh"
+    fi
+    ;;
   replay-status)
     pgrep -f 'gpu-screen-recorder .*-r ' > /dev/null && echo on || echo off
     ;;
   *)
-    echo "usage: torus-record toggle|replay-save|replay-stop|replay-status" >&2
+    echo "usage: torus-record toggle|replay-save|replay-stop|replay-status|replay-mics|replay-mic [off|INPUT]" >&2
     exit 2
     ;;
 esac
