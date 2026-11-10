@@ -6,7 +6,8 @@ set -euo pipefail
 F=$(mktemp -d)
 trap 'rm -rf "$F"' EXIT
 unset XDG_PICTURES_DIR XDG_VIDEOS_DIR XDG_CONFIG_HOME XDG_DATA_HOME
-export HOME=$F/home XDG_STATE_HOME=$F/home/.local/state STUB_LOG=$F/calls
+export HOME=$F/home XDG_STATE_HOME=$F/home/.local/state STUB_LOG=$F/calls XDG_RUNTIME_DIR=$F/run
+mkdir -p -m 700 "$F/run"
 mkdir -p "$HOME/Pictures" "$HOME/.local/share/Steam/steamapps"
 mkscriptstubs "$F/bin"
 export PATH=$F/bin:$PATH

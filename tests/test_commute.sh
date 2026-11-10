@@ -5,7 +5,7 @@ set -euo pipefail
 F=$(mktemp -d)
 srv=
 trap '[[ -n $srv ]] && kill "$srv" 2> /dev/null; rm -rf "$F"' EXIT
-export XDG_CONFIG_HOME=$F/config XDG_CACHE_HOME=$F/cache TZ=Europe/Zurich
+export XDG_CONFIG_HOME=$F/config XDG_CACHE_HOME=$F/cache XDG_STATE_HOME=$F/state TZ=Europe/Zurich
 C=$REPO/home/.local/bin/torus-commute
 NOW=1794294000
 port=$((20000 + RANDOM % 20000))
