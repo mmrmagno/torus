@@ -16,11 +16,12 @@ if [[ $mode == shell ]]; then
     done
   fi
   if [[ $(timeout 3 qs -c torus ipc call torus lock 2> /dev/null | tail -n 1) == locked ]]; then
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
+    for _ in $(seq 32); do
       [[ $(timeout 2 qs -c torus ipc call torus isLocked 2> /dev/null | tail -n 1) == true ]] && exit 0
       sleep 0.2
     done
   fi
   rm -f "$dir"/*.png
 fi
+pidof hyprlock > /dev/null && exit 0
 exec hyprlock "$@"

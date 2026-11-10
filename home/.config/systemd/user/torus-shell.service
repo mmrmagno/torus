@@ -2,6 +2,9 @@
 Description=torus shell (Quickshell)
 PartOf=graphical-session.target
 After=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+OnFailure=torus-shell-rescue.service
 
 [Service]
 ExecStart=/bin/sh -c 'export HYPRLAND_INSTANCE_SIGNATURE="$${HYPRLAND_INSTANCE_SIGNATURE:-$$(ls -t "$XDG_RUNTIME_DIR/hypr" | head -1)}" WAYLAND_DISPLAY="$${WAYLAND_DISPLAY:-wayland-1}"; exec /usr/bin/qs -c torus'

@@ -483,18 +483,52 @@ check_lock() {
   else
     bad+="logind-path "
   fi
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  if locked_is true; then
+    type_pw "not-the-password"
+    sleep 0.3
+    type_pw "$LOCK_PW"
+    locked_is false || bad+="password-typed-during-check-lost "
+  else
+    bad+="retype-lock "
+  fi
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  if locked_is true; then
+    systemctl --user restart torus-shell.service
+    sleep 7
+    if pgrep -x hyprlock > /dev/null; then
+      type_pw "$LOCK_PW"
+      for _ in $(seq 40); do pgrep -x hyprlock > /dev/null || break; sleep 0.25; done
+      pgrep -x hyprlock > /dev/null && { bad+="restart-hyprlock-unlock "; unlock; }
+      locked_is false || { type_pw "$LOCK_PW"; locked_is false; } || bad+="restart-shell-still-locked "
+    elif locked_is true; then
+      type_pw "$LOCK_PW"
+      locked_is false || bad+="restart-unlock "
+    else
+      bad+="restart-unlocked-without-password "
+    fi
+  else
+    bad+="restart-lock "
+  fi
   hyprctl eval 'hl.exec_cmd("hyprlock")' > /dev/null
   if wait_lock; then
     sleep 1
     "${QS[@]}" lock > /dev/null 2>&1
+    sleep 6
+    [[ $("${QS[@]}" isLocked 2>/dev/null) == false ]] || bad+="shell-stacked-on-hyprlock "
+    pgrep -x hyprlock > /dev/null || bad+="hyprlock-replaced "
+    type_pw "$LOCK_PW"
+    for _ in $(seq 40); do pgrep -x hyprlock > /dev/null || break; sleep 0.25; done
+    pgrep -x hyprlock > /dev/null && { bad+="hyprlock-unlock "; unlock; }
+    sleep 2
+    [[ -e $XDG_RUNTIME_DIR/torus-lock/locked ]] && bad+="shell-lock-state-left "
+    hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
     if locked_is true; then
-      sleep 3
       type_pw "$LOCK_PW"
-      locked_is false || { sleep 2; type_pw "$LOCK_PW"; locked_is false; } || bad+="takeover-unlock "
+      locked_is false || bad+="lock-after-hyprlock "
     else
-      bad+="no-takeover "
+      bad+="no-lock-after-hyprlock "
     fi
-    pkill -x hyprlock
   else
     bad+="no-hyprlock "
   fi

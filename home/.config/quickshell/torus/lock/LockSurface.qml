@@ -21,6 +21,9 @@ Item {
         forceActiveFocus()
         Island.readCaps()
     }
+    onActiveFocusChanged: if (!activeFocus && Store.locked) Qt.callLater(forceActiveFocus)
+    HoverHandler { onHoveredChanged: if (hovered && !root.activeFocus) root.forceActiveFocus() }
+    TapHandler { onTapped: root.forceActiveFocus() }
     readonly property var battery: UPower.displayDevice
     readonly property bool hasBattery: battery !== null && battery.isLaptopBattery
     readonly property var nextEvent: Agenda.events.find(e => !e.allDay && e.at.getTime() > clock.date.getTime() && e.start.slice(0, 10) === Qt.formatDate(clock.date, "yyyy-MM-dd"))
@@ -33,10 +36,6 @@ Item {
 
     Keys.onPressed: event => {
         lock.poke()
-        if (lock.busy) {
-            event.accepted = true
-            return
-        }
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
             lock.submit()
         else if (event.key === Qt.Key_Backspace)
