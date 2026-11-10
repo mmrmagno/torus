@@ -329,6 +329,34 @@ PanelWindow {
                     Toggle { checked: Store.breathing; onToggled: value => Store.setBreathing(value) }
                 }
 
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.sp4
+                    Text { text: "Slideshow"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
+                    Text { Layout.fillWidth: true; text: Slideshow.on && Slideshow.paused ? "paused while locked or in a fullscreen app" : "changes the wallpaper on its own"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; elide: Text.ElideRight }
+                    PanelButton { visible: Slideshow.on; label: "Next"; icon: "󰒭"; implicitHeight: 28; onClicked: Slideshow.next() }
+                    Toggle { checked: Slideshow.on; onToggled: value => Slideshow.set({ on: value }) }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: Slideshow.on
+                    spacing: Theme.sp4
+                    Segmented {
+                        options: Slideshow.choices.map(String)
+                        labels: ["5 min", "15 min", "30 min", "1 h", "3 h", "daily"]
+                        current: String(Slideshow.minutes)
+                        onPicked: value => Slideshow.set({ minutes: Number(value) })
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text { text: "Shuffle"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+                    Toggle { checked: Slideshow.shuffle; onToggled: value => Slideshow.set({ shuffle: value }) }
+                    Text { text: "Donut & X-wing"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+                    Toggle { checked: Slideshow.shaders; onToggled: value => Slideshow.set({ shaders: value }) }
+                    Text { text: "Per screen"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+                    Toggle { checked: Slideshow.perScreen; onToggled: value => Slideshow.set({ perScreen: value }) }
+                }
+
                 Heading { id: feelHeading; text: "Feel" }
 
                 GridLayout {

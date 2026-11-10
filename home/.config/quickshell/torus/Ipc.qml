@@ -215,6 +215,10 @@ IpcHandler {
         Store.toggle("dashboard")
     }
 
+    function slideshowNext(): void {
+        Slideshow.next()
+    }
+
     function processesToggle(): void {
         Store.toggle("processes")
     }

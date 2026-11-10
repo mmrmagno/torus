@@ -60,6 +60,7 @@ Singleton {
         { id: "a:session", glyph: "󰑓", title: "Session restore", sub: "see what reopens after a reboot", act: () => Store.setOpen("session", true) },
         { id: "a:sessiontoggle", glyph: Session.on ? "󰜺" : "󰑓", title: Session.on ? "Turn session restore off" : "Turn session restore on", sub: Session.on ? "currently on: windows reopen after reboot" : "currently off: nothing reopens after reboot", act: () => Session.setOn(!Session.on) },
         { id: "a:game", glyph: "󰊴", title: "Game mode", sub: "animations, blur and donut off", act: () => Quickshell.execDetached(["torus-gamemode"]) },
+        { id: "a:slideshow", glyph: "󰸉", title: Slideshow.on ? "Turn the wallpaper slideshow off" : "Turn the wallpaper slideshow on", sub: "every " + (Slideshow.minutes >= 60 ? Slideshow.minutes / 60 + " h" : Slideshow.minutes + " min"), act: () => Slideshow.set({ on: !Slideshow.on }) },
         { id: "a:wallnext", glyph: "󰸉", title: "Next wallpaper", sub: "", act: () => Store.stepWallpaper(1) },
         { id: "a:walldonut", glyph: "󰟪", title: "Donut wallpaper", sub: "", act: () => Store.setWallpaper("donut") },
         { id: "a:accent", glyph: "󰏘", title: "Theme", sub: "flavor, accent color, wallpaper, animations", keys: "accent color flavour flavor latte light dark mocha wallpaper animations", act: () => Store.setOpen("theme", true) },
