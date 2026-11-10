@@ -71,10 +71,10 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: Store.isOpen("capture") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     HyprlandFocusGrab {
-        active: root.visible
+        active: Store.isOpen("capture")
         windows: [root]
         onCleared: Store.setOpen("capture", false)
     }

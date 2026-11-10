@@ -26,7 +26,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: Store.isOpen("center") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     property bool clearing: false
 

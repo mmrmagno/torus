@@ -128,7 +128,8 @@ Singleton {
     property var screenOf: ({})
     property var pendingScreen: null
 
-    readonly property var stayPut: ["palette", "clip", "ai", "logout"]
+    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview"]
+    readonly property var exclusive: ["palette", "clip", "ai", "logout", "cheatsheet", "overview"]
     property var activeScreen: null
     property bool moving: false
 
@@ -184,6 +185,16 @@ Singleton {
         }
         const o = Object.assign({}, open)
         o[name] = value
+        if (value && exclusive.indexOf(name) >= 0) {
+            const c = Object.assign({}, closedAt)
+            for (const k of exclusive) {
+                if (k !== name && o[k] === true) {
+                    o[k] = false
+                    c[k] = Date.now()
+                }
+            }
+            closedAt = c
+        }
         open = o
     }
 
@@ -199,8 +210,13 @@ Singleton {
 
     function closeAll(except) {
         const o = {}
+        const c = Object.assign({}, closedAt)
+        for (const k in open)
+            if (open[k] === true && k !== except)
+                c[k] = Date.now()
         if (except)
             o[except] = open[except] === true
+        closedAt = c
         open = o
     }
 

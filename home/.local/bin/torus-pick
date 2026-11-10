@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
+exec 9> "${XDG_RUNTIME_DIR:-/tmp}/torus-pick.lock"
+flock -n 9 || exit 0
+
 hex=$(hyprpicker -f hex 2> /dev/null | tr -d '[:space:]')
 [[ $hex =~ ^#[0-9a-fA-F]{6}$ ]] || exit 0
 hex=${hex,,}

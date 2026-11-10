@@ -22,7 +22,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: Store.isOpen("dashboard") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     onVisibleChanged: if (visible) {
         if (!Weather.ok)

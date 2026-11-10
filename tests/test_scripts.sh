@@ -29,6 +29,21 @@ grep -qE '^grim [^-]' "$STUB_LOG" || fail "p: all monitors"
 : > "$STUB_LOG"; "$B/torus-shot" sf
 grep -q '^hyprpicker -r -z' "$STUB_LOG" || fail "sf: freeze"
 
+mv "$F/bin/hyprpicker" "$F/bin/hyprpicker.real"; mv "$F/bin/slurp" "$F/bin/slurp.real"; mv "$F/bin/grim" "$F/bin/grim.real"
+printf '#!/usr/bin/env bash\necho "hyprpicker $*" >> "$STUB_LOG"\nexec -a torus-test-picker sleep 30\n' > "$F/bin/hyprpicker"
+printf '#!/usr/bin/env bash\necho "slurp $*" >> "$STUB_LOG"\necho "10,20 300x200"\n' > "$F/bin/slurp"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$F/bin/grim"
+chmod +x "$F/bin/hyprpicker" "$F/bin/slurp" "$F/bin/grim"
+: > "$STUB_LOG"; "$B/torus-shot" sf || true
+sleep 0.3
+if pids=$(/usr/bin/pgrep -f '^torus-test-picker '); then kill $pids; fail "sf: a failed capture must not leave the frozen picker running"; fi
+mv "$F/bin/grim.real" "$F/bin/grim"
+printf '#!/usr/bin/env bash\necho "slurp $*" >> "$STUB_LOG"\nsleep 1\necho "10,20 300x200"\n' > "$F/bin/slurp"
+: > "$STUB_LOG"; "$B/torus-shot" s & first=$!
+sleep 0.3; "$B/torus-shot" s; wait "$first"
+(( $(grep -c '^slurp' "$STUB_LOG") == 1 )) || fail "s: a second press while selecting must not stack another selection"
+mv "$F/bin/hyprpicker.real" "$F/bin/hyprpicker"; mv "$F/bin/slurp.real" "$F/bin/slurp"
+
 : > "$STUB_LOG"; "$B/torus-shot" sc
 grep -q '^tesseract' "$STUB_LOG" || fail "sc: tesseract"
 grep -q '^wl-copy' "$STUB_LOG" || fail "sc: clipboard"

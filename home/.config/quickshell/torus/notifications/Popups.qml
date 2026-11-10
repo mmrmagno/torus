@@ -23,7 +23,7 @@ PanelWindow {
     visible: Notifs.popups.length > 0 && !Store.isOpen("center")
     WlrLayershell.namespace: "torus-notifications"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
     Column {
         id: column

@@ -52,7 +52,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.asking !== "" ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: !Store.isOpen("network") || Store.moving ? WlrKeyboardFocus.None : (root.asking !== "" ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand)
 
     component Toggle: Rectangle {
         id: tg
@@ -104,7 +104,7 @@ PanelWindow {
     }
 
     HyprlandFocusGrab {
-        active: root.visible
+        active: Store.isOpen("network")
         windows: [root]
         onCleared: Store.setOpen("network", false)
     }

@@ -9,6 +9,25 @@ focused() {
   hyprctl monitors -j | jq -r '.[] | select(.focused) | .name'
 }
 
+picker=
+cleanup() {
+  if [[ -n $picker ]]; then kill "$picker" 2> /dev/null || true; fi
+}
+trap cleanup EXIT
+
+if [[ ${1:-s} == s || ${1:-s} == sf || ${1:-s} == sc ]]; then
+  exec 9> "${XDG_RUNTIME_DIR:-/tmp}/torus-shot.lock"
+  flock -n 9 || exit 0
+fi
+
+picker_mapped() {
+  local _
+  for _ in $(seq 20); do
+    hyprctl layers -j 2> /dev/null | jq -e '[.. | objects | select(.namespace? == "hyprpicker")] | length > 0' > /dev/null && return 0
+    sleep 0.05
+  done
+}
+
 case ${1:-s} in
   s)
     geo=$(slurp -d) || exit 0
@@ -17,10 +36,11 @@ case ${1:-s} in
   sf)
     hyprpicker -r -z &
     picker=$!
-    sleep 0.2
-    geo=$(slurp -d) || { kill "$picker" 2> /dev/null; exit 0; }
+    picker_mapped || true
+    geo=$(slurp -d) || exit 0
     grim -g "$geo" "$file"
-    kill "$picker" 2> /dev/null || true
+    cleanup
+    picker=
     ;;
   m)
     grim -o "$(focused)" "$file"

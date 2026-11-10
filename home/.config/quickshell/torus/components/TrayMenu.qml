@@ -13,7 +13,9 @@ PopupWindow {
     property var stack: []
     signal dismissed
 
-    readonly property var current: stack.length > 0 ? stack[stack.length - 1] : root_menu
+    // one opener per level: moving a single opener to a submenu releases the parent, and the submenu's items with it
+    readonly property var openers: [level0, level1, level2, level3]
+    readonly property var current: openers[Math.min(stack.length, openers.length - 1)]
 
     anchor.item: anchorItem
     anchor.rect: Qt.rect(0, 0, anchorItem.width, anchorItem.height + 10)
@@ -30,10 +32,10 @@ PopupWindow {
         onCleared: root.dismissed()
     }
 
-    QsMenuOpener {
-        id: opener
-        menu: root.current
-    }
+    QsMenuOpener { id: level0; menu: root.root_menu }
+    QsMenuOpener { id: level1; menu: root.stack.length > 0 ? root.stack[0] : null }
+    QsMenuOpener { id: level2; menu: root.stack.length > 1 ? root.stack[1] : null }
+    QsMenuOpener { id: level3; menu: root.stack.length > 2 ? root.stack[2] : null }
 
     Rectangle {
         anchors.fill: parent
@@ -72,7 +74,7 @@ PopupWindow {
                 Layout.fillHeight: true
                 clip: true
                 interactive: contentHeight > height
-                model: opener.children
+                model: root.current.children
                 delegate: Item {
                     id: row
                     required property var modelData
@@ -131,7 +133,7 @@ PopupWindow {
                         TapHandler {
                             enabled: row.modelData.enabled
                             onTapped: {
-                                if (row.modelData.hasChildren) {
+                                if (row.modelData.hasChildren && root.stack.length < root.openers.length - 1) {
                                     root.stack = root.stack.concat([row.modelData])
                                 } else {
                                     row.modelData.triggered()

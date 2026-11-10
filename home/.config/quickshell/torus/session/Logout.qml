@@ -36,7 +36,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "torus-logout"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    WlrLayershell.keyboardFocus: Store.isOpen("logout") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     Rectangle {
         PanelMotion {

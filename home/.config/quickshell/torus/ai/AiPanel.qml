@@ -26,7 +26,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    WlrLayershell.keyboardFocus: Store.isOpen("ai") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     onVisibleChanged: if (visible) {
         Ai.refresh()

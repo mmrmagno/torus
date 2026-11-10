@@ -56,7 +56,7 @@ PanelWindow {
         if (windows.length === 0)
             return
         if (!Store.isOpen("alttab")) {
-            if (Date.now() - releasedAt < 400) {
+            if (Date.now() - releasedAt < 1500) {
                 releasedAt = 0
                 Store.focusWindow(windows.length > 1 ? windows[1] : null)
                 return
