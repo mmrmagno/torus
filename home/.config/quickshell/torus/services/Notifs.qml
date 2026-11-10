@@ -143,6 +143,18 @@ Singleton {
         return order
     }
 
+    property int replyTarget: -1
+    function openReply(n) {
+        if (!n)
+            return
+        const e = Object.assign({}, expanded)
+        e[n.appName || "unknown"] = true
+        expanded = e
+        replyTarget = n.id
+        dismissPopup(n)
+        Store.setOpen("center", true)
+    }
+
     function toggleGroup(app) {
         const e = Object.assign({}, expanded)
         e[app] = !e[app]
