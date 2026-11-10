@@ -37,7 +37,7 @@ PanelWindow {
 
     function setAnim(name) {
         anim = name
-        Quickshell.execDetached(["sh", "-c", "mkdir -p \"$1\" && echo \"$2\" > \"$1/animations\" && hyprctl reload > /dev/null", "sh", Store.stateDir, name])
+        Quickshell.execDetached(["sh", "-c", "echo \"$2\" | torus-reload write \"$1/animations\"", "sh", Store.stateDir, name])
     }
 
     screen: Store.screenFor("theme")

@@ -140,9 +140,7 @@ case ${1:-drun} in
   animations)
     pick=$(printf 'fancy\nsmooth\nsnappy\noff\n' | menu "animations") || exit 0
     [[ -n $pick ]] || exit 0
-    mkdir -p "$state"
-    echo "$pick" > "$state/animations"
-    hyprctl reload > /dev/null
+    echo "$pick" | "$(dirname "$(readlink -f "$0")")"/torus-reload write "$state/animations"
     ;;
   hyprlock)
     pick=$(printf 'torus\nmarc-os\nsf_marc\n' | menu "lock screen") || exit 0

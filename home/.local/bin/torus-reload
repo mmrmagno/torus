@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+errors() {
+  hyprctl configerrors 2> /dev/null | sed '/^\s*$/d'
+}
+
+reload() {
+  hyprctl reload > /dev/null 2>&1 || return 1
+  sleep "${TORUS_RELOAD_SETTLE:-0.4}"
+}
+
+case ${1:-} in
+  "")
+    reload || { echo "torus-reload: hyprland not reachable" >&2; exit 1; }
+    err=$(errors)
+    [[ -z $err ]] && exit 0
+    notify-send -a torus -u critical "Hyprland config error" "$(head -1 <<< "$err")"
+    echo "$err" >&2
+    exit 1
+    ;;
+  write)
+    file=${2:?usage: torus-reload write FILE < content}
+    before=$(errors)
+    keep=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/torus-reload.XXXXXX")
+    trap 'rm -f "$keep" "$file.torus-new"' EXIT
+    had=0
+    [[ -f $file ]] && { cp -p "$file" "$keep"; had=1; }
+    mkdir -p "$(dirname "$file")"
+    cat > "$file.torus-new"
+    if [[ $file == *.lua ]]; then
+      check=$(hyprctl eval "dofile('$file.torus-new')" 2>&1)
+      if [[ $check == error* ]]; then
+        notify-send -a torus -u critical "Hyprland config error, change not applied" "${check#error: }"
+        echo "torus-reload: $file not changed: ${check#error: }" >&2
+        exit 1
+      fi
+    fi
+    mv "$file.torus-new" "$file"
+    reload || exit 0
+    err=$(errors)
+    if [[ -n $err && $err != "$before" ]]; then
+      if ((had)); then cp -p "$keep" "$file"; else rm -f "$file"; fi
+      reload
+      notify-send -a torus -u critical "Hyprland config error, change undone" "$(head -1 <<< "$err")"
+      echo "torus-reload: $file broke the config, put back: $(head -1 <<< "$err")" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "usage: torus-reload | torus-reload write FILE < content" >&2
+    exit 2
+    ;;
+esac

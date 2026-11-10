@@ -11,7 +11,7 @@ if [[ $current == off ]]; then
   qs -c torus ipc call torus gamemode true > /dev/null 2>&1 || true
   notify-send -a torus -u low "Game mode" "on: effects off, donut paused"
 else
-  hyprctl reload > /dev/null
+  "$(dirname "$(readlink -f "$0")")"/torus-reload || true
   echo off > "$state/gamemode"
   qs -c torus ipc call torus gamemode false > /dev/null 2>&1 || true
   notify-send -a torus -u low "Game mode" "off"

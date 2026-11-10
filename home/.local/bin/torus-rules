@@ -27,8 +27,8 @@ render() {
       esac
       printf 'hl.window_rule({ name = "torus_local_%s", match = { %s }, %s })\n' "$n" "$match" "$props"
     done < "$db"
-  } > "$lua.tmp" && mv "$lua.tmp" "$lua"
-  hyprctl reload > /dev/null 2>&1 || true
+  } > "$lua.tmp" && "$(dirname "$(readlink -f "$0")")"/torus-reload write "$lua" < "$lua.tmp"
+  rm -f "$lua.tmp"
 }
 
 case ${1:-list} in

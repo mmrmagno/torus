@@ -215,6 +215,10 @@ IpcHandler {
         Store.toggle("dashboard")
     }
 
+    function configErrors(): string {
+        return HyprConfig.errors
+    }
+
     function commuteState(): string {
         return JSON.stringify({ configured: Commute.configured, trips: Commute.connections.length, alerts: Commute.alertsOn, muted: Commute.alertMuted, busy: Commute.busy })
     }
