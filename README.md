@@ -41,6 +41,7 @@ with it. I want a setup I own end to end.
 - SUPER+Space: apps, windows, calc, files, notes, emoji and Proton Pass in one box.
 - The donut drawn on the GPU, tinted by the time of day and the album art. Or an X-wing.
 - A clipboard with pins, a mixer per app, Wi-Fi and Bluetooth, updates with Arch news, my calendar.
+- My next trains home or to work at the bottom of the dashboard, and a heads-up at 18:30 on workdays. Two addresses in `~/.config/torus/commute.json` (`"evening"` and `"morning"` set or turn off the heads-ups), timetable from [transport.opendata.ch](https://transport.opendata.ch).
 - Window rules from SUPER+Space, and my apps back on their workspaces after a reboot.
 - One flavor (Mocha, Macchiato, Frappe, Latte) and one accent color that every app follows: `torus flavor latte`, `torus accent blue`.
 

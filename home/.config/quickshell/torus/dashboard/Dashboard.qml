@@ -342,6 +342,12 @@ PanelWindow {
                     }
                 }
             }
+
+            CommuteCard {
+                Layout.fillWidth: true
+                Layout.columnSpan: content.columns
+                Layout.preferredHeight: implicitHeight
+            }
         }
         }
     }

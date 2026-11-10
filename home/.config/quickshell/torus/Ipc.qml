@@ -215,6 +215,14 @@ IpcHandler {
         Store.toggle("dashboard")
     }
 
+    function commuteState(): string {
+        return JSON.stringify({ configured: Commute.configured, trips: Commute.connections.length, alerts: Commute.alertsOn, muted: Commute.alertMuted, busy: Commute.busy })
+    }
+
+    function commuteRefresh(): void {
+        Commute.refresh()
+    }
+
     function overviewToggle(): void {
         Store.toggle("overview")
     }

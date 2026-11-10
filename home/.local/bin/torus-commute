@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""Next public transport connections between home and work, from transport.opendata.ch."""
+import argparse
+import json
+import os
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "torus/commute.json"
+ALERT_STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "torus/commute-alert"
+CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "torus/commute.json"
+API = os.environ.get("TORUS_COMMUTE_API", "https://transport.opendata.ch/v1")
+FRESH = 60
+SHOWN = 3
+
+
+def load_config():
+    try:
+        data = json.loads(CONFIG.read_text())
+    except FileNotFoundError:
+        return {"home": "", "work": ""}
+    except ValueError:
+        raise SystemExit(emit({"ok": False, "configured": False, "message": f"{CONFIG} is not valid JSON"}))
+    return {k: str(data.get(k) or "").strip() for k in ("home", "work")}
+
+
+def save_config(data):
+    value = {k: str(data.get(k) or "").strip() for k in ("home", "work")}
+    try:
+        current = json.loads(CONFIG.read_text())
+    except (FileNotFoundError, ValueError):
+        current = {}
+    stored = {**(current if isinstance(current, dict) else {}), **value}
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CONFIG.with_suffix(".tmp")
+    old = os.umask(0o077)
+    try:
+        tmp.write_text(json.dumps(stored, ensure_ascii=False, indent=2) + "\n")
+    finally:
+        os.umask(old)
+    os.replace(tmp, CONFIG)
+    return value
+
+
+def read_cache():
+    try:
+        return json.loads(CACHE.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def write_cache(cache):
+    CACHE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CACHE.with_suffix(".tmp")
+    old = os.umask(0o077)
+    try:
+        tmp.write_text(json.dumps(cache, ensure_ascii=False))
+    finally:
+        os.umask(old)
+    os.replace(tmp, CACHE)
+
+
+def request(start, end):
+    query = urlencode({"from": start, "to": end, "limit": 6})
+    req = Request(f"{API}/connections?{query}", headers={"User-Agent": "torus-commute"})
+    with urlopen(req, timeout=15) as response:
+        data = json.load(response)
+    if data.get("errors"):
+        raise ValueError("the timetable could not find this route, check the addresses")
+    return data.get("connections") or []
+
+
+def stamp(stop, field):
+    prog = (stop.get("prognosis") or {}).get(field)
+    if prog:
+        try:
+            return int(datetime.strptime(prog, "%Y-%m-%dT%H:%M:%S%z").timestamp())
+        except ValueError:
+            pass
+    return stop.get(field + "Timestamp")
+
+
+def place(stop):
+    where = stop.get("station") or stop.get("location") or {}
+    return where.get("name") or ""
+
+
+def leg(section):
+    dep, arr, journey = section.get("departure") or {}, section.get("arrival") or {}, section.get("journey")
+    out = {"from": place(dep), "to": place(arr), "dep": stamp(dep, "departure"), "arr": stamp(arr, "arrival")}
+    if journey:
+        cat, num = journey.get("category") or "", journey.get("number") or ""
+        platform = (dep.get("prognosis") or {}).get("platform") or dep.get("platform") or ""
+        out.update(kind="ride", line=f"{cat} {num}".strip() or journey.get("name") or "",
+                   towards=journey.get("to") or "", platform=str(platform), delay=dep.get("delay") or 0)
+    else:
+        out.update(kind="walk", minutes=round(((section.get("walk") or {}).get("duration") or 0) / 60))
+    return out
+
+
+def connection(item):
+    start, end = item.get("from") or {}, item.get("to") or {}
+    dep, arr = stamp(start, "departure"), stamp(end, "arrival")
+    if not dep or not arr:
+        return None
+    legs = [leg(s) for s in item.get("sections") or []]
+    rides = [l for l in legs if l["kind"] == "ride"]
+    return {"dep": dep, "arr": arr, "minutes": round((arr - dep) / 60), "changes": item.get("transfers") or 0,
+            "lines": [l["line"] for l in rides], "delay": max([l["delay"] for l in rides] or [0]),
+            "platform": rides[0]["platform"] if rides else "", "legs": legs}
+
+
+def best(items, now):
+    rows = [c for c in (connection(i) for i in items) if c and c["dep"] >= now - 60]
+    rows.sort(key=lambda c: (c["dep"], c["arr"]))
+    # a connection that leaves earlier but arrives later than another one is never the best choice
+    keep = [c for c in rows if not any(o is not c and o["dep"] >= c["dep"] and o["arr"] < c["arr"] for o in rows)]
+    keep = keep[:SHOWN]
+    if keep:
+        fastest = min(keep, key=lambda c: (c["minutes"], c["arr"]))
+        fastest["fastest"] = len(keep) > 1
+    return keep
+
+
+def emit(result):
+    print(json.dumps(result, ensure_ascii=False))
+    return 0 if result.get("ok") else 1
+
+
+def connections(config, to_work, now):
+    start, end = (config["home"], config["work"]) if to_work else (config["work"], config["home"])
+    result = {"ok": True, "configured": True, "toWork": to_work,
+              "fromLabel": "Home" if to_work else "Work", "toLabel": "Work" if to_work else "Home",
+              "sbb": "https://www.sbb.ch/en?" + urlencode({"von": start, "nach": end}),
+              "stale": False, "message": ""}
+    key = start + "\n" + end
+    hit = read_cache().get(key)
+    if hit and now - hit["at"] < FRESH:
+        items, updated = hit["items"], hit["at"]
+    else:
+        try:
+            items, updated = request(start, end), now
+            write_cache({key: {"at": now, "items": items}})
+        except Exception as exc:
+            if not hit:
+                return {**result, "ok": False, "message": "timetable unreachable: " + str(exc)[:80]}
+            items, updated = hit["items"], hit["at"]
+            result.update(stale=True, message="offline, showing the last result")
+    result["updated"] = updated
+    result["connections"] = best(items, now)
+    if not result["connections"]:
+        result["message"] = result["message"] or "no connections found"
+    return result
+
+
+def fetch(direction, now):
+    config = load_config()
+    if not config["home"] or not config["work"]:
+        return emit({"ok": False, "configured": False, "message": "add your home and work address"})
+    if direction == "auto":
+        to_work = time.localtime(now).tm_hour < 13
+    elif direction == "reverse":
+        to_work = time.localtime(now).tm_hour >= 13
+    else:
+        to_work = direction == "work"
+    return emit(connections(config, to_work, now))
+
+
+SLOTS = {"evening": ("18:30", False), "morning": ("", True)}
+WINDOW = 3 * 3600
+
+
+def alert_times():
+    try:
+        data = json.loads(CONFIG.read_text())
+    except (FileNotFoundError, ValueError):
+        data = {}
+    out = {}
+    for slot, (default, to_work) in SLOTS.items():
+        value = data.get(slot, default)
+        if isinstance(value, str) and len(value) == 5 and value[2] == ":" and value.replace(":", "").isdigit():
+            out[slot] = (int(value[:2]) * 3600 + int(value[3:]) * 60, to_work)
+    return out
+
+
+def read_state():
+    try:
+        return json.loads(ALERT_STATE.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def write_state(state):
+    ALERT_STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = ALERT_STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state))
+    os.replace(tmp, ALERT_STATE)
+
+
+def alert(action, now):
+    today = time.strftime("%Y-%m-%d", time.localtime(now))
+    state = read_state()
+    if action == "mute":
+        for slot in SLOTS:
+            state[slot] = today
+        state.pop("snooze", None)
+        write_state(state)
+        return emit({"ok": True, "muted": today})
+    if action == "unmute":
+        write_state({k: v for k, v in state.items() if v != today and k != "snooze"})
+        return emit({"ok": True})
+    if action == "snooze":
+        slot = state.get("last")
+        if slot:
+            state.pop(slot, None)
+        state["snooze"] = now + 15 * 60
+        write_state(state)
+        return emit({"ok": True, "until": state["snooze"]})
+    local = time.localtime(now)
+    since_midnight = local.tm_hour * 3600 + local.tm_min * 60 + local.tm_sec
+    times = alert_times()
+    status = {"ok": True, "due": False, "muted": all(state.get(s) == today for s in times) and bool(times),
+              "slots": {s: "%02d:%02d" % (t // 3600, t % 3600 // 60) for s, (t, _) in times.items()}}
+    if action == "status" or local.tm_wday >= 5 or now < state.get("snooze", 0):
+        return emit(status)
+    for slot, (at, to_work) in sorted(times.items(), key=lambda kv: kv[1][0]):
+        if state.get(slot) == today or not at <= since_midnight < at + WINDOW:
+            continue
+        config = load_config()
+        if not config["home"] or not config["work"]:
+            return emit(status)
+        result = connections(config, to_work, now)
+        if not result["ok"] or not result["connections"]:
+            state["snooze"] = now + 10 * 60
+            write_state(state)
+            return emit(status)
+        state[slot] = today
+        state["last"] = slot
+        write_state(state)
+        lines = []
+        for c in result["connections"]:
+            line = time.strftime("%H:%M", time.localtime(c["dep"])) + " → " + time.strftime("%H:%M", time.localtime(c["arr"]))
+            line += "  " + " ".join(c["lines"]) + (f"  pl. {c['platform']}" if c["platform"] else "")
+            line += f"  {c['minutes']} min" + (f"  +{c['delay']}" if c["delay"] else "")
+            lines.append(line)
+        first = result["connections"][0]
+        leave = max(0, round((first["dep"] - now) / 60))
+        title = ("Trains to work" if to_work else "Trains home") + (f", leave in {leave} min" if leave else ", leave now")
+        return emit({**status, "due": True, "slot": slot, "title": title, "body": "\n".join(lines)})
+    return emit(status)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", nargs="?", default="fetch", choices=["fetch", "config", "save", "alert"])
+    parser.add_argument("action", nargs="?", default="check", choices=["check", "status", "mute", "unmute", "snooze"])
+    parser.add_argument("--reverse", action="store_true", help="the other direction than the time of day picks")
+    parser.add_argument("--to", choices=["work", "home"], help="direction, instead of the time of day")
+    parser.add_argument("--now", type=int, help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    now = args.now or int(time.time())
+    if args.command == "config":
+        return emit({"ok": True, **load_config()})
+    if args.command == "save":
+        try:
+            data = json.load(sys.stdin)
+        except ValueError:
+            return emit({"ok": False, "message": "invalid input"})
+        return emit({"ok": True, **save_config(data if isinstance(data, dict) else {})})
+    if args.command == "alert":
+        return alert(args.action, now)
+    return fetch(args.to or ("reverse" if args.reverse else "auto"), now)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
