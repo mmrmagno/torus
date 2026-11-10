@@ -20,6 +20,10 @@ S
 #!/usr/bin/env bash
 echo "systemctl $*" >> "$STUB_LOG"
 [[ -n ${STUB_ENABLE_FAIL:-} && $1 == enable ]] && exit 1
+if [[ $1 == list-unit-files && $2 == --no-legend && -n ${3:-} ]]; then
+  [[ " ${STUB_UNIT_MISSING:-} " == *" $3 "* ]] || echo "$3 disabled enabled"
+  exit 0
+fi
 case "$*" in
   "list-unit-files --state=enabled --no-legend") echo "sddm.service enabled enabled" ;;
   "--user list-unit-files --state=enabled --no-legend") echo "pipewire.socket enabled enabled" ;;

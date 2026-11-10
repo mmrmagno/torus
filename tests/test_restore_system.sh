@@ -100,5 +100,10 @@ assert_eq 8 "$rc" "failed unit enable exit code"
 assert_contains "$F/units" "sddm.service"
 
 rc=0
+STUB_ENABLE_FAIL=1 STUB_UNIT_MISSING=sddm.service "$REPO/backup/restore.sh" "$dir" --home "$H" --root "$R" > "$F/units2" 2>&1 || rc=$?
+assert_eq 7 "$rc" "a unit whose software is missing counts as missing, not failed"
+assert_contains "$dir/missing-packages.txt" "unit:sddm.service"
+
+rc=0
 "$REPO/backup/restore.sh" "$dir" > "$F/nosudo" 2>&1 || rc=$?
 assert_eq 2 "$rc" "restore without sudo refused"

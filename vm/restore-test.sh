@@ -50,6 +50,7 @@ tar -xOf "$tarball" meta/units-system.txt > "$shots/units-system.txt"
 bad=0
 while read -r u; do
   [[ -n $u ]] || continue
+  grep -qx "unit:$u" "$shots/missing-packages.txt" 2> /dev/null && { echo "unit not checked, its software is missing: $u" | tee -a "$log"; continue; }
   case $u in *@.service|*@.*) continue ;; esac
   state=$("$VM" ssh "systemctl is-enabled $u" </dev/null 2>/dev/null || true)
   [[ $state == enabled* || $state == alias || $state == static ]] || { echo "unit not enabled: $u ($state)" | tee -a "$log"; bad=1; }

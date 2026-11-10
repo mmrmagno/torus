@@ -189,7 +189,13 @@ fi
 failed_units=()
 while read -r u; do
   [[ -n $u ]] || continue
-  run systemctl enable "$u" || failed_units+=("$u")
+  if ! run systemctl enable "$u"; then
+    if [[ -z $(systemctl list-unit-files --no-legend "$u" 2> /dev/null) ]]; then
+      echo "unit:$u" >> "$missing"
+    else
+      failed_units+=("$u")
+    fi
+  fi
 done < "$M/units-system.txt"
 while read -r u; do
   [[ -n $u ]] && { as_user systemctl --user enable "$u" || echo "warning: user enable $u failed" >&2; }
