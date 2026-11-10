@@ -21,7 +21,7 @@ ColumnLayout {
     transform: Translate { id: slide; x: 0 }
     SequentialAnimation {
         running: group.leaving
-        PauseAnimation { duration: group.order * 45 }
+        PauseAnimation { duration: Math.max(0, group.order) * 45 }
         ParallelAnimation {
             NumberAnimation { target: slide; property: "x"; to: group.width; duration: Theme.durMed; easing.type: Easing.InCubic }
             NumberAnimation { target: group; property: "opacity"; to: 0; duration: Theme.durMed }
