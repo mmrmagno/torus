@@ -1,0 +1,9 @@
+[Unit]
+Description=torus safe mode: a minimal bar while the full shell is down
+Conflicts=torus-shell.service
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=/bin/sh -c 'export HYPRLAND_INSTANCE_SIGNATURE="$${HYPRLAND_INSTANCE_SIGNATURE:-$$(ls -t "$XDG_RUNTIME_DIR/hypr" | head -1)}" WAYLAND_DISPLAY="$${WAYLAND_DISPLAY:-wayland-1}"; exec /usr/bin/qs -c torus-safe'
+Restart=on-failure
+RestartSec=2

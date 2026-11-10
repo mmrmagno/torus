@@ -226,12 +226,28 @@ cmd_setup() {
   echo "torus: setup done (flavour $flavour, accent $accent)"
 }
 
-(($#)) || { echo "usage: torus accent [name] | torus flavour [name] | torus setup" >&2; exit 1; }
+cmd_safe() {
+  systemctl --user stop torus-shell.service
+  systemctl --user start torus-safe.service
+  echo "torus: safe mode, torus unsafe brings the full shell back"
+}
+
+cmd_unsafe() {
+  systemctl --user reset-failed torus-shell.service 2> /dev/null || true
+  systemctl --user start torus-shell.service
+  echo "torus: full shell started"
+}
+
+(($#)) || { echo "usage: torus accent|flavour|setup|doctor|ipc|safe|unsafe" >&2; exit 1; }
 cmd=$1
 shift
 case $cmd in
   accent) cmd_accent "$@" ;;
   flavour | flavor) cmd_flavour "$@" ;;
   setup) cmd_setup ;;
+  doctor) exec "$(dirname "$SELF")/torus-doctor" "$@" ;;
+  ipc) exec "$(dirname "$SELF")/torus-ipc" "$@" ;;
+  safe) cmd_safe ;;
+  unsafe) cmd_unsafe ;;
   *) echo "unknown command: $cmd" >&2; exit 1 ;;
 esac

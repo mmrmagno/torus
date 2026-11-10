@@ -43,6 +43,7 @@ with it. I want a setup I own end to end.
 - A clipboard with pins, a mixer per app, Wi-Fi and Bluetooth, updates with Arch news, my calendar.
 - My next trains home or to work at the bottom of the dashboard, and a heads-up at 18:30 on workdays. Two addresses in `~/.config/torus/commute.json` (`"evening"` and `"morning"` set or turn off the heads-ups), timetable from [transport.opendata.ch](https://transport.opendata.ch).
 - Window rules from SUPER+Space, and my apps back on their workspaces after a reboot.
+- `torus doctor` checks the whole setup (`--fix` repairs the safe things, `--snapshot` saves evidence from a TTY), `torus ipc` lists and calls every shell action, and a small safe-mode bar takes over if the shell keeps crashing.
 - One flavor (Mocha, Macchiato, Frappe, Latte) and one accent color that every app follows: `torus flavor latte`, `torus accent blue`.
 
 ## Keys I use the most
