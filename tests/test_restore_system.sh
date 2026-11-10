@@ -46,8 +46,13 @@ grep '^+ yay -S' "$F/dry" | grep -q 'yay-debug' && fail "yay-debug should be ski
 assert_contains "$F/dry" "+ systemctl --user mask dunst.service"
 
 rc=0
+export GRANT=$R/etc/sudoers.d/zz-torus-restore
+printf '#!/usr/bin/env bash\necho "yay $*" >> "$STUB_LOG"\n[ -e "$GRANT" ] && echo "yay saw grant: $(cat "$GRANT")" >> "$STUB_LOG"\nexit 0\n' > "$F/bin/yay"
 "$REPO/backup/restore.sh" "$dir" --home "$H" --root "$R" > "$F/real" 2>&1 || rc=$?
 assert_eq 7 "$rc" "missing packages exit code"
+grep -q "^yay saw grant: $(id -un) ALL=(ALL) NOPASSWD: ALL" "$STUB_LOG" || fail "yay runs with a temporary sudo grant: $(grep yay "$STUB_LOG" | head -3)"
+grep '^yay -S' "$STUB_LOG" | grep -qv -- '--nosudoloop' && fail "yay must not loop on sudo"
+assert_absent "$GRANT"
 assert_contains "$dir/missing-packages.txt" "ghost-pkg"
 assert_eq "font_size 9" "$(cat "$H/.config/kitty/kitty.conf")" "files restored"
 assert_contains "$STUB_LOG" "pacman -S --needed --noconfirm base"

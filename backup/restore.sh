@@ -30,7 +30,8 @@ root=${root%/}
 tarball=$(find "$dir" -maxdepth 1 -name 'torus-backup-*.tar.zst' | head -1)
 [[ -n $tarball ]] || { echo "no tarball in $dir" >&2; exit 4; }
 U=$dir/.unpack
-cleanup() { rm -rf "$U"; }
+grant=$root/etc/sudoers.d/zz-torus-restore
+cleanup() { rm -rf "$U"; rm -f "$grant"; }
 trap cleanup EXIT
 
 if ! (cd "$dir" && sha256sum -c --quiet "${tarball##*/}.sha256"); then
@@ -103,7 +104,7 @@ install_each() {
   local p
   for p in "$@"; do
     if [[ $mgr == yay ]]; then
-      as_user yay -S --needed --noconfirm "$p" || echo "$p" >> "$missing"
+      as_user yay -S --needed --noconfirm --nosudoloop "$p" || echo "$p" >> "$missing"
     else
       run pacman -S --needed --noconfirm "$p" || echo "$p" >> "$missing"
     fi
@@ -171,7 +172,14 @@ if ((${#native[@]})); then
 fi
 mapfile -t foreign < <(grep -v -e '^\s*$' -e '-debug$' "$M/pkg-foreign.txt" 2>/dev/null || true)
 if ((${#foreign[@]})); then
-  as_user yay -S --needed --noconfirm "${foreign[@]}" || install_each yay "${foreign[@]}"
+  # yay runs as the user and asks sudo for pacman; nobody can type a password here
+  if ((!dry_run)) && [[ $user != root ]]; then
+    mkdir -p "$(dirname "$grant")"
+    printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$user" > "$grant"
+    chmod 440 "$grant"
+  fi
+  as_user yay -S --needed --noconfirm --nosudoloop "${foreign[@]}" || install_each yay "${foreign[@]}"
+  rm -f "$grant"
 fi
 mapfile -t flatpaks < <(grep -v '^\s*$' "$M/flatpak.txt" 2>/dev/null || true)
 if ((${#flatpaks[@]})); then
