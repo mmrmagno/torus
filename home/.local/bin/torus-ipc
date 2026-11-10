@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+functions() {
+  qs -c torus ipc show 2> /dev/null | sed -n 's/^ *function \([A-Za-z0-9_]*\)(\(.*\)): \(.*\)$/\1\t\2\t\3/p' | sort
+}
+
+case ${1:-} in
+  "" | list | -h | --help)
+    list=$(functions)
+    [[ -n $list ]] || { echo "torus ipc: the shell is not running (torus doctor)" >&2; exit 1; }
+    echo "usage: torus ipc <function> [args]"
+    echo
+    awk -F'\t' '{ printf "  %-22s %s%s\n", $1, ($2 == "" ? "" : $2 "  "), ($3 == "void" ? "" : "-> " $3) }' <<< "$list"
+    ;;
+  --names)
+    functions | cut -f1
+    ;;
+  *)
+    fn=$1
+    shift
+    functions | cut -f1 | grep -qx -- "$fn" || { echo "torus ipc: no function $fn (torus ipc lists them)" >&2; exit 2; }
+    qs -c torus ipc call torus "$fn" "$@" 2>&1 | grep -vE '^\s*WARN|UTF-8 locale|^\s*$'
+    exit "${PIPESTATUS[0]}"
+    ;;
+esac
