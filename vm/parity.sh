@@ -289,6 +289,7 @@ check_widgets() {
 frames() { "${QS[@]}" donutFrames "$1" 2>/dev/null; }
 
 check_donut() {
+  for _ in $(seq 50); do [[ $(hyprctl activeworkspace -j 2> /dev/null | jq -r '.id // empty') =~ ^[0-9]+$ ]] && break; sleep 0.2; done
   local screens main side a1 b1 a2 b2 a3 b3 pid t0 t1 tick cpu kitty
   screens=$(hyprctl monitors -j | jq -r '.[].name')
   main=$(head -1 <<<"$screens")
