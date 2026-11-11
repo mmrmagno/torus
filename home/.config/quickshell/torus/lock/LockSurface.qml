@@ -17,6 +17,10 @@ Item {
     readonly property real side: Math.min(width, height)
 
     focus: true
+    opacity: lock.fading ? 0 : 1
+    scale: lock.fading ? 1.04 : 1
+    Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.InCubic } }
+    Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.InCubic } }
     Component.onCompleted: {
         forceActiveFocus()
         Island.readCaps()

@@ -21,6 +21,7 @@ Scope {
     property string layout: ""
     property bool awake: true
     property bool releasing: false
+    property bool fading: false
 
     function poke() {
         awake = true
@@ -166,7 +167,8 @@ Scope {
                 root.message = ""
                 // a hyprlock stacked under this lock gets the session back and never sees the keyboard again
                 Quickshell.execDetached(["pkill", "-USR1", "-x", "hyprlock"])
-                root.release()
+                root.fading = true
+                fadeOut.restart()
                 return
             }
             if (result === PamResult.MaxTries || root.fails >= 2)
@@ -180,7 +182,14 @@ Scope {
         }
     }
 
+    Timer {
+        id: fadeOut
+        interval: Theme.motion > 0 ? 200 : 0
+        onTriggered: root.release()
+    }
+
     function release() {
+        fading = false
         releasing = true
         watchdog.stop()
         fallback.armed = false
