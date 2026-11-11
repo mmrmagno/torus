@@ -8,6 +8,15 @@ local function check(ok, msg)
 end
 
 local monitors, handlers, timers, active
+local execs, configs = {}, 0
+local function ran(cmd)
+	for _, c in ipairs(execs) do
+		if c == cmd then
+			return true
+		end
+	end
+	return false
+end
 local function reset()
 	monitors = { { name = "DP-1", x = 0, y = 1467 }, { name = "DP-2", x = 2560, y = 410 } }
 	handlers, timers = {}, {}
@@ -49,6 +58,12 @@ hl = {
 		return active
 	end,
 	dispatch = function() end,
+	exec_cmd = function(c)
+		table.insert(execs, c)
+	end,
+	config = function()
+		configs = configs + 1
+	end,
 	dsp = { focus = function() end, cursor = { move = function() end } },
 }
 local function fire(ev, ...)
@@ -76,8 +91,20 @@ check(#timers == 0, "SUPER without a game must not schedule anything")
 active = game
 fire("window.active", game)
 check(mon("DP-2").x >= 50000, "focusing a fullscreen game moves the other screen away")
+check(ran("torus-gamemode auto-on"), "a fullscreen game turns game mode on by itself")
+local function setmode(v)
+	local f = io.open(os.getenv("XDG_STATE_HOME") .. "/torus/gamemode", "w")
+	f:write(v .. "\n")
+	f:close()
+end
+setmode("auto")
+execs = {}
+fire("window.active", game)
+check(not ran("torus-gamemode auto-on"), "game mode already on is left alone")
+configs = 0
 
 load()
+check(configs == 1, "a config reload while game mode is on applies its effects again")
 check(mon("DP-2").x == 2560, "a config reload with the moat up puts the screen back at its real position, got " .. mon("DP-2").x)
 run_timers()
 check(mon("DP-2").x >= 50000, "after the reload the moat comes back for the game")
@@ -92,10 +119,17 @@ os.remove(lock)
 run_timers()
 check(mon("DP-2").x >= 50000, "the moat comes back after unlock")
 
+execs = {}
 fire("window.close", game)
+check(ran("torus-gamemode auto-off"), "closing the game ends automatic game mode")
 active = nil
 check(mon("DP-2").x == 2560, "closing the game restores the screen")
 local f = io.open(os.getenv("XDG_STATE_HOME") .. "/torus/gameguard-moat")
 check(f == nil, "no saved moat left once it is down")
+
+setmode("off")
+configs = 0
+load()
+check(configs == 0, "no game mode effects when it is off")
 
 os.exit(failures == 0 and 0 or 1)

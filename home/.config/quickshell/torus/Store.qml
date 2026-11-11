@@ -312,6 +312,13 @@ Singleton {
     }
 
     FileView {
+        path: root.stateDir + "/gamemode"
+        blockLoading: true
+        printErrors: false
+        onLoaded: root.gamemode = ["on", "auto"].indexOf(text().trim()) >= 0
+    }
+
+    FileView {
         id: breatheFile
         path: root.stateDir + "/wall-breathe"
         blockLoading: true

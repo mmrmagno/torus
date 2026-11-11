@@ -54,7 +54,7 @@ grep -q '^wl-copy' "$STUB_LOG" || fail "sc: clipboard"
 
 : > "$STUB_LOG"; "$B/torus-gamemode"
 assert_eq on "$(cat "$XDG_STATE_HOME/torus/gamemode")" "gamemode on"
-grep -q 'hyprctl eval .*animations' "$STUB_LOG" || fail "gamemode: animations off"
+grep -q 'hyprctl eval torus_gamemode_apply()' "$STUB_LOG" || fail "gamemode: effects off"
 grep -q 'qs -c torus ipc call torus gamemode true' "$STUB_LOG" || fail "gamemode: shell told"
 : > "$STUB_LOG"; "$B/torus-gamemode"
 assert_eq off "$(cat "$XDG_STATE_HOME/torus/gamemode")" "gamemode off"

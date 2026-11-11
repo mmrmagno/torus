@@ -30,6 +30,24 @@ local function locked()
 	return exists(lockfile)
 end
 
+local function gamemode()
+	local f = io.open(state .. "gamemode", "r")
+	if not f then
+		return "off"
+	end
+	local v = f:read("*l") or "off"
+	f:close()
+	return v
+end
+
+_G.torus_gamemode_apply = function()
+	hl.config({
+		animations = { enabled = false },
+		decoration = { blur = { enabled = false }, shadow = { enabled = false }, wobble = { enabled = false }, motion_blur = { enabled = false }, glow = { enabled = false }, rounding = 0 },
+		general = { gaps_in = 0, gaps_out = 0, border_size = 1 },
+	})
+end
+
 local function listed()
 	local out = {}
 	local f = io.open(state .. "rules.tsv", "r")
@@ -186,6 +204,9 @@ hl.on("window.active", function(w)
 	end
 	if w and is_game(w) and (w.fullscreen or 0) ~= 0 then
 		guard.addr = w.address
+		if gamemode() == "off" then
+			hl.exec_cmd("torus-gamemode auto-on")
+		end
 		if not guard.released then
 			raise_moat(w, "game focused")
 		end
@@ -201,6 +222,7 @@ end)
 hl.on("window.fullscreen", function(w)
 	if gen == _G.torus_guard_gen and w and guard.addr == w.address and (w.fullscreen or 0) == 0 then
 		lower_moat("game left fullscreen")
+		hl.exec_cmd("torus-gamemode auto-off")
 	end
 end)
 
@@ -208,6 +230,7 @@ hl.on("window.close", function(w)
 	if gen == _G.torus_guard_gen and w and guard.addr == w.address then
 		guard.addr = nil
 		lower_moat("game closed")
+		hl.exec_cmd("torus-gamemode auto-off")
 	end
 end)
 
@@ -225,6 +248,9 @@ hl.on("monitor.focused", function(m)
 	hl.dispatch(hl.dsp.cursor.move({ x = math.floor(ax + sw / 2), y = math.floor(ay + sh / 2) }))
 end)
 
+if gamemode() ~= "off" then
+	_G.torus_gamemode_apply()
+end
 if read_moat() then
 	lower_moat("config load")
 end

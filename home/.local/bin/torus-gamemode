@@ -5,14 +5,31 @@ state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
 mkdir -p "$state"
 current=$(cat "$state/gamemode" 2> /dev/null || echo off)
 
-if [[ $current == off ]]; then
-  hyprctl eval 'hl.config({ animations = { enabled = false }, decoration = { blur = { enabled = false }, shadow = { enabled = false }, wobble = { enabled = false }, motion_blur = { enabled = false }, glow = { enabled = false }, rounding = 0 }, general = { gaps_in = 0, gaps_out = 0, border_size = 1 } })' > /dev/null
-  echo on > "$state/gamemode"
+on() {
+  echo "$1" > "$state/gamemode"
+  hyprctl eval 'torus_gamemode_apply()' > /dev/null
   qs -c torus ipc call torus gamemode true > /dev/null 2>&1 || true
-  notify-send -a torus -u low "Game mode" "on: effects off, donut paused"
-else
-  "$(dirname "$(readlink -f "$0")")"/torus-reload || true
+}
+
+off() {
   echo off > "$state/gamemode"
+  "$(dirname "$(readlink -f "$0")")"/torus-reload || true
   qs -c torus ipc call torus gamemode false > /dev/null 2>&1 || true
-  notify-send -a torus -u low "Game mode" "off"
-fi
+}
+
+case ${1:-toggle} in
+  toggle)
+    if [[ $current == off ]]; then
+      on on
+      notify-send -a torus -u low "Game mode" "on: effects off, donut paused, only critical notifications"
+    else
+      off
+      notify-send -a torus -u low "Game mode" "off"
+    fi
+    ;;
+  auto-on) [[ $current == off ]] && on auto ;;
+  auto-off) [[ $current == auto ]] && off ;;
+  status) echo "$current" ;;
+  *) echo "usage: torus-gamemode [toggle|auto-on|auto-off|status]" >&2; exit 2 ;;
+esac
+exit 0

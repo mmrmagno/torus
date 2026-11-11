@@ -261,9 +261,10 @@ Singleton {
                 return
             }
             const loud = n.urgency === NotificationUrgency.Critical || n.actions.length > 0
-            if (!loud && !Store.dnd && !recent)
+            const quiet = Store.dnd || Store.gamemode
+            if (!loud && !quiet && !recent)
                 Island.notify(n)
-            else if (loud && (!Store.dnd || n.urgency === NotificationUrgency.Critical)) {
+            else if (loud && (!quiet || n.urgency === NotificationUrgency.Critical)) {
                 if (n.urgency !== NotificationUrgency.Critical) {
                     const d = Object.assign({}, root.deadlines)
                     d[n.id] = Date.now() + root.lifetime(n)
