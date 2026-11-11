@@ -363,12 +363,13 @@ Card {
         color: active ? Theme.accent : (ibHover.hovered ? Theme.surface1 : "transparent")
         Behavior on color { ColorAnimation { duration: Theme.durFast } }
         Text {
+            id: ibGlyph
             anchors.centerIn: parent
             text: ib.glyph
             color: ib.active ? Theme.crust : Theme.subtext
             font.family: Theme.fontMono
             font.pixelSize: Theme.icon
-            RotationAnimation on rotation { running: ib.spinning && Theme.motion > 0; from: 0; to: 360; duration: 900; loops: Animation.Infinite; onStopped: parent.rotation = 0 }
+            RotationAnimation on rotation { running: ib.spinning && Theme.motion > 0; from: 0; to: 360; duration: 900; loops: Animation.Infinite; onStopped: ibGlyph.rotation = 0 }
         }
         HoverHandler { id: ibHover; cursorShape: Qt.PointingHandCursor }
         TapHandler { onTapped: ib.clicked() }

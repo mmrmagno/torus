@@ -190,6 +190,7 @@ Item {
             Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
 
             Rectangle {
+                id: checkingGlow
                 anchors.fill: parent
                 anchors.margins: -6
                 radius: parent.radius + 6
@@ -197,12 +198,13 @@ Item {
                 border.width: 4
                 border.color: Qt.alpha(Theme.accent, 0.5)
                 opacity: 0
+                // inside an animation `parent` is the whole lock screen, not this glow: hiding it blanked the screen
                 SequentialAnimation on opacity {
                     running: root.lock.busy
                     loops: Animation.Infinite
                     NumberAnimation { to: 1; duration: 420; easing.type: Easing.InOutSine }
                     NumberAnimation { to: 0.15; duration: 420; easing.type: Easing.InOutSine }
-                    onStopped: parent.opacity = 0
+                    onStopped: checkingGlow.opacity = 0
                 }
             }
 

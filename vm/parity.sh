@@ -436,9 +436,14 @@ check_lock() {
     wtype -k Shift_L; sleep 0.5
     t1=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2); sleep 1; t2=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2)
     ((t2 > t1)) || bad+="lock-donut-no-wake "
+    local mon c0 c1
+    mon=$(hyprctl monitors -j | jq -r '.[0].name')
+    grim -o "$mon" /tmp/parity-lock0.png && c0=$(magick /tmp/parity-lock0.png -colorspace Gray -format '%[fx:standard_deviation]' info:)
     type_pw "not-the-password"
     sleep 4
     locked_is true || bad+="wrong-password-unlocked "
+    grim -o "$mon" /tmp/parity-lock1.png && c1=$(magick /tmp/parity-lock1.png -colorspace Gray -format '%[fx:standard_deviation]' info:)
+    awk -v a="${c0:-0}" -v b="${c1:-0}" 'BEGIN { exit !(b >= a * 0.7) }' || bad+="lock-screen-blank-after-wrong-password($c0>$c1) "
     type_pw "$LOCK_PW"
     locked_is false || bad+="shell-unlock "
     [[ -z $(ls "$XDG_RUNTIME_DIR"/torus-lock/ 2>/dev/null) ]] || bad+="lock-files-left "
