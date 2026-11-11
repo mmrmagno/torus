@@ -123,7 +123,6 @@ PanelWindow {
 
     Loader {
         anchors.fill: parent
-        active: root.visible
         sourceComponent: content
     }
 
@@ -222,9 +221,10 @@ PanelWindow {
                         anchors.fill: parent
                         anchors.margins: 8
                         anchors.bottomMargin: 30
-                        captureSource: parent.modelData.wayland
-                        live: root.visible
+                        captureSource: root.visible ? parent.modelData.wayland : null
+                        live: false
                         constraintSize: Qt.size(width, height)
+                        onCaptureSourceChanged: if (captureSource) captureFrame()
                         opacity: hasContent ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
                     }
