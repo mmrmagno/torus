@@ -132,6 +132,20 @@ install_app_themes() {
   install -D -m 644 "$t/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
   install -D -m 644 "$t/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
   install -D -m 644 "$t/btop.theme" "$HOME/.config/btop/themes/torus.theme"
+  local hex profile user
+  hex=$(jq -r '.accent // empty' "$t/qs-colors.json" 2> /dev/null)
+  if [[ -n $hex ]]; then
+    for profile in "$HOME"/.var/app/app.zen_browser.zen/.zen/*/ "$HOME"/.zen/*/; do
+      [[ -f $profile/prefs.js ]] || continue
+      user=$profile/user.js
+      {
+        [[ -f $user ]] && sed '/^\/\/ torus accent start$/,/^\/\/ torus accent end$/d' "$user"
+        echo "// torus accent start"
+        printf 'user_pref("zen.theme.accent-color", "%s");\n' "$hex"
+        echo "// torus accent end"
+      } > "$user.torus" && mv "$user.torus" "$user"
+    done
+  fi
   if [[ -d $HOME/.config/vesktop ]]; then
     mkdir -p "$HOME/.config/vesktop/themes"
     printf '@import url("https://catppuccin.github.io/discord/dist/catppuccin-%s-%s.theme.css");\n' "$(current_flavour)" "$(current_accent)" > "$HOME/.config/vesktop/themes/torus.theme.css"

@@ -75,3 +75,14 @@ rc=0
 assert_eq 2 "$rc" "unknown accent exit code"
 assert_eq blue "$("$T" accent)" "accent unchanged after bad name"
 diff -r "$F/theme.before" "$S/theme" > /dev/null || fail "bad name changed rendered files"
+
+Z=$HOME/.var/app/app.zen_browser.zen/.zen/abc.Default
+mkdir -p "$Z" "$HOME/.var/app/app.zen_browser.zen/.zen/nope"
+: > "$Z/prefs.js"
+printf 'user_pref("browser.startup.page", 3);\n' > "$Z/user.js"
+"$T" accent green > /dev/null
+"$T" accent blue > /dev/null
+grep -q '^user_pref("browser.startup.page", 3);$' "$Z/user.js" || fail "zen: other prefs kept"
+assert_eq 1 "$(grep -c 'zen.theme.accent-color' "$Z/user.js")" "zen: one accent line after two changes"
+grep -q "zen.theme.accent-color\", \"$(jq -r .accent "$S/theme/qs-colors.json")\"" "$Z/user.js" || fail "zen: follows the accent"
+[[ ! -e $HOME/.var/app/app.zen_browser.zen/.zen/nope/user.js ]] || fail "zen: folders that are not profiles are left alone"
