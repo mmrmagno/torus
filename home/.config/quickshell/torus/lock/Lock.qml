@@ -242,6 +242,7 @@ Scope {
 
     WlSessionLock {
         id: sessionLock
+        onLockedChanged: console.info("lock: session lock " + (locked ? "requested" : "released"))
         onLockStateChanged: {
             if (locked || !Store.locked || root.releasing)
                 return
@@ -249,6 +250,7 @@ Scope {
             fallback.running = true
         }
         onSecureStateChanged: {
+            console.info("lock: compositor " + (secure ? "confirmed the lock" : "dropped the lock"))
             Store.lockSecure = secure
             if (secure)
                 watchdog.stop()

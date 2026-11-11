@@ -17,11 +17,14 @@ Item {
     readonly property real side: Math.min(width, height)
 
     focus: true
-    opacity: lock.fading ? 0 : 1
-    scale: lock.fading ? 1.04 : 1
-    Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.InCubic } }
-    Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.InCubic } }
+    property bool entered: false
+    opacity: lock.fading || !entered ? 0 : 1
+    scale: lock.fading ? 1.04 : (entered ? 1 : 0.97)
+    Behavior on opacity { NumberAnimation { duration: lock.fading ? 180 : 260; easing.type: lock.fading ? Easing.InCubic : Easing.OutCubic } }
+    Behavior on scale { NumberAnimation { duration: lock.fading ? 200 : 320; easing.type: lock.fading ? Easing.InCubic : Easing.OutCubic } }
     Component.onCompleted: {
+        entered = true
+        console.info("lock: surface shown, theme colors " + (Theme.c.crust ? "loaded" : "not loaded, using the fallback"))
         forceActiveFocus()
         Island.readCaps()
     }
