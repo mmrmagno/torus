@@ -16,6 +16,9 @@ PanelWindow {
         { icon: "󰐥", label: "Shutdown", key: "s", cmd: ["systemctl", "poweroff"] }
     ]
 
+    property int selected: 0
+    onVisibleChanged: if (visible) selected = 0
+
     function run(a) {
         Store.setOpen("logout", false)
         if (a.key === "e" || a.key === "r" || a.key === "s")
@@ -52,6 +55,21 @@ PanelWindow {
                 Store.setOpen("logout", false)
                 return
             }
+            const n = root.actions.length
+            if (event.key === Qt.Key_Right || event.key === Qt.Key_Down || (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier))) {
+                root.selected = (root.selected + 1) % n
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_Left || event.key === Qt.Key_Up || event.key === Qt.Key_Backtab) {
+                root.selected = (root.selected - 1 + n) % n
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                root.run(root.actions[root.selected])
+                return
+            }
             for (const a of root.actions)
                 if (event.text === a.key)
                     root.run(a)
@@ -67,12 +85,14 @@ PanelWindow {
 
                 Rectangle {
                     required property var modelData
+                    required property int index
+                    readonly property bool lit: root.selected === index
                     width: 128
                     height: 140
                     radius: Theme.rPanel
-                    color: hover.hovered ? Qt.alpha(Theme.accent, 0.25) : Qt.alpha(Theme.base, Theme.glassCard)
-                    border.width: hover.hovered ? 2 : 1
-                    border.color: hover.hovered ? Theme.accent : Theme.surface1
+                    color: lit ? Qt.alpha(Theme.accent, 0.25) : Qt.alpha(Theme.base, Theme.glassCard)
+                    border.width: lit ? 2 : 1
+                    border.color: lit ? Theme.accent : Theme.surface1
                     Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
                     Column {
@@ -101,7 +121,7 @@ PanelWindow {
                         }
                     }
 
-                    HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
+                    HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) root.selected = parent.index }
                     TapHandler { onTapped: root.run(parent.modelData) }
                 }
             }
