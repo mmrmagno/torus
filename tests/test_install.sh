@@ -104,11 +104,17 @@ assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'base="#eff1f5"
 assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'accent="#1e66f5"'
 assert_contains "$R/usr/share/sddm/themes/torus/theme.conf.user" 'text="#4c4f69"'
 assert_contains "$G/theme.txt" 'desktop-color: "#EFF1F5"'
-assert_contains "$G/theme.txt" 'item_color = "#4C4F69"'
+assert_contains "$G/theme.txt" 'item_color = "#6C6F85"'
+assert_contains "$G/theme.txt" 'selected_item_color = "#7287FD"'
 grep -qi 'CDD6F4\|1E1E2E\|B4BEFE' "$G/theme.txt" && fail "latte grub theme keeps mocha colours"
 assert_contains "$R/usr/share/plymouth/themes/marc-os/marc-os.script" "SetBackgroundTopColor(0.937, 0.945, 0.961)"
+assert_contains "$R/usr/share/plymouth/themes/marc-os/marc-os.script" "fg_r = 0.298; fg_g = 0.310; fg_b = 0.412;"
+for img in field bullet; do
+  [[ $(magick identify -format '%[channels]' "$R/usr/share/plymouth/themes/marc-os/$img.png") == srgba* ]] || fail "plymouth $img.png with transparency"
+done
+grep -q '"●"\|Inter\|JetBrains' "$REPO/system/usr/share/plymouth/themes/marc-os/marc-os.script" && fail "plymouth must not need fonts the initramfs does not have"
 assert_eq "EFF1F5" "$(magick "$G/background.png" -alpha off -depth 8 -format '%[hex:p{5,5}]' info:)" "latte grub background"
-assert_eq "CCD0DA" "$(magick "$G/select_c.png" -alpha off -depth 8 -format '%[hex:p{2,10}]' info:)" "latte grub selection"
+assert_eq "BCC0CC" "$(magick "$G/select_c.png" -alpha off -depth 8 -format '%[hex:p{2,10}]' info:)" "latte grub selection"
 assert_eq "EFF1F5" "$(magick "$R/usr/share/sddm/themes/torus-background.png" -alpha off -depth 8 -format '%[hex:p{5,1000}]' info:)" "latte sddm background"
 rc=0
 PATH=$F/sbin:$PATH "$REPO/install.sh" --system --root "$R" --flavour espresso > /dev/null 2>&1 || rc=$?

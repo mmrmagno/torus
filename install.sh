@@ -80,17 +80,23 @@ system_install() {
   magick "$tmp/grub/frame-0000.png" -depth 8 "PNG32:$tmp/grub/donut.png"
   install -D -m 644 "$tmp/grub/donut.png" "$R/boot/grub/themes/marc-os/donut.png"
   local G=$R/boot/grub/themes/marc-os p
-  local base surface0 text lavender mantle
-  read -r base surface0 text lavender mantle < <(jq -r '[.base, .surface0, .text, .lavender, .mantle] | join(" ")' "$pal")
+  local base surface1 text lavender mantle subtext0
+  read -r base surface1 text lavender mantle subtext0 < <(jq -r '[.base, .surface1, .text, .lavender, .mantle, .subtext0] | join(" ")' "$pal")
   magick -size 640x480 "xc:$base" "PNG24:$G/background.png"
   for p in c e w; do
-    magick "$REPO/system/boot/grub/themes/marc-os/select_$p.png" -fill "$surface0" -colorize 100 "$G/select_$p.png"
+    magick "$REPO/system/boot/grub/themes/marc-os/select_$p.png" -fill "$surface1" -colorize 100 "PNG32:$G/select_$p.png"
   done
-  sed -i "s/#1E1E2E/${base^^}/I; s/#B4BEFE/${lavender^^}/I; s/#CDD6F4/${text^^}/Ig" "$G/theme.txt"
-  awk -v a="$base" -v b="$mantle" 'function c(h, i) { return sprintf("%.3f", strtonum("0x" substr(h, i, 2)) / 255) }
+  sed -i "s/#1E1E2E/${base^^}/I; s/#B4BEFE/${lavender^^}/Ig; s/#CDD6F4/${text^^}/Ig; s/#A6ADC8/${subtext0^^}/Ig" "$G/theme.txt"
+  local P=$R/usr/share/plymouth/themes/marc-os
+  magick -size 340x46 xc:none -fill "$mantle" -stroke "$lavender" -strokewidth 2 -draw "roundrectangle 1,1 338,44 22,22" "PNG32:$P/field.png"
+  magick -size 10x10 xc:none -fill "$lavender" -draw "circle 5,5 5,1" "PNG32:$P/bullet.png"
+  printf '%s\n' usr/share/plymouth/themes/marc-os/field.png usr/share/plymouth/themes/marc-os/bullet.png >> "$list"
+  awk -v a="$base" -v b="$mantle" -v t="$text" -v l="$lavender" 'function c(h, i) { return sprintf("%.3f", strtonum("0x" substr(h, i, 2)) / 255) }
     /SetBackgroundTopColor/ { $0 = "Window.SetBackgroundTopColor(" c(a, 2) ", " c(a, 4) ", " c(a, 6) ");" }
     /SetBackgroundBottomColor/ { $0 = "Window.SetBackgroundBottomColor(" c(b, 2) ", " c(b, 4) ", " c(b, 6) ");" }
-    { print }' "$REPO/system/usr/share/plymouth/themes/marc-os/marc-os.script" > "$R/usr/share/plymouth/themes/marc-os/marc-os.script"
+    /^fg_r = / { $0 = "fg_r = " c(t, 2) "; fg_g = " c(t, 4) "; fg_b = " c(t, 6) ";" }
+    /^accent_r = / { $0 = "accent_r = " c(l, 2) "; accent_g = " c(l, 4) "; accent_b = " c(l, 6) ";" }
+    { print }' "$REPO/system/usr/share/plymouth/themes/marc-os/marc-os.script" > "$P/marc-os.script"
   mkdir -p "$R/usr/share/sddm/themes"
   magick -size 1920x1080 "xc:$base" "$tmp/sddm/frame-0000.png" -gravity north -geometry +0+40 -composite "$R/usr/share/sddm/themes/torus-background.png"
   rm -rf "$tmp"

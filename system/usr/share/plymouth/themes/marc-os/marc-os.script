@@ -9,7 +9,10 @@ donut = Sprite();
 donut.SetX(Window.GetX() + Window.GetWidth() / 2 - frames[0].GetWidth() / 2);
 donut.SetY(Window.GetY() + Window.GetHeight() / 2 - frames[0].GetHeight() / 2 - 40);
 
-caption = Sprite(Image.Text("marc @ os", 0.706, 0.745, 0.996, 1, "JetBrainsMono Nerd Font 14"));
+fg_r = 0.804; fg_g = 0.839; fg_b = 0.957;
+accent_r = 0.706; accent_g = 0.745; accent_b = 0.996;
+
+caption = Sprite(Image.Text("marc @ os", accent_r, accent_g, accent_b, 1, "Sans 14"));
 caption.SetX(Window.GetX() + Window.GetWidth() / 2 - caption.GetImage().GetWidth() / 2);
 caption.SetY(donut.GetY() + frames[0].GetHeight() + 24);
 
@@ -20,22 +23,53 @@ fun refresh() {
 }
 Plymouth.SetRefreshFunction(refresh);
 
-prompt = Sprite();
-bullets = Sprite();
-fun display_password(text, num) {
-  prompt.SetImage(Image.Text(text, 0.804, 0.839, 0.957, 1, "Inter 12"));
-  prompt.SetX(Window.GetX() + Window.GetWidth() / 2 - prompt.GetImage().GetWidth() / 2);
-  prompt.SetY(caption.GetY() + 60);
-  s = "";
-  for (j = 0; j < num; j++)
-    s += "●";
-  bullets.SetImage(Image.Text(s, 0.796, 0.651, 0.969, 1, "Inter 14"));
-  bullets.SetX(Window.GetX() + Window.GetWidth() / 2 - bullets.GetImage().GetWidth() / 2);
-  bullets.SetY(prompt.GetY() + 30);
+max_dots = 28;
+gap = 14;
+field = Sprite(Image("field.png"));
+field.SetZ(5);
+field.SetOpacity(0);
+dot = Image("bullet.png");
+for (j = 0; j < max_dots; j++) {
+  dots[j] = Sprite(dot);
+  dots[j].SetZ(10);
+  dots[j].SetOpacity(0);
 }
+prompt = Sprite();
+hint = Sprite();
+
+fun display_password(text, num) {
+  prompt.SetImage(Image.Text(text, fg_r, fg_g, fg_b, 1, "Sans 12"));
+  prompt.SetX(Window.GetX() + Window.GetWidth() / 2 - prompt.GetImage().GetWidth() / 2);
+  prompt.SetY(caption.GetY() + 52);
+  field.SetX(Window.GetX() + Window.GetWidth() / 2 - field.GetImage().GetWidth() / 2);
+  field.SetY(prompt.GetY() + prompt.GetImage().GetHeight() + 14);
+  field.SetOpacity(1);
+  shown = Math.Min(num, max_dots);
+  x0 = Window.GetX() + Window.GetWidth() / 2 - (shown * gap) / 2 + (gap - dot.GetWidth()) / 2;
+  y0 = field.GetY() + field.GetImage().GetHeight() / 2 - dot.GetHeight() / 2;
+  for (j = 0; j < max_dots; j++) {
+    if (j < shown) {
+      dots[j].SetX(x0 + j * gap);
+      dots[j].SetY(y0);
+      dots[j].SetOpacity(1);
+    } else {
+      dots[j].SetOpacity(0);
+    }
+  }
+  if (num == 0)
+    hint.SetImage(Image.Text("type your disk password, then Enter", fg_r, fg_g, fg_b, 0.55, "Sans 10"));
+  else
+    hint.SetImage(Image.Text("", 0, 0, 0, 0));
+  hint.SetX(Window.GetX() + Window.GetWidth() / 2 - hint.GetImage().GetWidth() / 2);
+  hint.SetY(field.GetY() + field.GetImage().GetHeight() + 12);
+}
+
 fun display_normal() {
   prompt.SetImage(Image.Text("", 0, 0, 0, 0));
-  bullets.SetImage(Image.Text("", 0, 0, 0, 0));
+  hint.SetImage(Image.Text("", 0, 0, 0, 0));
+  field.SetOpacity(0);
+  for (j = 0; j < max_dots; j++)
+    dots[j].SetOpacity(0);
 }
 Plymouth.SetDisplayPasswordFunction(display_password);
 Plymouth.SetDisplayNormalFunction(display_normal);
