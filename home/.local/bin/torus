@@ -138,6 +138,14 @@ install_app_themes() {
   install -D -m 644 "$t/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
   install -D -m 644 "$t/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
   install -D -m 644 "$t/btop.theme" "$HOME/.config/btop/themes/torus.theme"
+  local bc=$HOME/.config/btop/btop.conf
+  [[ -L $bc ]] && rm -f "$bc"
+  if [[ -f $bc ]]; then
+    grep -q '^color_theme' "$bc" && sed -i 's|^color_theme *=.*|color_theme = "torus"|' "$bc" || echo 'color_theme = "torus"' >> "$bc"
+  else
+    printf '%s\n' 'color_theme = "torus"' 'theme_background = false' 'truecolor = true' 'rounded_corners = true' \
+      'vim_keys = true' 'graph_symbol = "braille"' 'update_ms = 2000' > "$bc"
+  fi
   local hex profile user
   hex=$(jq -r '.accent // empty' "$t/qs-colors.json" 2> /dev/null)
   if [[ -n $hex ]]; then

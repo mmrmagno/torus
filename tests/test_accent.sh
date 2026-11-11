@@ -86,3 +86,14 @@ grep -q '^user_pref("browser.startup.page", 3);$' "$Z/user.js" || fail "zen: oth
 assert_eq 1 "$(grep -c 'zen.theme.accent-color' "$Z/user.js")" "zen: one accent line after two changes"
 grep -q "zen.theme.accent-color\", \"$(jq -r .accent "$S/theme/qs-colors.json")\"" "$Z/user.js" || fail "zen: follows the accent"
 [[ ! -e $HOME/.var/app/app.zen_browser.zen/.zen/nope/user.js ]] || fail "zen: folders that are not profiles are left alone"
+
+B=$HOME/.config/btop/btop.conf
+rm -f "$B"; ln -s /nonexistent/btop.conf "$B"
+"$T" accent blue > /dev/null
+[[ -f $B && ! -L $B ]] || fail "btop: owns a real config file, not a link into the repo"
+assert_contains "$B" 'color_theme = "torus"'
+assert_contains "$B" 'vim_keys = true'
+printf 'color_theme = "Default"\nupdate_ms = 500\n' > "$B"
+"$T" accent green > /dev/null
+assert_contains "$B" 'color_theme = "torus"'
+assert_contains "$B" 'update_ms = 500'
