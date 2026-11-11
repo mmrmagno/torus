@@ -17,15 +17,18 @@ Singleton {
     property bool armed: false
     property bool recording: false
     readonly property var shareApps: {
-        if (!Pipewire.nodes.values.some(n => (n.name || "").startsWith("xdph")))
+        const portal = n => n.name === "xdg-desktop-portal-hyprland" || String((n.properties || {})["media.name"] || "").startsWith("xdph")
+        if (!Pipewire.nodes.values.some(portal))
             return []
         const apps = Pipewire.nodes.values
-            .filter(n => n.isStream && !n.isSink && !n.audio && (n.properties || {})["media.class"] === "Stream/Input/Video")
-            .map(n => (n.properties || {})["application.process.binary"] || (n.properties || {})["application.name"] || "an app")
-            .filter(a => a !== "gpu-screen-recorder")
+            .filter(n => (n.properties || {})["media.class"] === "Stream/Input/Video")
+            .map(n => (n.properties || {})["application.process.binary"] || (n.properties || {})["application.name"] || n.name || "an app")
+            .filter(a => !/gpu-screen-recorder|gsr/i.test(a))
         return Array.from(new Set(apps))
     }
     readonly property bool sharing: shareApps.length > 0
+    // node properties (media class, names) only arrive once a node is bound
+    PwObjectTracker { objects: Pipewire.nodes.values }
     property real recordStart: 0
     readonly property var player: Mpris.players.values.find(p => p.isPlaying) || null
     property var modes: ({})

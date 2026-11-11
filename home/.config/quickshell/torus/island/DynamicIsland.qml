@@ -22,7 +22,7 @@ PanelWindow {
         case "osd": return 300
         case "notification": return 440
         case "shot": return 460
-        case "recording": return 170
+        case "recording": return Math.max(170, recText.implicitWidth + 56)
         case "sharing": return Math.max(190, shareText.implicitWidth + 56)
         case "focus": return 150
         case "timer": return Math.max(150, timerText.implicitWidth + 56)
@@ -467,7 +467,7 @@ PanelWindow {
                     triggeredOnStart: true
                     onTriggered: {
                         const s = Math.max(0, Math.floor((Date.now() - Island.recordStart) / 1000))
-                        recText.text = "REC " + String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0")
+                        recText.text = "REC " + String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0") + (Island.sharing ? "  ·  sharing" : "")
                     }
                 }
             }

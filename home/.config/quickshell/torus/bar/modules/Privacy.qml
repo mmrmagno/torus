@@ -19,7 +19,7 @@ Chip {
 
     readonly property var streams: Pipewire.nodes.values.filter(n => n.isStream && !n.isSink)
     readonly property var micApps: streams.filter(n => n.audio).map(appOf).filter(a => a !== "gpu-screen-recorder")
-    readonly property var cameraStreams: Island.sharing ? [] : streams.filter(n => !n.audio && (n.properties || {})["media.class"] === "Stream/Input/Video").map(appOf)
+    readonly property var cameraStreams: Island.sharing ? [] : Pipewire.nodes.values.filter(n => (n.properties || {})["media.class"] === "Stream/Input/Video").map(appOf)
     property var cameraApps: []
     readonly property var camera: cameraStreams.concat(cameraApps)
     readonly property bool shown: micApps.length > 0 || camera.length > 0
