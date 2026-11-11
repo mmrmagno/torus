@@ -4,6 +4,12 @@ set -euo pipefail
 state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
 dir=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/torus-lock
 
+if [[ ${1:-} == --rescue ]]; then
+  pidof hyprlock > /dev/null || { setsid -f hyprlock > /dev/null 2>&1; sleep 1; }
+  systemctl --user restart torus-shell.service
+  exit 0
+fi
+
 pidof hyprlock > /dev/null && exit 0
 mode=$(cat "$state/lock" 2> /dev/null || echo shell)
 

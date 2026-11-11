@@ -65,7 +65,7 @@ bind("CTRL + ALT + DELETE", ipc("logoutToggle"), "[Window Management] logout men
 bind(MOD .. " + BACKSPACE", ipc("logoutToggle"), "[Window Management] logout menu")
 bind(MOD .. " + CTRL + B", ipc("barToggle"), "[Window Management] hide bar")
 bind(MOD .. " + L", "torus-lock", "[Window Management] lock session")
-bind(MOD .. " + CTRL + ALT + L", "systemctl --user restart torus-shell.service", "[Window Management] lock screen stuck: restart it (stays locked)", locked)
+bind(MOD .. " + CTRL + ALT + L", "torus-lock --rescue", "[Window Management] lock screen stuck: switch to hyprlock (stays locked)", locked)
 bind(MOD .. " + CTRL + H", hl.dsp.group.prev(), "[Window Management|Group Navigation] change active group backwards")
 bind(MOD .. " + CTRL + L", hl.dsp.group.next(), "[Window Management|Group Navigation] change active group forwards")
 bind(MOD .. " + Left", hl.dsp.focus({ direction = "l" }), "[Window Management|Change focus] focus left")

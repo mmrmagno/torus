@@ -28,8 +28,6 @@ Item {
         forceActiveFocus()
         Island.readCaps()
     }
-    onActiveFocusChanged: if (!activeFocus && Store.locked) Qt.callLater(forceActiveFocus)
-    HoverHandler { onHoveredChanged: if (hovered && !root.activeFocus) root.forceActiveFocus() }
     TapHandler { onTapped: root.forceActiveFocus() }
     readonly property var battery: UPower.displayDevice
     readonly property bool hasBattery: battery !== null && battery.isLaptopBattery
