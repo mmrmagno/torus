@@ -19,6 +19,33 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: Store.isOpen("clip") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+    property int keepIndex: -1
+    property string keep: ""
+
+    function removeAt(i) {
+        if (i < 0 || i >= Clip.shown.length)
+            return
+        keepIndex = i
+        keep = ""
+        Clip.remove(Clip.shown[i])
+    }
+
+    Connections {
+        target: Clip
+        function onShownChanged() {
+            if (root.keep !== "") {
+                const i = Clip.shown.findIndex(e => e.text === root.keep)
+                root.keep = ""
+                if (i >= 0)
+                    Qt.callLater(() => { list.currentIndex = i; list.positionViewAtIndex(i, ListView.Contain) })
+            } else if (root.keepIndex >= 0) {
+                const i = Math.min(root.keepIndex, Clip.shown.length - 1)
+                root.keepIndex = -1
+                Qt.callLater(() => { list.currentIndex = i; list.positionViewAtIndex(i, ListView.Contain) })
+            }
+        }
+    }
+
     onVisibleChanged: if (visible) {
         Clip.kindFilter = "all"
         search.text = ""
@@ -79,9 +106,11 @@ PanelWindow {
                             else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && Clip.shown.length > 0)
                                 Clip.copy(Clip.shown[list.currentIndex])
                             else if (event.key === Qt.Key_Delete && Clip.shown.length > 0)
-                                Clip.remove(Clip.shown[list.currentIndex])
-                            else if (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier) && Clip.shown.length > 0)
+                                root.removeAt(list.currentIndex)
+                            else if (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier) && Clip.shown.length > 0) {
+                                root.keep = Clip.shown[list.currentIndex].text || ""
                                 Clip.togglePin(Clip.shown[list.currentIndex])
+                            }
                             else
                                 return
                             event.accepted = true
@@ -243,7 +272,7 @@ PanelWindow {
                                 anchors.fill: parent
                                 anchors.margins: -6
                                 hoverEnabled: true
-                                onClicked: Clip.remove(row.modelData)
+                                onClicked: root.removeAt(row.index)
                             }
                         }
                     }
