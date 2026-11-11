@@ -117,6 +117,7 @@ check_units() {
   failed=$(systemctl --user --failed --no-legend --plain 2> /dev/null | awk '{print $1}' | tr '\n' ' ')
   if [[ -n $failed ]]; then
     note units "failed: $failed"
+    ((fix)) && systemctl --user reset-failed && did units "cleared the failed state (they start again when needed)"
   else
     ok units "no failed user services"
   fi

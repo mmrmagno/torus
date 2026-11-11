@@ -3,4 +3,4 @@ Description=torus shell rescue: safe mode bar, and keep a locked session locked,
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'sleep 4; systemctl --user is-active --quiet torus-shell.service && exit 0; systemctl --user start --no-block torus-safe.service; [ -e "$XDG_RUNTIME_DIR/torus-lock/locked" ] || exit 0; pidof hyprlock > /dev/null || exec hyprlock'
+ExecStart=/bin/sh -c 'sleep 4; systemctl --user is-active --quiet torus-shell.service && exit 0; HYPRLAND_INSTANCE_SIGNATURE="$${HYPRLAND_INSTANCE_SIGNATURE:-$$(ls -t "$XDG_RUNTIME_DIR/hypr" | head -1)}" hyprctl monitors > /dev/null 2>&1 || exit 0; systemctl --user start --no-block torus-safe.service; [ -e "$XDG_RUNTIME_DIR/torus-lock/locked" ] || exit 0; pidof hyprlock > /dev/null || exec hyprlock'
