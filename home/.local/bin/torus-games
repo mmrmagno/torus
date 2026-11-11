@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+import glob, os, re, sys
+
+steam = os.environ.get("TORUS_STEAM", os.path.expanduser("~/.local/share/Steam"))
+SKIP = re.compile(r"^(Proton|Steam Linux Runtime|Steamworks Common)")
+
+
+def vdf(text):
+    toks = re.findall(r'"((?:[^"\\]|\\.)*)"|([{}])', text)
+    root, stack, key = {}, [], None
+    cur = root
+    for s, brace in toks:
+        if brace == "{":
+            new = {}
+            cur[key] = new
+            stack.append(cur)
+            cur, key = new, None
+        elif brace == "}":
+            cur = stack.pop() if stack else root
+        elif key is None:
+            key = s
+        else:
+            cur[key] = s
+            key = None
+    return root
+
+
+def find(d, name):
+    for k, v in d.items():
+        if k.lower() == name:
+            return v
+    return {}
+
+
+stats = {}
+for f in glob.glob(os.path.join(steam, "userdata", "*", "config", "localconfig.vdf")):
+    if os.path.basename(os.path.dirname(os.path.dirname(f))) == "0":
+        continue
+    try:
+        d = vdf(open(f, encoding="utf-8", errors="replace").read())
+    except Exception:
+        continue
+    apps = find(find(find(find(find(d, "userlocalconfigstore"), "software"), "valve"), "steam"), "apps")
+    for appid, v in apps.items():
+        if isinstance(v, dict):
+            old = stats.get(appid, (0, 0))
+            stats[appid] = (max(old[0], int(v.get("LastPlayed", 0) or 0)), max(old[1], int(v.get("Playtime", 0) or 0)))
+
+
+def art(appid):
+    base = os.path.join(steam, "appcache", "librarycache", appid)
+    for pat in ("library_600x900.jpg", "*/library_600x900.jpg", "library_capsule.jpg", "*/library_capsule.jpg",
+                "header.jpg", "*/header.jpg", "library_header.jpg", "*/library_header.jpg", "library_hero.jpg", "*/library_hero.jpg"):
+        hits = sorted(glob.glob(os.path.join(base, pat)))
+        if hits:
+            return hits[0]
+    return ""
+
+
+rows = []
+for f in glob.glob(os.path.join(steam, "steamapps", "appmanifest_*.acf")):
+    try:
+        st = find(vdf(open(f, encoding="utf-8", errors="replace").read()), "appstate")
+    except Exception:
+        continue
+    appid, name = st.get("appid", ""), st.get("name", "")
+    if not appid or not name or SKIP.match(name):
+        continue
+    last, mins = stats.get(appid, (0, 0))
+    last = max(last, int(st.get("LastPlayed", 0) or 0))
+    rows.append((last, appid, name, mins, art(appid)))
+
+for last, appid, name, mins, path in sorted(rows, key=lambda r: (-r[0], r[2].lower())):
+    print("\t".join([appid, name.replace("\t", " "), str(last), str(mins), path]))

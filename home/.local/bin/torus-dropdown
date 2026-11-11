@@ -1,11 +1,46 @@
 #!/usr/bin/env bash
 set -euo pipefail
+proc=${TORUS_PROC:-/proc}
 
-if ! hyprctl clients -j | jq -e 'any(.[]; .class == "torus-dropdown")' > /dev/null; then
-  setsid -f kitty --class torus-dropdown > /dev/null 2>&1
-  for _ in $(seq 20); do
-    hyprctl clients -j | jq -e 'any(.[]; .class == "torus-dropdown")' > /dev/null && break
+project_dir() {
+  local pid=$1 dir k
+  dir=$(readlink "$proc/$pid/cwd" 2> /dev/null || true)
+  if [[ -z $dir || $dir == "$HOME" || $dir == / ]]; then
+    for k in $(cat "$proc/$pid"/task/*/children 2> /dev/null); do
+      [[ $(cat "$proc/$k/comm" 2> /dev/null) == kitten ]] && continue
+      dir=$(readlink "$proc/$k/cwd" 2> /dev/null) && break
+    done
+  fi
+  [[ -n $dir && -d $dir && $dir != / ]] || dir=$HOME
+  git -C "$dir" rev-parse --show-toplevel 2> /dev/null || echo "$dir"
+}
+
+if [[ ${1:-} != --project ]]; then
+  if ! hyprctl clients -j | jq -e 'any(.[]; .class == "torus-dropdown")' > /dev/null; then
+    setsid -f kitty --class torus-dropdown > /dev/null 2>&1
+    for _ in $(seq 20); do
+      hyprctl clients -j | jq -e 'any(.[]; .class == "torus-dropdown")' > /dev/null && break
+      sleep 0.1
+    done
+  fi
+  hyprctl eval 'hl.dispatch(hl.dsp.workspace.toggle_special("term"))' > /dev/null
+  exit 0
+fi
+
+active=$(hyprctl activewindow -j 2> /dev/null || echo '{}')
+class=$(jq -r '.class // ""' <<< "$active")
+if [[ $class == torus-dropdown-* ]]; then
+  hyprctl eval "hl.dispatch(hl.dsp.workspace.toggle_special(\"sc-${class#torus-dropdown-}\"))" > /dev/null
+  exit 0
+fi
+dir=$(project_dir "$(jq -r '.pid // 0' <<< "$active")")
+slug=$(basename "$dir" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9-\n' '-' | cut -c1-32)
+[[ $dir == "$HOME" ]] && slug=home
+if ! hyprctl clients -j | jq -e --arg c "torus-dropdown-$slug" 'any(.[]; .class == $c)' > /dev/null; then
+  hyprctl eval "hl.exec_cmd([==[kitty --class torus-dropdown-$slug --title [$slug] --directory '${dir//\'/\'\\\'\'}']==], { workspace = \"special:sc-$slug silent\", float = true, size = \"(monitor_w*0.75) (monitor_h*0.60)\", move = \"(monitor_w*0.125) (monitor_h*0.08)\" })" > /dev/null
+  for _ in $(seq "${TORUS_DROPDOWN_WAIT:-30}"); do
+    hyprctl clients -j | jq -e --arg c "torus-dropdown-$slug" 'any(.[]; .class == $c)' > /dev/null && break
     sleep 0.1
   done
 fi
-hyprctl eval 'hl.dispatch(hl.dsp.workspace.toggle_special("term"))' > /dev/null
+hyprctl eval "hl.dispatch(hl.dsp.workspace.toggle_special(\"sc-$slug\"))" > /dev/null

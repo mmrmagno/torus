@@ -49,6 +49,9 @@ assert_eq 1 "$(grep -c 'gtk-launch zen' "$STUB_LOG")" "zen launched once"
 grep -q 'exec_cmd' "$STUB_LOG" && fail "restore runs once per login"
 
 : > "$STUB_LOG"
+: > "$STUB_LOG"
+HYPRLAND_INSTANCE_SIGNATURE=race "$T" restore & HYPRLAND_INSTANCE_SIGNATURE=race "$T" restore & HYPRLAND_INSTANCE_SIGNATURE=race "$T" restore; wait
+assert_eq 1 "$(grep -c 'kitty --directory /home/me/music' "$STUB_LOG")" "parallel restores at login reopen once"
 HYPRLAND_INSTANCE_SIGNATURE=login2 "$T" restore
 grep -q 'kitty --directory /home/me/music' "$STUB_LOG" || fail "next login restores again"
 

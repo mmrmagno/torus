@@ -14,6 +14,8 @@ Item {
     property bool open: false
     property bool cardHovered: false
     property bool available: true
+    property int cardEdges: Edges.Bottom
+    property int cardGravity: Edges.Bottom
     signal clicked
     signal rightClicked
     signal middleClicked
@@ -62,6 +64,18 @@ Item {
         }
     }
 
+    property bool keep: false
+    onOpenChanged: if (!open && Theme.motion > 0) {
+        keep = true
+        keepTimer.restart()
+    }
+
+    Timer {
+        id: keepTimer
+        interval: Theme.durFast + 60
+        onTriggered: root.keep = false
+    }
+
     Timer {
         id: openTimer
         interval: 300
@@ -75,12 +89,12 @@ Item {
     }
 
     LazyLoader {
-        active: root.open
+        active: root.open || root.keep
         PopupWindow {
             anchor.item: root
             anchor.rect: Qt.rect(0, 0, root.width, root.height + 12)
-            anchor.edges: Edges.Bottom
-            anchor.gravity: Edges.Bottom
+            anchor.edges: root.cardEdges
+            anchor.gravity: root.cardGravity
             implicitWidth: frame.width
             implicitHeight: frame.height
             color: "transparent"
@@ -94,15 +108,12 @@ Item {
                 color: Qt.alpha(Theme.mantle, 0.94)
                 border.width: 1
                 border.color: Qt.alpha(Theme.accent, 0.35)
-                opacity: 0
-                scale: 0.97
                 transformOrigin: Item.Top
-                Component.onCompleted: {
-                    opacity = 1
-                    scale = 1
+                PanelMotion {
+                    target: frame
+                    shown: root.open
+                    from: 0.97
                 }
-                Behavior on opacity { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
-                Behavior on scale { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
 
                 Loader {
                     id: body

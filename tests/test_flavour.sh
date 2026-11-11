@@ -67,7 +67,8 @@ for f in mocha macchiato frappe latte; do
   assert_contains "$HOME/.config/Kvantum/torus/torus.kvconfig" "highlight.color=$(jq -r --arg a "$(cat "$S/accent")" '.[$a]' "$P/$f.json")"
   if [[ $f == mocha ]]; then
     assert_contains "$HOME/.config/Kvantum/kvantum.kvconfig" "theme=torus"
-    cmp -s "$REPO/home/.config/Kvantum/hyde-mocha/hyde-mocha.svg" "$HOME/.config/Kvantum/torus/torus.svg" || fail "mocha: kvantum keeps the HyDE look"
+    cmp -s <(sed -E 's/#[0-9a-fA-F]{6}/#c/g' "$REPO/home/.config/Kvantum/hyde-mocha/hyde-mocha.svg") <(sed -E 's/#[0-9a-fA-F]{6}/#c/g' "$HOME/.config/Kvantum/torus/torus.svg") || fail "mocha: kvantum keeps the HyDE look"
+    assert_eq "$(grep -o '#313244' "$REPO/home/.config/Kvantum/hyde-mocha/hyde-mocha.svg" | wc -l)" "$(grep -o '#313244' "$HOME/.config/Kvantum/torus/torus.svg" | wc -l)" "mocha: kvantum neutrals untouched"
   else
     assert_contains "$HOME/.config/Kvantum/kvantum.kvconfig" "theme=torus"
     assert_file "$HOME/.config/Kvantum/torus/torus.kvconfig"
@@ -89,9 +90,9 @@ assert_eq false "$(jq -r .dark "$S/theme/qs-colors.json")" "latte is light"
 assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3"
 grep -q 'gtk-theme adw-gtk3-dark' "$STUB_LOG" && fail "latte must not use the dark gtk theme"
 assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface color-scheme prefer-light"
-grep -q 'icon-theme Tela-circle$' "$STUB_LOG" || fail "latte uses the light icon theme"
+grep -q 'icon-theme Tela-circle-blue$' "$STUB_LOG" || fail "latte keeps the accent icon theme"
 assert_contains "$S/theme/gtk-settings.ini" "gtk-application-prefer-dark-theme=false"
-assert_contains "$S/theme/hyprtoolkit.conf" "icon_theme = Tela-circle"
+assert_contains "$S/theme/hyprtoolkit.conf" "icon_theme = Tela-circle-blue"
 assert_contains "$S/theme/kitty.conf" "color0 $(jq -r .subtext1 "$L")"
 assert_contains "$S/theme/kitty.conf" "color8 $(jq -r .subtext0 "$L")"
 assert_contains "$S/theme/kitty.conf" "color7 $(jq -r .surface2 "$L")"
@@ -100,7 +101,10 @@ assert_contains "$S/theme/kitty.conf" "background $(jq -r .base "$L")"
 assert_contains "$S/theme/delta.gitconfig" "dark = false"
 assert_contains "$S/theme/lazygit.yml" "delta --light"
 assert_contains "$S/theme/hyprlock-colors.conf" '$dim = 1.0'
+: > "$STUB_LOG"
 "$T" accent red > /dev/null
+assert_contains "$STUB_LOG" "icon-theme Tela-circle-red"
+assert_contains "$S/theme/kdeglobals" "Theme=Tela-circle-red"
 assert_eq latte "$("$T" flavour)" "accent keeps the flavour"
 assert_eq "$(jq -r .red "$L")" "$(jq -r .accent "$S/theme/qs-colors.json")" "accent uses the latte palette"
 "$T" accent blue > /dev/null
@@ -109,7 +113,7 @@ assert_eq "$(jq -r .red "$L")" "$(jq -r .accent "$S/theme/qs-colors.json")" "acc
 "$T" flavour mocha > /dev/null
 assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark"
 assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface color-scheme prefer-dark"
-assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface icon-theme Tela-circle-dracula"
+assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface icon-theme Tela-circle-blue"
 assert_contains "$S/theme/kitty.conf" "color0 #45475a"
 assert_contains "$S/theme/kitty.conf" "color15 #a6adc8"
 assert_contains "$S/theme/delta.gitconfig" 'minus-style = syntax "#53394c"'

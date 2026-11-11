@@ -13,7 +13,7 @@ Singleton {
     property bool shaders: true
     property bool perScreen: false
     readonly property var choices: [5, 15, 30, 60, 180, 1440]
-    readonly property bool paused: Store.locked || Fullscreen.any
+    readonly property bool paused: Store.locked || Fullscreen.any || Meeting.active
 
     function set(patch) {
         const d = Object.assign({ on: on, minutes: minutes, shuffle: shuffle, shaders: shaders, perScreen: perScreen }, patch)

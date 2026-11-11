@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Services.Pipewire
 import Quickshell.Io
+import Quickshell.Services.UPower
 import qs.services
 import Quickshell.Hyprland
 
@@ -22,6 +23,10 @@ IpcHandler {
 
     function barToggle(): void {
         Store.barHidden = !Store.barHidden
+    }
+
+    function reload(): void {
+        Quickshell.reload(false)
     }
 
     function reloadTheme(): void {
@@ -154,6 +159,10 @@ IpcHandler {
 
     function notifGroups(): string {
         return Notifs.groups.map(g => g.app + ":" + g.items.length).join(";")
+    }
+
+    function notifThreads(): string {
+        return Notifs.groups.map(g => g.app + ":" + g.threads.map(t => (t.notif.summary || "-") + "=" + (1 + t.earlier.length)).join(",")).join(";")
     }
 
     function notifCardsMade(): int {
@@ -305,6 +314,121 @@ IpcHandler {
         Commands.run(Commands.results[index])
     }
 
+    function paletteRunWith(index: int, how: string): void {
+        Commands.run(Commands.results[index], how)
+    }
+
+    function paletteRows(count: int): string {
+        return Commands.results.slice(0, count).map(r => (r.section ? r.section + "/" : "") + r.kind + ":" + r.title).join("|")
+    }
+
+    function paletteSections(): string {
+        const out = []
+        for (const r of Commands.results) {
+            const s = r.section || "-"
+            if (out.length > 0 && out[out.length - 1][0] === s)
+                out[out.length - 1][1]++
+            else
+                out.push([s, 1])
+        }
+        return out.map(x => x[0] + ":" + x[1]).join("|")
+    }
+
+    function paletteKeys(index: int): string {
+        const r = Commands.results[index]
+        return r ? [Commands.enterLabel(r), r.ctrl ? r.ctrl.label : "", r.alt ? r.alt.label : ""].join("|") : ""
+    }
+
+    function paletteSub(index: int): string {
+        const r = Commands.results[index]
+        return r ? r.sub || "" : ""
+    }
+
+    function devServers(): string {
+        return DevServers.servers.map(s => s.port + ":" + s.comm).join("|")
+    }
+
+    function devServersRefresh(): void {
+        DevServers.refresh()
+    }
+
+    function devServerStop(port: int): string {
+        const s = DevServers.find(port)
+        if (!s)
+            return "none"
+        DevServers.stop(s)
+        return "stopping " + s.pid
+    }
+
+    function containers(): string {
+        ContainerWatch.refresh()
+        return ContainerWatch.list.map(c => c.engine + ":" + c.name).join("|")
+    }
+
+    function containerAct(name: string, what: string): string {
+        const c = ContainerWatch.list.find(x => x.name === name)
+        if (!c)
+            return "none"
+        ContainerWatch.act(c, what)
+        return what + " " + c.engine + ":" + c.id
+    }
+
+    function controllers(): string {
+        return UPower.devices.values.filter(d => d.type === UPowerDeviceType.GamingInput).map(d => d.model + "=" + Math.round(d.percentage * 100)).join("|")
+    }
+
+    function gamesToggle(): void {
+        Store.toggle("games")
+    }
+
+    function githubState(): string {
+        return GitHub.status + ":" + GitHub.review.length + ":" + GitHub.mine.length + ":" + GitHub.failing.length + ":" + GitHub.wanted
+    }
+
+    function githubRefresh(): void {
+        GitHub.refresh()
+    }
+
+    function meetingState(): string {
+        return (Meeting.active ? "active" : "idle") + " auto=" + Meeting.autoOn + " mic=" + InUse.mic + " cam=" + InUse.cam + " dnd=" + Store.dnd
+    }
+
+    function overlayToggle(): void {
+        PerfOverlay.toggle()
+    }
+
+    function overlayState(): string {
+        return (PerfOverlay.on ? "on" : "off") + " installed=" + PerfOverlay.installed
+    }
+
+    function devicesWatched(): bool {
+        return DeviceWatch.startedAt > 0
+    }
+
+    function panelScreen(name: string): string {
+        const s = Store.screenFor(name)
+        return s ? s.name : ""
+    }
+
+    function setDnd(on: bool): void {
+        Store.dnd = on
+    }
+
+    function meetingNow(on: bool): void {
+        if (on)
+            Meeting.startNow()
+        else
+            Meeting.endNow()
+    }
+
+    function meetingAuto(on: bool): void {
+        Meeting.setAuto(on)
+    }
+
+    function paletteMode(): string {
+        return Commands.mode + ":" + Commands.term
+    }
+
     function altTabSize(): string {
         const a = Store.altTabber
         return a ? a.cols + ":" + a.rows + ":" + a.implicitWidth + ":" + a.implicitHeight + ":" + (a.screen ? a.screen.width + "x" + a.screen.height : "?") : ""
@@ -312,6 +436,7 @@ IpcHandler {
 
     function brightnessOsd(value: int): void {
         Island.flash("osd", { icon: "󰃟", label: value + "%", value: value / 100 }, 1600)
+        Store.sound("tick")
     }
 
     function stayAwake(on: bool): void {

@@ -25,10 +25,12 @@ case ${1:-toggle} in
     if pgrep -f 'gpu-screen-recorder .*-o .*/torus-' > /dev/null; then
       pkill -INT -f 'gpu-screen-recorder .*-o .*/torus-'
       : > "$state/recording"
+      "$(dirname "$(readlink -f "$0")")"/torus-sound play record-stop || true
       notify-send -a torus "Recording" "saved to $dir"
     else
       setsid -f sh -c 'date +%s > "$1"; shift; gpu-screen-recorder "$@"; : > "$0"' "$state/recording" "$state/recording" \
         -w portal -f 60 -a default_output -o "$dir/torus-$(date +%Y%m%d-%H%M%S).mp4" > /dev/null 2>&1
+      "$(dirname "$(readlink -f "$0")")"/torus-sound play record-start || true
       notify-send -a torus -u low "Recording" "started, SUPER+SHIFT+R to stop"
     fi
     ;;

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -uo pipefail
+export GIT_OPTIONAL_LOCKS=0 GIT_TERMINAL_PROMPT=0
+
+conf=${XDG_CONFIG_HOME:-$HOME/.config}/torus/projects
+roots=()
+if [[ -f $conf ]]; then
+  while IFS= read -r l; do
+    [[ -z ${l// /} || $l == \#* ]] && continue
+    roots+=("${l/#\~/$HOME}")
+  done < "$conf"
+fi
+((${#roots[@]})) || roots=("$HOME/dev")
+
+one() {
+  local d=$1 b n url
+  b=$(git -C "$d" symbolic-ref --quiet --short HEAD 2> /dev/null || git -C "$d" rev-parse --short HEAD 2> /dev/null) || return 0
+  n=$(timeout 3 git -C "$d" status --porcelain --ignore-submodules 2> /dev/null | wc -l) || n="?"
+  url=$(git -C "$d" config --get remote.origin.url 2> /dev/null || true)
+  url=${url%/}
+  url=${url%.git}
+  case $url in
+    https://* | http://*) url=${url#*://}; url=https://${url#*@} ;;
+    ssh://*) url=${url#ssh://}; url=${url#*@}; host=${url%%/*}; url=https://${host%%:*}/${url#*/} ;;
+    *@*:*) url=${url#*@}; url=https://${url%%:*}/${url#*:} ;;
+    *) url="" ;;
+  esac
+  printf '%s\t%s\t%s\t%s\n' "$d" "$b" "$n" "$url"
+}
+export -f one
+
+for r in "${roots[@]}"; do
+  [[ -d $r ]] || continue
+  find "$r/" -maxdepth 4 \( -name node_modules -o -name .cache -o -name vendor -o -name target -o -name .venv \) -prune -o -name .git -printf '%h\0' 2> /dev/null
+done | xargs -0 -r -P 8 -I{} bash -c 'one "$1"' _ {} | sed 's#//*#/#; s#^\(/[^\t]*\)/\t#\1\t#' | sort

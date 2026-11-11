@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+box=$(slurp -d -b 00000040 -c "${TORUS_RULER_COLOR:-b4befe}ff" -f '%w %h %x %y' 2> /dev/null) || exit 0
+read -r w h x y <<< "$box"
+size="${w}x${h}"
+printf '%s' "$size" | wl-copy
+qs -c torus ipc call torus islandFlash osd "$size  ·  at $x,$y  ·  copied" > /dev/null 2>&1 || notify-send -a torus "Ruler" "$size copied"
+echo "$size"

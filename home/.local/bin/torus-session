@@ -94,6 +94,9 @@ case ${1:-save} in
     is_on || exit 0
     [[ -s $file ]] || exit 0
     login=${HYPRLAND_INSTANCE_SIGNATURE:-}
+    mkdir -p "$state"
+    exec 9> "$state/session.restore.lock"
+    flock -n 9 || exit 0
     [[ -n $login && $(cat "$state/session.restored-in" 2> /dev/null) == "$login" ]] && exit 0
     echo "$login" > "$state/session.restored-in"
     cp "$file" "$state/session.restored.tsv"

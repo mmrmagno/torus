@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# usage: sudo torus-howdy setup [--sudo] | off | status
+set -euo pipefail
+R=${TORUS_ROOT:-}
+face=$R/etc/pam.d/torus-face
+sudo_pam=$R/etc/pam.d/sudo
+mark="# torus-howdy"
+
+module() {
+  local d
+  for d in "$R/usr/lib/security" "$R/lib/security" "$R/usr/lib64/security"; do
+    [[ -e $d/pam_howdy.so ]] && { echo "$d/pam_howdy.so"; return 0; }
+  done
+  return 1
+}
+
+case ${1:-status} in
+  status)
+    [[ -e $face ]] && echo "lock: on" || echo "lock: off"
+    grep -q "$mark" "$sudo_pam" 2> /dev/null && echo "sudo: on" || echo "sudo: off"
+    ;;
+  setup)
+    [[ -n $R || $EUID -eq 0 ]] || { echo "run with sudo" >&2; exit 1; }
+    module > /dev/null || { echo "pam_howdy.so not found: install howdy first (yay -S howdy-git), then sudo howdy add" >&2; exit 1; }
+    printf '#%%PAM-1.0\n%s\nauth       sufficient   pam_howdy.so\nauth       required     pam_deny.so\naccount    required     pam_unix.so\n' "$mark" > "$face.new"
+    chmod 644 "$face.new"
+    mv "$face.new" "$face"
+    echo "lock: face unlock on, the password still works"
+    if [[ ${2:-} == --sudo ]] && ! grep -q "$mark" "$sudo_pam"; then
+      cp -p "$sudo_pam" "$sudo_pam.torus-bak"
+      awk -v m="$mark" '!done && /^auth/ { print "auth       sufficient   pam_howdy.so " m; done = 1 } { print }' "$sudo_pam" > "$sudo_pam.new"
+      chmod --reference="$sudo_pam" "$sudo_pam.new"
+      mv "$sudo_pam.new" "$sudo_pam"
+      echo "sudo: face first, then the password"
+    fi
+    ;;
+  off)
+    [[ -n $R || $EUID -eq 0 ]] || { echo "run with sudo" >&2; exit 1; }
+    rm -f "$face"
+    if grep -q "$mark" "$sudo_pam" 2> /dev/null; then
+      grep -v "$mark" "$sudo_pam" > "$sudo_pam.new"
+      chmod --reference="$sudo_pam" "$sudo_pam.new"
+      mv "$sudo_pam.new" "$sudo_pam"
+    fi
+    echo "face unlock off"
+    ;;
+  *) echo "usage: sudo torus-howdy setup [--sudo] | off | status" >&2; exit 2 ;;
+esac

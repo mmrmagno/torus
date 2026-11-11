@@ -5,14 +5,33 @@ state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
 mkdir -p "$state"
 current=$(cat "$state/gamemode" 2> /dev/null || echo off)
 
+power_on() {
+  command -v powerprofilesctl > /dev/null || return 0
+  local now
+  now=$(powerprofilesctl get 2> /dev/null) || return 0
+  [[ -e $state/power-before ]] || echo "$now" > "$state/power-before"
+  [[ $now == performance ]] || powerprofilesctl set performance > /dev/null 2>&1 || true
+}
+
+power_off() {
+  [[ -e $state/power-before ]] || return 0
+  local was
+  was=$(cat "$state/power-before")
+  rm -f "$state/power-before"
+  command -v powerprofilesctl > /dev/null || return 0
+  [[ -n $was && $(powerprofilesctl get 2> /dev/null) == performance ]] && powerprofilesctl set "$was" > /dev/null 2>&1 || true
+}
+
 on() {
   echo "$1" > "$state/gamemode"
+  power_on
   hyprctl eval 'torus_gamemode_apply()' > /dev/null
   qs -c torus ipc call torus gamemode true > /dev/null 2>&1 || true
 }
 
 off() {
   echo off > "$state/gamemode"
+  power_off
   "$(dirname "$(readlink -f "$0")")"/torus-reload || true
   qs -c torus ipc call torus gamemode false > /dev/null 2>&1 || true
 }

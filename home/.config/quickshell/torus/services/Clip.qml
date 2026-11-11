@@ -44,12 +44,14 @@ Singleton {
             Quickshell.execDetached(["sh", "-c", "wl-copy < \"$1\"", "sh", pinDir + "/" + entry.file])
         else
             Quickshell.execDetached(["sh", "-c", "printf '%s\\n' \"$1\" | cliphist decode | wl-copy", "sh", entry.line])
+        Store.sound("tick")
         Store.setOpen("clip", false)
     }
 
     function togglePin(entry) {
         if (!entry)
             return
+        Store.sound("tick")
         if (entry.pinned) {
             pins = pins.filter(p => p.file !== entry.file)
             savePins()
@@ -70,6 +72,7 @@ Singleton {
     }
 
     function remove(entry) {
+        Store.sound("delete")
         if (entry.pinned) {
             togglePin(entry)
             return

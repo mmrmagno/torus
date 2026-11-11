@@ -19,17 +19,32 @@ current_flavour() {
   [[ " ${FLAVOURS[*]} " == *" $f "* ]] && echo "$f" || echo mocha
 }
 
+tela_of() {
+  case $1 in
+    rosewater | flamingo | pink) echo pink ;;
+    mauve) echo purple ;;
+    red | maroon) echo red ;;
+    peach) echo orange ;;
+    yellow) echo yellow ;;
+    green) echo green ;;
+    teal) echo manjaro ;;
+    sky | sapphire | blue) echo blue ;;
+    *) echo dracula ;;
+  esac
+}
+
 flavour_meta() {
+  ICON_THEME=Tela-circle-$(tela_of "${2:-$(current_accent)}")
   if [[ $1 == latte ]]; then
-    DARK=false GTK_THEME=adw-gtk3 COLOR_SCHEME=prefer-light ICON_THEME=Tela-circle
+    DARK=false GTK_THEME=adw-gtk3 COLOR_SCHEME=prefer-light
   else
-    DARK=true GTK_THEME=adw-gtk3-dark COLOR_SCHEME=prefer-dark ICON_THEME=Tela-circle-dracula
+    DARK=true GTK_THEME=adw-gtk3-dark COLOR_SCHEME=prefer-dark
   fi
 }
 
 sed_script() {
   local accent=$1 flavour=$2
-  flavour_meta "$flavour"
+  flavour_meta "$flavour" "$accent"
   jq -r --arg a "$accent" --arg f "$flavour" --arg dark "$DARK" --arg gtk "$GTK_THEME" --arg scheme "$COLOR_SCHEME" --arg icons "$ICON_THEME" '
     def h2d: ascii_downcase | explode | map(if . >= 97 then . - 87 else . - 48 end) | reduce .[] as $d (0; . * 16 + $d);
     def d2h: [(. / 16 | floor), (. % 16)] | map(if . < 10 then . + 48 else . + 87 end) | implode;
@@ -72,7 +87,7 @@ render() {
   for t in "$REPO"/theme/templates/*.tmpl; do
     sed "$script" "$t" > "$tmp/$(basename "$t" .tmpl)"
   done
-  local kv="" hex
+  local kv="" hex base dim
   if [[ $flavour == mocha && -f $REPO/home/.config/Kvantum/hyde-mocha/hyde-mocha.kvconfig ]]; then
     kv=$REPO/home/.config/Kvantum/hyde-mocha/hyde-mocha
   elif [[ -f $REPO/theme/kvantum/catppuccin-$flavour.kvconfig ]]; then
@@ -81,7 +96,9 @@ render() {
   if [[ -n $kv ]]; then
     hex=$(jq -r --arg a "$accent" '.[$a]' "$REPO/theme/$flavour.json")
     mkdir -p "$tmp/kvantum"
-    sed "$script" "$kv.svg" > "$tmp/kvantum/torus.svg"
+    base=$(jq -r .base "$REPO/theme/$flavour.json")
+    dim=$(printf '#%02x%02x%02x' $(((16#${hex:1:2} * 7 + 16#${base:1:2} * 3) / 10)) $(((16#${hex:3:2} * 7 + 16#${base:3:2} * 3) / 10)) $(((16#${hex:5:2} * 7 + 16#${base:5:2} * 3) / 10)))
+    sed "$script" "$kv.svg" | sed "s/#F5E0DC/$hex/Ig; s/#CBA6F7/$hex/Ig; s/#9670B0/$dim/Ig" > "$tmp/kvantum/torus.svg"
     sed "$script" "$kv.kvconfig" | sed -E "s/^((inactive\.)?highlight\.color|link\.color)=.*/\1=$hex/" > "$tmp/kvantum/torus.kvconfig"
   fi
   if [[ -d $STATE/theme ]]; then
@@ -116,7 +133,7 @@ link_configs() {
 
 apply_gsettings() {
   command -v gsettings > /dev/null || return 0
-  flavour_meta "$1"
+  flavour_meta "$1" "${2:-}"
   local g=org.gnome.desktop.interface
   gsettings set $g gtk-theme "$GTK_THEME" || true
   gsettings set $g color-scheme "$COLOR_SCHEME" || true
@@ -170,6 +187,7 @@ reload() {
   local accent=$1 flavour
   flavour=$(current_flavour)
   install_app_themes
+  "$(dirname "$SELF")/torus-mangohud" apply > /dev/null 2>&1 || true
   hyprctl eval "dofile('$STATE/theme/hypr-colors.lua')" > /dev/null 2>&1 || warn "hyprland not reachable, borders update on next login"
   qs -c torus ipc call torus reloadTheme > /dev/null 2>&1 || warn "shell not reachable"
   pkill -USR1 -x kitty || true
@@ -191,7 +209,15 @@ cmd_accent() {
   [[ " ${ACCENTS[*]} " == *" $accent "* ]] || { warn "unknown accent: $accent (one of: ${ACCENTS[*]})"; exit 2; }
   render "$accent"
   reload "$accent"
+  apply_gsettings "$(current_flavour)" "$accent"
   echo "accent: $accent"
+  after_note
+}
+
+after_note() {
+  echo "Qt apps already open (Dolphin) pick it up when restarted"
+  [[ -d ${TORUS_BOOT:-/boot}/grub/themes/marc-os ]] && echo "boot screens follow on the next: sudo ./install.sh --system"
+  return 0
 }
 
 cmd_flavour() {
@@ -213,6 +239,7 @@ cmd_flavour() {
     systemctl --user restart --no-block torus-shell.service > /dev/null 2>&1 || true
   fi
   echo "flavour: $flavour"
+  after_note
 }
 
 cmd_setup() {
@@ -248,6 +275,7 @@ cmd_setup() {
   for inc in "$HOME/.config/torus/delta.gitconfig" "$STATE/theme/delta.gitconfig"; do
     git config --global --get-all include.path 2> /dev/null | grep -qxF "$inc" || git config --global --add include.path "$inc"
   done
+  systemctl --user daemon-reload > /dev/null 2>&1 || true
   systemctl --user enable torus-shell.service > /dev/null 2>&1 || true
   systemctl --user enable --now torus-session-save.timer > /dev/null 2>&1 || true
   systemctl --user mask dunst.service > /dev/null 2>&1 || true

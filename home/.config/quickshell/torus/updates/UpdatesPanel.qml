@@ -70,7 +70,7 @@ PanelWindow {
                     Text { text: "󰮯"; color: Updates.count > 0 ? Theme.green : Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsTitle }
                     Text {
                         Layout.fillWidth: true
-                        text: Updates.checking ? "checking…" : (Updates.count > 0 ? Updates.count + (Updates.count === 1 ? " update" : " updates") : "everything is up to date")
+                        text: Updates.checking ? "Checking for updates…" : (Updates.count > 0 ? Updates.count + (Updates.count === 1 ? " update" : " updates") : "Everything is up to date")
                         color: Theme.text
                         font.family: Theme.fontUi
                         font.pixelSize: Theme.fsLg

@@ -428,6 +428,7 @@ PanelWindow {
                                                     }
                                                     root.armed = ""
                                                     Quickshell.execDetached(["rm", "-f", "--", p])
+                                                    Store.sound("delete")
                                                     root.items = root.items.filter(i => i.path !== p)
                                                 }
                                                 if (what === "copy")

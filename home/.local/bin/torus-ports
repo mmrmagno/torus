@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+ignore=" claude codebase-memory qemu-system-x86 steam steamwebhelper Discord discord Vesktop vesktop spotify kdeconnectd zen firefox chromium chrome syncthing ollama "
+conf=${XDG_CONFIG_HOME:-$HOME/.config}/torus/ports-ignore
+if [[ -f $conf ]]; then
+  while IFS= read -r l; do
+    [[ -z ${l// /} || $l == \#* ]] || ignore+="$l "
+  done < "$conf"
+fi
+
+list() {
+  local seen=" " state rq sq local peer proc comm pid port addr cwd cmd
+  while read -r state rq sq local peer proc; do
+    [[ $proc =~ users:\(\(\"([^\"]+)\",pid=([0-9]+) ]] || continue
+    comm=${BASH_REMATCH[1]} pid=${BASH_REMATCH[2]}
+    [[ -O /proc/$pid ]] || continue
+    comm=$(cat "/proc/$pid/comm" 2> /dev/null || echo "$comm")
+    [[ $ignore == *" $comm "* ]] && continue
+    port=${local##*:}
+    [[ $seen == *" $port "* ]] && continue
+    seen+="$port "
+    addr=${local%:*}
+    cwd=$(readlink "/proc/$pid/cwd" 2> /dev/null || true)
+    cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2> /dev/null | cut -c1-200)
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$port" "$pid" "$comm" "$cwd" "${cmd% }" "$addr"
+  done < <(ss -ltnpH 2> /dev/null) | sort -n -k1,1
+}
+
+case ${1:-list} in
+  list) list ;;
+  stop)
+    pid=${2:-}
+    [[ $pid =~ ^[0-9]+$ ]] || { echo "usage: torus-ports stop PID" >&2; exit 2; }
+    list | cut -f2 | grep -qx "$pid" || { echo "torus-ports: $pid is not a listening server of yours" >&2; exit 1; }
+    kill -TERM "$pid"
+    ;;
+  *) echo "usage: torus-ports [list] | stop PID" >&2; exit 2 ;;
+esac

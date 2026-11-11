@@ -254,8 +254,8 @@ Item {
         Text {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredHeight: 18
-            text: root.lock.message !== "" ? root.lock.message + (Island.caps ? "  ·  Caps Lock is on" : "") : (Island.caps ? "󰪛  Caps Lock is on" : "")
-            color: root.lock.message !== "" ? Theme.red : Theme.peach
+            text: root.lock.message !== "" ? root.lock.message + (Island.caps ? "  ·  Caps Lock is on" : "") : (Island.caps ? "󰪛  Caps Lock is on" : (root.lock.face === "looking" ? "󰄀  looking for you" : (root.lock.face === "missed" ? "󰄀  not recognized, type your password or press a key to retry" : "")))
+            color: root.lock.message !== "" ? Theme.red : (Island.caps ? Theme.peach : Theme.subtext)
             font.family: Theme.fontUi
             font.pixelSize: Theme.fsBase
         }

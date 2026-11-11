@@ -48,3 +48,5 @@ hl.config({
 })
 
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+hl.gesture({ fingers = 4, direction = "up", action = function() hl.exec_cmd("qs -c torus ipc call torus overviewToggle") end })
+hl.gesture({ fingers = 4, direction = "down", action = function() hl.exec_cmd("qs -c torus ipc call torus dashboardToggle") end })

@@ -9,6 +9,7 @@ PopupWindow {
     id: root
 
     required property Item anchorItem
+    property bool shown: true
     property var root_menu: null
     property var stack: []
     signal dismissed
@@ -38,6 +39,7 @@ PopupWindow {
     QsMenuOpener { id: level3; menu: root.stack.length > 2 ? root.stack[2] : null }
 
     Rectangle {
+        id: menuFrame
         anchors.fill: parent
         radius: 14
         color: Qt.alpha(Theme.mantle, 0.96)
@@ -46,11 +48,12 @@ PopupWindow {
         focus: true
         Keys.onEscapePressed: root.dismissed()
 
-        opacity: 0
-        scale: 0.96
-        Component.onCompleted: { opacity = 1; scale = 1; forceActiveFocus() }
-        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
-        Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.Top
+        Component.onCompleted: forceActiveFocus()
+        PanelMotion {
+            target: menuFrame
+            shown: root.shown
+        }
 
         ColumnLayout {
             anchors.fill: parent

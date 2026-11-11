@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+import glob
+import os
+import re
+
+home = os.path.expanduser("~")
+hosts, order = {}, []
+
+
+def parse(path, depth=0):
+    if depth > 5:
+        return
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return
+    cur = []
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.match(r"(\S+?)\s*(?:=|\s)\s*(.*)", line)
+        if not m:
+            continue
+        key, val = m.group(1).lower(), m.group(2).strip()
+        if key == "include":
+            for pat in val.split():
+                pat = os.path.expanduser(pat)
+                if not os.path.isabs(pat):
+                    pat = os.path.join(home, ".ssh", pat)
+                for inc in sorted(glob.glob(pat)):
+                    parse(inc, depth + 1)
+        elif key == "host":
+            cur = [h for h in val.split() if not any(c in h for c in "*?!")]
+            for h in cur:
+                if h not in hosts:
+                    hosts[h] = {}
+                    order.append(h)
+        elif key == "match":
+            cur = []
+        else:
+            for h in cur:
+                hosts[h].setdefault(key, val)
+
+
+parse(os.path.join(home, ".ssh", "config"))
+for h in order:
+    o = hosts[h]
+    print("\t".join([h, o.get("hostname", ""), o.get("user", ""), o.get("proxyjump", "")]))

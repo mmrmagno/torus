@@ -19,7 +19,15 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: Store.isOpen("clip") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+    readonly property var kinds: [["all", "All", "󰅌"], ["text", "Text", "󰦨"], ["link", "Links", "󰌹"], ["image", "Images", "󰋩"], ["color", "Colors", "󰏘"], ["code", "Code", "󰅩"]]
     property int keepIndex: -1
+
+    function cycleKind(d) {
+        const i = kinds.findIndex(k => k[0] === Clip.kindFilter)
+        Clip.kindFilter = kinds[(i + d + kinds.length) % kinds.length][0]
+        list.currentIndex = 0
+    }
+
     property string keep: ""
 
     function removeAt(i) {
@@ -54,12 +62,18 @@ PanelWindow {
     }
 
     Rectangle {
+        id: clipFrame
         PanelMotion {
             id: motion
-            target: parent
+            target: clipFrame
             shown: Store.isOpen("clip")
         }
-        anchors.fill: parent
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.min(root.implicitHeight, Math.max(220, 28 + list.y + (list.count === 0 ? 96 : list.contentHeight) + Theme.sp5 + footer.height))
+        Behavior on height { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.Top
         radius: 16
         color: Qt.alpha(Theme.base, Theme.glass)
         border.width: 1
@@ -107,6 +121,10 @@ PanelWindow {
                                 Clip.copy(Clip.shown[list.currentIndex])
                             else if (event.key === Qt.Key_Delete && Clip.shown.length > 0)
                                 root.removeAt(list.currentIndex)
+                            else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)))
+                                root.cycleKind(-1)
+                            else if (event.key === Qt.Key_Tab)
+                                root.cycleKind(1)
                             else if (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier) && Clip.shown.length > 0) {
                                 root.keep = Clip.shown[list.currentIndex].text || ""
                                 Clip.togglePin(Clip.shown[list.currentIndex])
@@ -118,16 +136,10 @@ PanelWindow {
                         Text {
                             visible: parent.text === ""
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "filter clipboard · enter copies · ctrl+p pins · del removes"
+                            text: "Search the clipboard"
                             color: Theme.overlay
                             font: parent.font
                         }
-                    }
-                    Text {
-                        text: Clip.shown.length
-                        color: Theme.overlay
-                        font.family: Theme.fontMono
-                        font.pixelSize: Theme.fsMd
                     }
                 }
             }
@@ -136,7 +148,7 @@ PanelWindow {
                 Layout.fillWidth: true
                 spacing: Theme.sp3
                 Repeater {
-                    model: [["all", "All", "󰅌"], ["text", "Text", "󰦨"], ["link", "Links", "󰌹"], ["image", "Images", "󰋩"], ["color", "Colors", "󰏘"], ["code", "Code", "󰅩"]]
+                    model: root.kinds
                     Rectangle {
                         required property var modelData
                         readonly property bool on: Clip.kindFilter === modelData[0]
@@ -183,13 +195,6 @@ PanelWindow {
                         anchors.margins: 8
                         anchors.leftMargin: 12
                         spacing: Theme.sp6
-                        Text {
-                            visible: row.modelData.pinned === true
-                            text: "󰐃"
-                            color: Theme.peach
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fsLg
-                        }
                         Rectangle {
                             visible: row.kind === "color"
                             Layout.preferredWidth: 28
@@ -262,6 +267,25 @@ PanelWindow {
                             textFormat: Text.PlainText
                         }
                         Text {
+                            visible: row.modelData.pinned === true || hover.hovered || pinHover.hovered || delHover.hovered || row.ListView.isCurrentItem
+                            text: "󰐃"
+                            color: row.modelData.pinned === true ? Theme.peach : (pinHover.hovered ? Theme.accent : Theme.overlay)
+                            font.family: Theme.fontMono
+                            font.pixelSize: Theme.fsLg
+                            MouseArea {
+                                id: pinHover
+                                readonly property bool hovered: containsMouse
+                                anchors.fill: parent
+                                anchors.margins: -6
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.keep = row.modelData.text || ""
+                                    Clip.togglePin(row.modelData)
+                                }
+                            }
+                        }
+                        Text {
                             text: "󰆴"
                             color: delHover.hovered ? Theme.red : Theme.overlay
                             font.family: Theme.fontMono
@@ -286,13 +310,48 @@ PanelWindow {
                     }
                 }
 
-                Text {
+                Column {
                     anchors.centerIn: parent
                     visible: list.count === 0
-                    text: Clip.entries.length === 0 ? "clipboard history is empty" : "no match"
+                    spacing: Theme.sp2
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: Clip.entries.length === 0 && Clip.pins.length === 0 ? "󰅌" : "󰍉"
+                        color: Theme.overlay
+                        font.family: Theme.fontMono
+                        font.pixelSize: 28
+                    }
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: Clip.entries.length === 0 && Clip.pins.length === 0 ? "Copy something and it shows up here" : "Nothing matches"
+                        color: Theme.subtext
+                        font.family: Theme.fontUi
+                        font.pixelSize: Theme.fsBase
+                    }
+                }
+            }
+
+            RowLayout {
+                id: footer
+                Layout.fillWidth: true
+                Layout.preferredHeight: 20
+                spacing: Theme.sp6
+                Repeater {
+                    model: [["↵", "copy"], ["Ctrl P", "pin"], ["Del", "remove"], ["Tab", "type"]]
+                    Row {
+                        id: hint
+                        required property var modelData
+                        spacing: Theme.sp2
+                        Keycap { text: hint.modelData[0]; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: hint.modelData[1]; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: Clip.shown.length + (Clip.shown.length === 1 ? " entry" : " entries")
                     color: Theme.overlay
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fsBase
+                    font.family: Theme.fontUi
+                    font.pixelSize: Theme.fsSm
                 }
             }
         }

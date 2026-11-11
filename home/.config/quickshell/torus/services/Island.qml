@@ -81,6 +81,7 @@ Singleton {
         flash("osd", { icon: "󰎆", label: name + "  " + Math.round(node.audio.volume * 100) + "%", value: node.audio.volume })
     }
 
+    readonly property bool watchingDevices: DeviceWatch.startedAt > 0
     readonly property var battery: UPower.displayDevice
     readonly property bool hasBattery: battery !== null && battery.isLaptopBattery
     readonly property bool charging: hasBattery && (battery.state === UPowerDeviceState.Charging || battery.state === UPowerDeviceState.FullyCharged || battery.state === UPowerDeviceState.PendingCharge)
@@ -109,6 +110,7 @@ Singleton {
         if (!hasBattery || !armed)
             return
         flash("osd", { icon: charging ? "󰂄" : "󰁹", label: (charging ? "Charging " : "On battery ") + Math.round(battery.percentage * 100) + "%", value: battery.percentage }, 2200)
+        Store.sound(charging ? "plug" : "unplug")
         batteryCheck()
     }
 
@@ -174,10 +176,14 @@ Singleton {
         function onVolumeChanged() {
             const a = Pipewire.defaultAudioSink.audio
             root.flash("osd", { icon: a.muted ? "󰝟" : "󰕾", label: Math.round(a.volume * 100) + "%", value: a.muted ? 0 : a.volume })
+            if (root.armed)
+                Store.sound("tick")
         }
         function onMutedChanged() {
             const a = Pipewire.defaultAudioSink.audio
             root.flash("osd", { icon: a.muted ? "󰝟" : "󰕾", label: a.muted ? "muted" : Math.round(a.volume * 100) + "%", value: a.muted ? 0 : a.volume })
+            if (root.armed && !a.muted)
+                Store.sound("tick")
         }
     }
 
@@ -186,6 +192,8 @@ Singleton {
         function onMutedChanged() {
             const a = Pipewire.defaultAudioSource.audio
             root.flash("osd", { icon: a.muted ? "󰍭" : "󰍬", label: a.muted ? "mic muted" : "mic on", value: -1 })
+            if (root.armed)
+                Store.sound("tick")
         }
     }
 
@@ -193,6 +201,8 @@ Singleton {
         target: Backlight
         function onPercentChanged() {
             root.flash("osd", { icon: "󰃟", label: Backlight.percent + "%", value: Backlight.percent / 100 })
+            if (root.armed)
+                Store.sound("tick")
         }
     }
 

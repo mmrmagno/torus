@@ -18,6 +18,7 @@ import qs.dashboard
 import qs.overview
 import qs.switcher
 import qs.cheatsheet
+import qs.games
 import qs.palette
 import qs.network
 import qs.updates
@@ -67,6 +68,7 @@ ShellRoot {
     CheatSheet {}
     ClipPanel {}
     CommandPanel {}
+    GameHub {}
     NetPanel {}
     UpdatesPanel {}
     AiPanel {}

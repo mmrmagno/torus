@@ -10,8 +10,8 @@ ColumnLayout {
     id: group
 
     required property string app
-    readonly property var entry: Notifs.groups.find(g => g.app === app) || ({ app: app, icon: "", items: [] })
-    readonly property bool open: entry.items.length < 3 || Notifs.expanded[entry.app] === true
+    readonly property var entry: Notifs.groups.find(g => g.app === app) || ({ app: app, icon: "", items: [], threads: [] })
+    readonly property bool open: entry.threads.length < 3 || Notifs.expanded[entry.app] === true
     readonly property bool muted: Notifs.muted[app] > Date.now()
     property bool muteMenu: false
     property bool leaving: false
@@ -68,7 +68,7 @@ ColumnLayout {
             }
         }
         PanelButton {
-            visible: group.entry.items.length >= 3
+            visible: group.entry.threads.length >= 3
             icon: group.open ? "󰅃" : "󰅀"
             onClicked: Notifs.toggleGroup(group.entry.app)
         }
@@ -111,10 +111,11 @@ ColumnLayout {
     }
 
     Repeater {
-        model: ScriptModel { values: group.open ? group.entry.items : group.entry.items.slice(0, 1) }
+        model: ScriptModel { values: group.open ? group.entry.threads : group.entry.threads.slice(0, 1) }
         NotifCard {
             required property var modelData
-            notif: modelData
+            notif: modelData.notif
+            earlier: modelData.earlier
             Layout.fillWidth: true
         }
     }
@@ -122,7 +123,7 @@ ColumnLayout {
     Text {
         visible: !group.open
         Layout.leftMargin: 4
-        text: "+" + (group.entry.items.length - 1) + " more"
+        text: "+" + (group.entry.threads.length - 1) + " more"
         color: Theme.overlay
         font.family: Theme.fontUi
         font.pixelSize: Theme.fsSm

@@ -18,4 +18,11 @@ hl.on("hyprland.start", function()
 	end
 	hl.exec_cmd("hyprctl setcursor Bibata-Modern-Ice 24")
 	hl.exec_cmd("sh -c 'sleep 8; torus-session restore'")
+	hl.exec_cmd("torus-displays apply")
 end)
+
+for _, ev in ipairs({ "monitor.added", "monitor.removed" }) do
+	hl.on(ev, function()
+		hl.exec_cmd("sh -c 'sleep 1; torus-displays apply --hotplug'")
+	end)
+end

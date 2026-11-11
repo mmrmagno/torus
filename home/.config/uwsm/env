@@ -10,3 +10,4 @@ export ELECTRON_OZONE_PLATFORM_HINT=auto
 export MOZ_ENABLE_WAYLAND=1
 export XCURSOR_SIZE=24
 [ -r "$HOME/.local/state/torus/theme/cursor.env" ] && . "$HOME/.local/state/torus/theme/cursor.env"
+command -v mangohud > /dev/null && export MANGOHUD=1 MANGOHUD_CONFIGFILE="$HOME/.local/state/torus/mangohud.conf"

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# usage: torus-crash save|notify|list|last
+set -uo pipefail
+dir=${XDG_CACHE_HOME:-$HOME/.cache}/torus/crashes
+
+newest() { ls -1t "$dir"/*.log 2> /dev/null | head -1; }
+
+case ${1:-list} in
+  save)
+    [[ ${SERVICE_RESULT:-success} == success ]] && exit 0
+    sig=${HYPRLAND_INSTANCE_SIGNATURE:-$(ls -t "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/hypr" 2> /dev/null | head -1)}
+    HYPRLAND_INSTANCE_SIGNATURE=$sig hyprctl monitors > /dev/null 2>&1 || exit 0
+    mkdir -p -m 700 "$dir"
+    f=$dir/$(date +%Y%m%d-%H%M%S).log
+    {
+      echo "result: ${SERVICE_RESULT:-?} ${EXIT_CODE:-} ${EXIT_STATUS:-}"
+      echo "== shell"
+      journalctl --user -u torus-shell.service -n 80 --no-pager -o short-iso
+      echo "== session"
+      journalctl --user -n 50 --no-pager -o short-iso
+    } > "$f" 2>&1
+    ls -1t "$dir"/*.log | tail -n +11 | xargs -r rm -f
+    echo "${SERVICE_RESULT:-?}" > "$dir/pending"
+    ;;
+  notify)
+    [[ -e $dir/pending ]] || exit 0
+    why=$(cat "$dir/pending")
+    rm -f "$dir/pending"
+    f=$(newest)
+    [[ -n $f ]] || exit 0
+    setsid -f sh -c '
+      sleep "${TORUS_CRASH_DELAY:-6}"
+      a=$(notify-send -a torus -i dialog-warning -w -A open="Open log" "The shell restarted after a crash" "It stopped with: $1. The log is in $2")
+      [ "$a" = open ] && exec kitty --title torus-crash less +G "$2"
+    ' sh "$why" "$f" > /dev/null 2>&1
+    ;;
+  list) ls -1t "$dir"/*.log 2> /dev/null ;;
+  last)
+    f=$(newest)
+    [[ -n $f ]] && cat "$f"
+    ;;
+  *) echo "usage: torus-crash save|notify|list|last" >&2; exit 2 ;;
+esac

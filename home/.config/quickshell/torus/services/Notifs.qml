@@ -126,6 +126,23 @@ Singleton {
     readonly property var list: server.trackedNotifications.values
     readonly property int count: list.length
     property var expanded: ({})
+    function threads(items) {
+        const out = []
+        const byKey = {}
+        for (const n of items) {
+            const k = (n.summary || "").trim()
+            if (k !== "" && byKey[k]) {
+                byKey[k].earlier.push(n)
+                continue
+            }
+            const t = { notif: n, earlier: [] }
+            if (k !== "")
+                byKey[k] = t
+            out.push(t)
+        }
+        return out
+    }
+
     readonly property var groups: {
         const order = []
         const byApp = {}
@@ -140,6 +157,8 @@ Singleton {
             }
             byApp[k].items.push(n)
         }
+        for (const g of order)
+            g.threads = threads(g.items)
         return order
     }
 
@@ -183,7 +202,28 @@ Singleton {
         return m < 1 ? "now" : m < 60 ? m + " min" : Math.floor(m / 60) + " h"
     }
 
+    property real lastSound: 0
+    readonly property var ownSound: /^(nm-applet|networkmanager|discord|vesktop|webcord|armcord|signal|telegram|slack|teams|microsoft teams|element|whatsapp|zapzap|steam|thunderbird|spotify)/i
+
+    function playFor(n) {
+        if (!Store.sounds || Store.dnd || Store.gamemode)
+            return
+        const h = n.hints || {}
+        if (h["suppress-sound"] === true || n.urgency === NotificationUrgency.Low)
+            return
+        if (ownSound.test(n.appName || "") || ownSound.test(n.desktopEntry || ""))
+            return
+        const recent = Object.values(Store.soundAt).reduce((a, b) => Math.max(a, b), 0)
+        if (Date.now() - lastSound < 1500 || Date.now() - recent < 1000)
+            return
+        lastSound = Date.now()
+        const ev = h["sound-file"] ? "file:" + h["sound-file"] : (h["sound-name"] ? "name:" + h["sound-name"] : (n.urgency === NotificationUrgency.Critical ? "critical" : "notify"))
+        Quickshell.execDetached(["torus-sound", "play", ev])
+    }
+
     function clearAll() {
+        if (list.length > 0)
+            Store.sound("delete")
         for (const n of list.slice())
             n.dismiss()
         popups = []
@@ -260,6 +300,7 @@ Singleton {
                 n.closed.connect(() => root.dismissPopup(n))
                 return
             }
+            root.playFor(n)
             const loud = n.urgency === NotificationUrgency.Critical || n.actions.length > 0
             const quiet = Store.dnd || Store.gamemode
             if (!loud && !quiet && !recent)

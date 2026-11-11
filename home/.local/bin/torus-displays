@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+STATE=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+db=$STATE/displays.json
+
+mons() { hyprctl monitors all -j 2> /dev/null; }
+key() { jq -r '[.[] | if .description == "" then .name else .description end] | sort | join(" + ")' <<< "$1"; }
+load() { [[ -s $db ]] && cat "$db" || echo '{}'; }
+
+case ${1:-list} in
+  save)
+    m=$(mons) || { echo "hyprland not reachable" >&2; exit 1; }
+    k=$(key "$m")
+    entry=$(jq -c '[.[] | {out: (if .description == "" then .name else "desc:" + .description end), mode: "\(.width)x\(.height)@\(.refreshRate * 1000 | round / 1000)", position: "\(.x)x\(.y)", scale, transform, disabled}]' <<< "$m")
+    mkdir -p "$STATE"
+    load | jq --arg k "$k" --argjson e "$entry" '.[$k] = $e' > "$db.new" && mv "$db.new" "$db"
+    echo "saved: $k"
+    ;;
+  apply)
+    m=$(mons) || exit 0
+    k=$(key "$m")
+    prof=$(load | jq -c --arg k "$k" '.[$k] // empty')
+    if [[ -z $prof ]]; then
+      echo "unknown: $k"
+      if [[ ${2:-} == --hotplug ]] && ! grep -qxF "$k" "$STATE/displays.seen" 2> /dev/null; then
+        mkdir -p "$STATE"; echo "$k" >> "$STATE/displays.seen"
+        notify-send -a torus -i video-display "New set of screens" "Arrange them, then run Save display layout in SUPER+Space and torus puts them back like this every time." 2> /dev/null || true
+      fi
+      exit 0
+    fi
+    lua=$(jq -r '.[] | if .disabled then "hl.monitor({ output = \"\(.out)\", disabled = true })" else "hl.monitor({ output = \"\(.out)\", mode = \"\(.mode)\", position = \"\(.position)\", scale = \(.scale), transform = \(.transform) })" end' <<< "$prof")
+    hyprctl eval "$lua" > /dev/null
+    echo "applied: $k"
+    ;;
+  list) load | jq -r 'to_entries[] | "\(.key)  (\(.value | length) screens)"' ;;
+  forget)
+    m=$(mons) || exit 1
+    k=$(key "$m")
+    load | jq --arg k "$k" 'del(.[$k])' > "$db.new" && mv "$db.new" "$db"
+    echo "forgot: $k"
+    ;;
+  current) key "$(mons)" ;;
+  tsv)
+    cur=$(key "$(mons)" 2> /dev/null || true)
+    load | jq -r --arg c "$cur" 'to_entries[] | [.key, (.value | length), (if .key == $c then "current" else "" end)] | @tsv'
+    ;;
+  use)
+    k=${2:?usage: torus-displays use KEY}
+    prof=$(load | jq -c --arg k "$k" '.[$k] // empty')
+    [[ -n $prof ]] || { echo "no layout: $k" >&2; exit 1; }
+    hyprctl eval "$(jq -r '.[] | if .disabled then "hl.monitor({ output = \"\(.out)\", disabled = true })" else "hl.monitor({ output = \"\(.out)\", mode = \"\(.mode)\", position = \"\(.position)\", scale = \(.scale), transform = \(.transform) })" end' <<< "$prof")" > /dev/null
+    echo "applied: $k"
+    ;;
+  drop)
+    k=${2:?usage: torus-displays drop KEY}
+    load | jq --arg k "$k" 'del(.[$k])' > "$db.new" && mv "$db.new" "$db"
+    echo "forgot: $k"
+    ;;
+  *) echo "usage: torus-displays save|apply [--hotplug]|list|tsv|use KEY|drop KEY|forget|current" >&2; exit 2 ;;
+esac

@@ -22,10 +22,62 @@ Scope {
     property bool awake: true
     property bool releasing: false
     property bool fading: false
+    property bool faceReady: false
+    property string face: ""
 
     function poke() {
         awake = true
         nap.restart()
+        if (face === "missed")
+            faceStart()
+    }
+
+    function faceStart() {
+        if (!faceReady || busy || face === "looking" || !Store.locked || releasing || fading)
+            return
+        face = "looking"
+        console.info("lock: looking for a face")
+        if (!facePam.start())
+            face = ""
+    }
+
+    function succeed() {
+        fails = 0
+        message = ""
+        face = ""
+        if (facePam.active)
+            facePam.abort()
+        // a hyprlock stacked under this lock gets the session back and never sees the keyboard again
+        Quickshell.execDetached(["pkill", "-USR1", "-x", "hyprlock"])
+        fading = true
+        fadeOut.restart()
+    }
+
+    Process {
+        id: faceProbe
+        command: ["test", "-e", "/etc/pam.d/torus-face"]
+        onExited: code => {
+            root.faceReady = code === 0
+            if (root.faceReady)
+                root.faceStart()
+        }
+    }
+
+    PamContext {
+        id: facePam
+        config: "torus-face"
+        onPamMessage: if (responseRequired) respond("")
+        onCompleted: result => {
+            console.info("lock: face check " + PamResult.toString(result))
+            if (result === PamResult.Success && Store.locked && !root.fading)
+                root.succeed()
+            else
+                root.face = "missed"
+        }
+        onError: error => {
+            console.warn("lock: face check error " + PamError.toString(error))
+            root.face = "missed"
+        }
     }
 
     Timer {
@@ -70,6 +122,7 @@ Scope {
     }
 
     function failed(text) {
+        Store.sound("error")
         busy = false
         attempt = ""
         fails++
@@ -163,12 +216,7 @@ Scope {
         onCompleted: result => {
             console.info("lock: PAM finished, " + PamResult.toString(result))
             if (result === PamResult.Success) {
-                root.fails = 0
-                root.message = ""
-                // a hyprlock stacked under this lock gets the session back and never sees the keyboard again
-                Quickshell.execDetached(["pkill", "-USR1", "-x", "hyprlock"])
-                root.fading = true
-                fadeOut.restart()
+                root.succeed()
                 return
             }
             if (result === PamResult.MaxTries || root.fails >= 2)
@@ -198,6 +246,9 @@ Scope {
         attempt = ""
         queued = false
         busy = false
+        face = ""
+        if (facePam.active)
+            facePam.abort()
         cleanup.running = true
     }
 
@@ -251,9 +302,13 @@ Scope {
         }
         onSecureStateChanged: {
             console.info("lock: compositor " + (secure ? "confirmed the lock" : "dropped the lock"))
+            Store.sound(secure ? "lock" : "unlock")
             Store.lockSecure = secure
-            if (secure)
+            if (secure) {
                 watchdog.stop()
+                root.face = ""
+                faceProbe.running = true
+            }
         }
         WlSessionLockSurface {
             id: surface

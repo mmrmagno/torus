@@ -9,6 +9,8 @@ OnFailure=torus-shell-rescue.service
 [Service]
 ExecStart=/bin/sh -c 'export HYPRLAND_INSTANCE_SIGNATURE="$${HYPRLAND_INSTANCE_SIGNATURE:-$$(ls -t "$XDG_RUNTIME_DIR/hypr" | head -1)}" WAYLAND_DISPLAY="$${WAYLAND_DISPLAY:-wayland-1}"; exec /usr/bin/qs -c torus'
 ExecStopPost=-/bin/sh -c 'HYPRLAND_INSTANCE_SIGNATURE="$${HYPRLAND_INSTANCE_SIGNATURE:-$$(ls -t "$XDG_RUNTIME_DIR/hypr" | head -1)}" hyprctl monitors > /dev/null 2>&1 && systemctl --user is-active --quiet graphical-session.target && systemctl --user start --no-block hyprpolkitagent.service'
+ExecStopPost=-%h/.local/bin/torus-crash save
+ExecStartPost=-%h/.local/bin/torus-crash notify
 Restart=on-failure
 RestartSec=1
 

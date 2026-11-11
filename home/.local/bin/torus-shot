@@ -58,6 +58,7 @@ case ${1:-s} in
     ;;
 esac
 [[ -f $file ]] && wl-copy < "$file"
+[[ -f $file ]] && { "$(dirname "$(readlink -f "$0")")"/torus-sound play shot || true; }
 if ! qs -c torus ipc call torus screenshotShow "$file" > /dev/null 2>&1; then
   satty --filename "$file" --output-filename "$file" --early-exit --copy-command wl-copy &
 fi

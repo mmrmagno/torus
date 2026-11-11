@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+flag=${XDG_STATE_HOME:-$HOME/.local/state}/torus/sounds
+dir=${TORUS_SOUNDS:-/usr/share/sounds/freedesktop/stereo}
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/torus/sounds
+
+asleep() {
+  local sink
+  sink=$(pactl get-default-sink 2> /dev/null) || return 1
+  pactl list sinks short 2> /dev/null | awk -v s="$sink" '$2 == s { print $NF }' | grep -qx SUSPENDED
+}
+
+# A sleeping DAC swallows the start of a short sound, so give it a silent lead-in to wake up.
+play() {
+  local src=$1 vol=$2 out
+  if asleep && command -v ffmpeg > /dev/null; then
+    out=$cache/$(basename "$src" .oga)-lead.wav
+    [[ -s $out ]] || { mkdir -p "$cache"; ffmpeg -loglevel quiet -y -i "$src" -af "adelay=350:all=1" "$out" < /dev/null || out=$src; }
+    src=$out
+  fi
+  setsid -f pw-play --volume "$vol" "$src" > /dev/null 2>&1 < /dev/null
+}
+
+case ${1:-status} in
+  on | off) mkdir -p "$(dirname "$flag")"; echo "$1" > "$flag"; echo "$1" ;;
+  status) [[ $(cat "$flag" 2> /dev/null) == on ]] && echo on || echo off ;;
+  play)
+    [[ $(cat "$flag" 2> /dev/null) == on ]] || exit 0
+    case ${2:-} in
+      open) f=audio-volume-change v=0.35 ;;
+      lock) f=service-logout v=0.5 ;;
+      unlock) f=service-login v=0.5 ;;
+      shot) f=camera-shutter v=0.6 ;;
+      tick) f=audio-volume-change v=0.3 ;;
+      device-in) f=device-added v=0.5 ;;
+      device-out) f=device-removed v=0.5 ;;
+      error) f=dialog-error v=0.45 ;;
+      online) f=network-connectivity-established v=0.45 ;;
+      offline) f=network-connectivity-lost v=0.45 ;;
+      plug) f=power-plug v=0.5 ;;
+      unplug) f=power-unplug v=0.5 ;;
+      delete) f=trash-empty v=0.5 ;;
+      record-start) f=device-added v=0.5 ;;
+      record-stop) f=device-removed v=0.5 ;;
+      notify) f=message-new-instant v=0.45 ;;
+      critical) f=dialog-warning v=0.55 ;;
+      name:*) f=${2#name:} v=0.5; [[ $f =~ ^[a-z0-9-]+$ ]] || exit 2 ;;
+      file:*)
+        p=${2#file:}
+        [[ -f $p && $p == /* ]] || exit 0
+        play "$p" 0.5
+        exit 0
+        ;;
+      *) exit 2 ;;
+    esac
+    [[ -f $dir/$f.oga ]] || exit 0
+    play "$dir/$f.oga" "$v"
+    ;;
+  *) echo "usage: torus-sound on|off|status|play open|lock|unlock|shot|tick|device-in|device-out|error|online|offline|plug|unplug|delete|record-start|record-stop|notify|critical|name:NAME|file:PATH" >&2; exit 2 ;;
+esac

@@ -31,6 +31,13 @@ Singleton {
     property var altTabber: null
     property bool donutPaused: false
     property bool locked: false
+
+    FileView {
+        path: root.stateDir + "/sounds"
+        blockLoading: true
+        printErrors: false
+        onLoaded: root.sounds = text().trim() === "on"
+    }
     readonly property var widgetModes: ["landscape", "all", "off"]
     property string widgets: "landscape"
     property var widgetsOn: ({})
@@ -128,8 +135,8 @@ Singleton {
     property var screenOf: ({})
     property var pendingScreen: null
 
-    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview"]
-    readonly property var exclusive: ["palette", "clip", "ai", "logout", "cheatsheet", "overview"]
+    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games", "dashboard"]
+    readonly property var exclusive: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games"]
     property var activeScreen: null
     property bool moving: false
 
@@ -138,6 +145,21 @@ Singleton {
     }
 
     onFocusedScreenChanged: {
+        if (Object.keys(open).some(k => open[k] === true && stayPut.indexOf(k) < 0))
+            dwell.restart()
+        else
+            activeScreen = focusedScreen
+    }
+
+    Timer {
+        id: dwell
+        interval: 400
+        onTriggered: root.follow()
+    }
+
+    function follow() {
+        if (activeScreen === focusedScreen)
+            return
         const any = Object.keys(open).some(k => open[k] === true && stayPut.indexOf(k) < 0)
         if (!any || !activeScreen || Theme.motion === 0) {
             activeScreen = focusedScreen
@@ -167,7 +189,32 @@ Singleton {
         pendingScreen = null
     }
 
+    property bool sounds: false
+
+    property var soundAt: ({})
+
+    function sound(ev) {
+        if (!sounds)
+            return
+        const now = Date.now()
+        if (now - (soundAt[ev] || 0) < (ev === "tick" ? 110 : 400))
+            return
+        const a = Object.assign({}, soundAt)
+        a[ev] = now
+        soundAt = a
+        Quickshell.execDetached(["torus-sound", "play", ev])
+    }
+
+    function setSounds(on) {
+        sounds = on
+        Quickshell.execDetached(["torus-sound", on ? "on" : "off"])
+        if (on)
+            Quickshell.execDetached(["sh", "-c", "sleep 0.2; torus-sound play unlock"])
+    }
+
     function setOpen(name, value) {
+        if (value && open[name] !== true && sounds)
+            sound("open")
         if (value && open[name] !== true) {
             const so = Object.assign({}, screenOf)
             if (pendingScreen)

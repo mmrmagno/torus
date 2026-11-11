@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+STATE=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+flag=$STATE/mangohud
+out=$STATE/mangohud.conf
+
+on() { [[ $(cat "$flag" 2> /dev/null) == on ]]; }
+apply() {
+  [[ -f $STATE/theme/mangohud.conf ]] || return 0
+  { cat "$STATE/theme/mangohud.conf"; on || echo no_display; } > "$out.new"
+  cat "$out.new" > "$out"
+  rm -f "$out.new"
+}
+
+case ${1:-status} in
+  on | off) mkdir -p "$STATE"; echo "$1" > "$flag"; apply ;;
+  toggle) mkdir -p "$STATE"; if on; then echo off > "$flag"; else echo on > "$flag"; fi; apply ;;
+  apply) apply; exit 0 ;;
+  status) on && echo on || echo off; exit 0 ;;
+  *) echo "usage: torus-mangohud on|off|toggle|status|apply" >&2; exit 2 ;;
+esac
+on && echo on || echo off

@@ -19,6 +19,16 @@ Row {
             id: icon
             required property var modelData
             property bool menuOpen: false
+            property bool menuKeep: false
+            onMenuOpenChanged: if (!menuOpen && Theme.motion > 0) {
+                menuKeep = true
+                menuTimer.restart()
+            }
+            Timer {
+                id: menuTimer
+                interval: Theme.durFast + 60
+                onTriggered: icon.menuKeep = false
+            }
             implicitSize: 14
             anchors.verticalCenter: parent.verticalCenter
             source: modelData.icon
@@ -43,9 +53,10 @@ Row {
             }
 
             LazyLoader {
-                active: icon.menuOpen
+                active: icon.menuOpen || icon.menuKeep
                 TrayMenu {
                     anchorItem: icon
+                    shown: icon.menuOpen
                     root_menu: icon.modelData.menu
                     onDismissed: icon.menuOpen = false
                 }

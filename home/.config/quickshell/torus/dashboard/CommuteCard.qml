@@ -10,6 +10,16 @@ Card {
 
     title: "commute"
     implicitHeight: body.implicitHeight + 44
+    property real smoothHeight: implicitHeight
+    onEditingChanged: reveal.restart()
+    SequentialAnimation {
+        id: reveal
+        PropertyAction { target: body; property: "opacity"; value: 0 }
+        PauseAnimation { duration: Theme.durMed }
+        NumberAnimation { target: body; property: "opacity"; to: 1; duration: Theme.durFast; easing.type: Easing.OutCubic }
+    }
+    Behavior on smoothHeight { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+    clip: true
     property bool editing: false
     property int expanded: -1
     readonly property var trips: Commute.configured ? Commute.connections : []
@@ -118,6 +128,30 @@ Card {
                 wrapMode: Text.Wrap
             }
             PanelButton { label: "Set up"; icon: "󰒓"; onClicked: card.edit() }
+        }
+
+        ColumnLayout {
+            id: tripsEmpty
+            Layout.fillWidth: true
+            visible: !card.editing && Commute.configured && card.first === null
+            spacing: Theme.sp2
+            readonly property bool down: Commute.result.stale === true || Commute.result.ok === false
+            Text {
+                Layout.fillWidth: true
+                text: tripsEmpty.down ? "󰖪  The timetable service is not answering" : (Commute.busy ? "󰔟  Looking up the next trains…" : "No connections in the next hours")
+                color: Theme.text
+                font.family: Theme.fontUi
+                font.pixelSize: Theme.fsBase
+            }
+            Text {
+                Layout.fillWidth: true
+                visible: tripsEmpty.down
+                text: "transport.opendata.ch is unreachable right now. torus tries again every minute while the dashboard is open; the SBB link below always works."
+                wrapMode: Text.Wrap
+                color: Theme.subtext
+                font.family: Theme.fontUi
+                font.pixelSize: Theme.fsSm
+            }
         }
 
         Rectangle {
@@ -241,7 +275,7 @@ Card {
 
         Text {
             Layout.fillWidth: true
-            visible: !card.editing && Commute.configured && (Commute.result.message || "") !== ""
+            visible: !card.editing && Commute.configured && (Commute.result.message || "") !== "" && !tripsEmpty.down
             text: Commute.result.message || ""
             color: Commute.result.stale ? Theme.overlay : Theme.peach
             font.family: Theme.fontUi

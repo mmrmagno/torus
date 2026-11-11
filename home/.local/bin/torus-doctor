@@ -9,6 +9,7 @@ export HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE:-$(ls -t "$RUN/
 
 fails=0
 fix=0
+shell_new=0
 if [[ -t 1 ]]; then G=$'\e[32m' R=$'\e[31m' Y=$'\e[33m' D=$'\e[2m' N=$'\e[0m'; else G="" R="" Y="" D="" N=""; fi
 
 ok() { printf '  %sok%s    %-10s %s\n' "$G" "$N" "$1" "$2"; }
@@ -25,27 +26,49 @@ check_shell() {
     else
       bad shell "torus-shell.service is not running"
     fi
-    ((fix)) && systemctl --user reset-failed torus-shell.service 2> /dev/null && systemctl --user start torus-shell.service && did shell "started"
+    ((fix)) && systemctl --user reset-failed torus-shell.service 2> /dev/null && systemctl --user start torus-shell.service && shell_new=1 && did shell "started"
     return
   fi
   if [[ -z $(ipc isLocked) ]]; then
     bad shell "running but not answering IPC"
-    ((fix)) && systemctl --user restart torus-shell.service && did shell "restarted"
+    ((fix)) && systemctl --user restart torus-shell.service && shell_new=1 && did shell "restarted"
     return
   fi
   ok shell "running, answers IPC"
 }
 
+relock() {
+  local i
+  ((shell_new)) || systemctl --user restart torus-shell.service
+  for ((i = 0; i < ${TORUS_RELOCK_TRIES:-40}; i++)); do
+    [[ $(ipc isLocked) == true ]] && { did lock "the shell holds the lock again"; return; }
+    pgrep -x hyprlock > /dev/null && { did lock "hyprlock holds the lock"; return; }
+    sleep 0.5
+  done
+  setsid -f hyprlock > /dev/null 2>&1
+  did lock "the shell did not lock again, hyprlock took over"
+}
+
+check_crashes() {
+  local n
+  n=$(find "${XDG_CACHE_HOME:-$HOME/.cache}/torus/crashes" -name '*.log' -mmin -1440 2> /dev/null | wc -l)
+  ((n == 0)) && ok crashes "no shell crash in the last day" || note crashes "$n shell crash(es) in the last day, torus-crash last shows the newest"
+}
+
 check_lock() {
-  local secure hyprlock marker
+  local secure hyprlock marker owner
   secure=$(ipc isLocked)
   pgrep -x hyprlock > /dev/null && hyprlock=1 || hyprlock=0
   [[ -e $RUN/torus-lock/locked ]] && marker=1 || marker=0
   pgrep -x hypridle > /dev/null || bad lock "hypridle is not running, the screen never locks on idle"
   command -v hyprlock > /dev/null || bad lock "hyprlock missing, there is no fallback lock screen"
-  if ((marker)) && [[ $secure != true ]] && ((!hyprlock)); then
-    bad lock "lock marker left but nothing holds the lock"
+  owner=$( ((marker)) && cat "$RUN/torus-lock/locked" 2> /dev/null)
+  if ((marker)) && [[ $secure != true ]] && ((!hyprlock)) && [[ -n $owner && $owner != "$HYPRLAND_INSTANCE_SIGNATURE" ]]; then
+    bad lock "lock marker left by an earlier login"
     ((fix)) && rm -f "$RUN/torus-lock/locked" && did lock "removed the stale marker"
+  elif ((marker)) && [[ $secure != true ]] && ((!hyprlock)); then
+    bad lock "locked but nothing draws the lock screen (the purple screen)"
+    ((fix)) && relock
   elif ((marker || hyprlock)); then
     ok lock "locked ($([[ $secure == true ]] && echo shell || echo hyprlock))"
   else
@@ -159,16 +182,48 @@ check_guard() {
   fi
 }
 
+reload_shell() {
+  local t
+  t=$(date +%s)
+  ipc reload > /dev/null || true
+  sleep "${TORUS_RELOAD_WAIT:-3}"
+  if journalctl --user -u torus-shell --since "@$t" --no-pager -o cat 2> /dev/null | grep -q 'Failed to load configuration'; then
+    systemctl --user restart torus-shell.service
+    echo restarted
+  else
+    echo reloaded
+  fi
+}
+
+check_fresh() {
+  local pid started newest dir=$HOME/.config/quickshell/torus
+  pid=$(systemctl --user show -p MainPID --value torus-shell.service 2> /dev/null)
+  [[ -n $pid && $pid != 0 && -d $dir ]] || return
+  started=$(journalctl --user -u torus-shell _PID="$pid" --no-pager -o short-unix 2> /dev/null | grep 'Configuration Loaded' | tail -1 | cut -d. -f1)
+  [[ -n $started ]] || started=$(date -d "$(ps -o lstart= -p "$pid" 2> /dev/null)" +%s 2> /dev/null) || return
+  newest=$(find -L "$dir" -type f \( -name '*.qml' -o -name '*.mjs' -o -name '*.js' \) -printf '%T@\n' 2> /dev/null | sort -n | tail -1)
+  newest=${newest%.*}
+  if [[ -n $newest ]] && ((newest > started + 2)); then
+    note fresh "the shell runs older code than the repo (a git pull does not reload it), --fix reloads"
+    ((fix)) && did fresh "$(reload_shell)"
+  else
+    ok fresh "the shell runs the code in the repo"
+  fi
+}
+
 check_journal() {
   local n pid
   pid=$(systemctl --user show -p MainPID --value torus-shell.service 2> /dev/null)
   [[ -n $pid && $pid != 0 ]] || return
-  n=$(journalctl --user -u torus-shell _PID="$pid" --since "-1 hour" --no-pager -o cat 2> /dev/null |
-    grep -E 'WARN|ERROR' | grep -cvE 'dmabuf|dbus\.properties|textinput|portal|objectmanager|qt\.svg')
+  local since
+  since=$(journalctl --user -u torus-shell _PID="$pid" --no-pager -o short-unix 2> /dev/null | grep 'Configuration Loaded' | tail -1 | cut -d. -f1)
+  ((since > $(date +%s) - 3600)) || since=$(($(date +%s) - 3600))
+  n=$(journalctl --user -u torus-shell _PID="$pid" --since "@$since" --no-pager -o cat 2> /dev/null |
+    grep -E 'WARN|ERROR' | grep -cvE 'dmabuf|dbus\.properties|textinput|portal|objectmanager|qt\.svg|NotifIcon\.qml.*Cannot open')
   if ((n > 0)); then
-    note journal "$n warnings from the running shell in the last hour (journalctl --user -u torus-shell _PID=$pid)"
+    note journal "$n warnings since the shell last loaded its config (journalctl --user -u torus-shell _PID=$pid)"
   else
-    ok journal "no warnings from the running shell"
+    ok journal "no warnings since the shell last loaded its config"
   fi
 }
 
@@ -201,11 +256,14 @@ run_checks() {
   check_packages
   check_state
   check_units
+  check_fresh
   check_journal
+  check_crashes
 }
 
 case ${1:-} in
   --snapshot) snapshot; exit 0 ;;
+  --reload-shell) reload_shell; exit 0 ;;
   --fix) fix=1 ;;
   "") ;;
   *) echo "usage: torus doctor [--fix | --snapshot]" >&2; exit 2 ;;

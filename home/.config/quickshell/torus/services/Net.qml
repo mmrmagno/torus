@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs
 
 Singleton {
     id: root
@@ -9,6 +10,8 @@ Singleton {
     property string type: "none"
     property string name: ""
     readonly property bool online: type !== "none"
+    property bool known: false
+    onOnlineChanged: if (known) Store.sound(online ? "online" : "offline")
 
     Process {
         id: proc
@@ -25,6 +28,7 @@ Singleton {
                 }
                 root.type = found ? found.t : "none"
                 root.name = found ? found.c : ""
+                root.known = true
             }
         }
     }

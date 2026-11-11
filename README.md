@@ -11,7 +11,7 @@ My own Arch + Hyprland setup: Catppuccin everywhere, Mocha by default.
 | ![Dashboard with weather, system stats, sound mixer and calendar](screenshots/dashboard.webp) | ![Command palette on SUPER+Space](screenshots/palette.webp) |
 | The dashboard: weather, stats, a sound mixer per app, calendar | SUPER+Space: apps, windows, actions, calc, files, notes, passwords |
 | ![Grouped notifications with media controls](screenshots/notifications.webp) | ![Lock screen with the donut and now playing](screenshots/lock.webp) |
-| Notifications, grouped per app, repeats folded into one | The lock screen, with what is playing right under the password |
+| Notifications, grouped per app and per conversation, repeats folded into one | The lock screen, with what is playing right under the password |
 | ![An ASCII X-wing as the wallpaper](screenshots/xwing.webp) | ![fastfetch with the donut logo](screenshots/fetch.webp) |
 | An X-wing, because why not | fastfetch, with a donut that spins for a second |
 | ![Alt-tab with live previews](screenshots/alttab.webp) | ![Keybind cheat sheet with search](screenshots/cheatsheet.webp) |
@@ -38,12 +38,27 @@ with it. I want a setup I own end to end.
 ## What it does
 
 - A Quickshell shell: bar, dashboard, notifications, a dynamic island for music and alerts, lock screen.
-- SUPER+Space: apps, windows, calc, files, notes, emoji and Proton Pass in one box.
+- SUPER+Space: one box for apps, windows, math, paths and links, no prefixes to remember. Tab steps through the scopes, `?` lists them, and Proton Pass only answers in its own.
+- `d` in SUPER+Space: every git repo under `~/dev` with its branch and how much is dirty. Enter opens a terminal there, Ctrl+Enter nvim, Alt+Enter the repo page.
+- `s` in SUPER+Space: the hosts from `~/.ssh/config`, Enter connects in kitty, the ones I use most come first.
+- A dev pill in the bar that only shows up when it has something: my dev servers (hover for port, folder and command, click opens, the square stops), running Docker or podman containers (logs, restart, stop, also `c` in SUPER+Space) and GitHub.
+- A controller pill with its battery, only while a controller is connected.
+- SUPER+Shift+G: my Steam games as covers, last played first, with playtime; type to filter, Enter plays.
+- SUPER+Shift+M measures an area: drag a box and its size lands in the clipboard as `WxH`.
+- Optional UI sounds (off unless I turn them on in SUPER+Space): a soft click for panels, chimes on lock and unlock, a shutter for screenshots, start and stop for recordings, a trash sound when I delete something, a tick for volume, brightness and mic, network, charger and USB device chimes (the island names the keyboard, mouse or drive), an error tone for a wrong password, and a ding for notifications from apps that have no sound of their own.
+- Display layouts per set of screens: arrange them once, "Save display layout" in SUPER+Space (type "display" to see the saved ones), and they come back that way whenever that set is plugged in (desk at work, desk at home, laptop alone).
+- Face unlock on the laptop (Howdy, IR camera): the lock looks for me as soon as it locks, a key retries, the password always works. `sudo torus-howdy setup --sudo` turns it on for sudo too, `off` puts everything back.
+- Touchpad: three fingers sideways switch workspaces, four fingers up open the overview, down the dashboard.
+- kitty tells me when a command over 30 s finishes while I am in another window, with its exit status.
+- A GitHub chip that only shows up when something wants me: review requests, my pull requests with red CI, a failing main branch. `gh ` in SUPER+Space lists them all.
+- SUPER+` drops down a terminal in the project of the window I am in, one per project, kept around when hidden.
+- Meeting mode: when an app has my mic and my camera or a screen share, notifications wait and the slideshow pauses until the call ends.
+- A performance overlay for games (MangoHud in my colors), on and off from SUPER+Space; the GPU chip shows load and heat while I play.
 - The donut drawn on the GPU, tinted by the time of day and the album art. Or an X-wing.
-- A clipboard with pins, a mixer per app, Wi-Fi and Bluetooth, updates with Arch news, my calendar.
+- A clipboard with pins (Tab steps through text, links, images, colors and code, Del removes, Ctrl+P pins), a mixer per app, Wi-Fi and Bluetooth, updates with Arch news, my calendar.
 - My next trains home or to work at the bottom of the dashboard, and a heads-up at 18:30 on workdays. Two addresses in `~/.config/torus/commute.json` (`"evening"` and `"morning"` set or turn off the heads-ups), timetable from [transport.opendata.ch](https://transport.opendata.ch).
 - Window rules from SUPER+Space, and my apps back on their workspaces after a reboot.
-- `torus doctor` checks the whole setup (`--fix` repairs the safe things, `--snapshot` saves evidence from a TTY), `torus ipc` lists and calls every shell action, and a small safe-mode bar takes over if the shell keeps crashing.
+- `torus doctor` checks the whole setup (`--fix` repairs the safe things, `--snapshot` saves evidence from a TTY), `torus ipc` lists and calls every shell action, and a small safe-mode bar takes over if the shell keeps crashing. A crash leaves its log in `~/.cache/torus/crashes` and tells me on the next start.
 - One flavor (Mocha, Macchiato, Frappe, Latte) and one accent color that every app follows: `torus flavor latte`, `torus accent blue`.
 
 ## Keys I use the most
@@ -53,6 +68,7 @@ with it. I want a setup I own end to end.
 | SUPER+Space | command palette |
 | SUPER+A | apps |
 | SUPER+V | clipboard |
+| SUPER+` | terminal in this project |
 | SUPER+O | overview, then a number to jump |
 | SUPER+/ | cheat sheet |
 | SUPER+F12 | focus timer |

@@ -52,9 +52,11 @@ Item {
         }
         onPressed: mouse => set(mouse.x)
         onPositionChanged: mouse => { if (pressed) set(mouse.x) }
+        onReleased: Store.sound("tick")
         onWheel: wheel => {
             if (root.audio)
                 root.audio.volume = Math.max(0, Math.min(1.5, root.audio.volume + (wheel.angleDelta.y > 0 ? 0.05 : -0.05)))
+            Store.sound("tick")
         }
     }
 }

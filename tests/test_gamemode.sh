@@ -28,3 +28,19 @@ assert_eq on "$(mode)" "still on"
 "$G"
 assert_eq off "$(mode)" "manual toggle off"
 grep -q 'notify-send .*Game mode' "$STUB_LOG" || fail "manual toggles say so"
+
+printf '#!/usr/bin/env bash\necho "powerprofilesctl $*" >> "$STUB_LOG"\nf=$XDG_STATE_HOME/pp; [[ $1 == get ]] && { cat "$f" 2> /dev/null || echo balanced; exit 0; }; [[ $1 == set ]] && echo "$2" > "$f"\n' > "$F/bin/powerprofilesctl"
+chmod +x "$F/bin/powerprofilesctl"
+echo power-saver > "$XDG_STATE_HOME/pp"
+"$G" auto-on
+assert_eq performance "$(cat "$XDG_STATE_HOME/pp")" "a game switches to performance"
+"$G" auto-off
+assert_eq power-saver "$(cat "$XDG_STATE_HOME/pp")" "and back to what it was"
+echo performance > "$XDG_STATE_HOME/pp"
+"$G" auto-on; "$G" auto-off
+assert_eq performance "$(cat "$XDG_STATE_HOME/pp")" "already performance stays performance"
+echo balanced > "$XDG_STATE_HOME/pp"
+"$G" auto-on
+echo power-saver > "$XDG_STATE_HOME/pp"
+"$G" auto-off
+assert_eq power-saver "$(cat "$XDG_STATE_HOME/pp")" "a profile I picked during the game is kept"

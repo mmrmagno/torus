@@ -11,9 +11,11 @@ export HYPRLAND_INSTANCE_SIGNATURE
 QS=(qs -c torus ipc call torus)
 
 passed=0 total=0
+awake() { "${QS[@]}" stayAwake true > /dev/null 2>&1 || true; }
 section() {
   local name=$1 result=$2 detail=$3
   total=$((total + 1))
+  awake
   if [[ $result == ok ]]; then
     passed=$((passed + 1))
     echo "$name: ok $detail"
@@ -42,7 +44,7 @@ check_binds() {
   fi
 }
 
-BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates privacy tray clipboard menu notifications power"
+BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates privacy servers github containers controller tray clipboard menu notifications power"
 
 check_bar() {
   local out screens bad=""
@@ -379,17 +381,21 @@ check_look() {
   accent=$(~/.local/bin/torus accent)
   [[ $(gsettings get $g gtk-theme) == "'adw-gtk3-dark'" ]] || bad+="gtk-theme "
   [[ $(gsettings get $g cursor-theme) == "'Bibata-Modern-Ice'" ]] || bad+="cursor "
-  [[ $(gsettings get $g icon-theme) == "'Tela-circle-dracula'" ]] || bad+="icons "
-  grep -q "theme=hyde-mocha" ~/.config/Kvantum/kvantum.kvconfig || bad+="kvantum "
-  [[ -f ~/.config/Kvantum/hyde-mocha/hyde-mocha.svg ]] || bad+="kvantum-theme-missing "
+  local icons hex; icons=$(sed -n 's/^Theme=//p' ~/.config/kdeglobals)
+  [[ $icons == Tela-circle-* && $(gsettings get $g icon-theme) == "'$icons'" ]] || bad+="icons "
+  hex=$(jq -r .accent ~/.local/state/torus/theme/qs-colors.json)
+  grep -qiE '#(F5E0DC|9670B0)' ~/.config/Kvantum/torus/torus.svg && bad+="kvantum-hyde-accent "
+  grep -qi "$hex" ~/.config/Kvantum/torus/torus.svg || bad+="kvantum-no-accent "
+  grep -q "theme=torus" ~/.config/Kvantum/kvantum.kvconfig || bad+="kvantum "
+  [[ -f ~/.config/Kvantum/torus/torus.svg ]] || bad+="kvantum-theme-missing "
   [[ -d /usr/share/icons/Bibata-Modern-Ice || -d ~/.local/share/icons/Bibata-Modern-Ice ]] || bad+="cursor-theme-missing "
-  [[ -d /usr/share/icons/Tela-circle-dracula || -d ~/.local/share/icons/Tela-circle-dracula ]] || bad+="icon-theme-missing "
+  [[ -d /usr/share/icons/$icons || -d ~/.local/share/icons/$icons ]] || bad+="icon-theme-missing "
   local ff; ff=$(fastfetch --pipe false 2> /dev/null || true); grep -q 'marc' <<< "$ff" && grep -q '@@@@' <<< "$ff" || bad+="fastfetch-donut "
   git config --global --get-all include.path | grep -q torus/delta.gitconfig || bad+="delta "
   systemctl --user is-enabled torus-shell.service > /dev/null 2>&1 || bad+="shell-unit "
   [[ $(systemctl --user is-enabled dunst.service 2>&1) == masked ]] || bad+="dunst-not-masked "
   pacman -Q swaync > /dev/null 2>&1 && bad+="swaync-installed "
-  if [[ -z $bad ]]; then section look ok "gtk, qt, cursor, icons, fastfetch donut, delta, shell unit, dunst masked (accent $accent)"; else section look fail "$bad"; fi
+  if [[ -z $bad ]]; then section look ok "gtk, qt with the accent in kvantum, cursor, $icons icons, fastfetch donut, delta, shell unit, dunst masked (accent $accent)"; else section look fail "$bad"; fi
 }
 
 wait_lock() {
@@ -654,8 +660,486 @@ check_palette() {
   "${QS[@]}" paletteToggle > /dev/null; sleep 0.3
   [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == false ]] || bad+="still-open "
   [[ -z $("${QS[@]}" paletteResults 2>/dev/null | tail -n 1) ]] || bad+="results-while-closed "
-  grep -qE '"(w|f|kb):' "${XDG_STATE_HOME:-$HOME/.local/state}/torus/palette.json" 2>/dev/null && bad+="remembers-windows-or-files "
+  jq -e 'keys | any(test("^(w|wa|p|pf|pn|ph|f:|rf:|kb:|help:)"))' "${XDG_STATE_HOME:-$HOME/.local/state}/torus/palette-frecency.json" > /dev/null 2>&1 && bad+="remembers-windows-files-or-pass "
   if [[ -z $bad ]]; then section palette ok "calc, apps, actions, kb, emoji, pass hint, closes"; else section palette fail "$bad"; fi
+}
+
+pal_wait() {
+  local want=$1 i r
+  for i in $(seq 25); do
+    r=$("${QS[@]}" paletteMode 2>/dev/null | tail -n 1)
+    [[ $r == "$want" ]] && return 0
+    sleep 0.2
+  done
+  echo "$r"
+  return 1
+}
+
+check_palette2() {
+  local bad="" r stub=~/.local/bin/pass-cli shot=/tmp/parity-palette.png
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == true ]] && "${QS[@]}" paletteToggle > /dev/null && sleep 0.4
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.6
+  wtype "kitt"; r=$(pal_wait "all:kitt") || bad+="typed[$r] "
+  r=$("${QS[@]}" paletteSections 2>/dev/null | tail -n 1)
+  [[ $r == *Apps:* ]] || bad+="sections[$r] "
+  wtype -k Tab; r=$(pal_wait "apps:kitt") || bad+="tab-apps[$r] "
+  wtype -k Tab; r=$(pal_wait "files:kitt") || bad+="tab-files[$r] "
+  wtype -M shift -k Tab -m shift; r=$(pal_wait "apps:kitt") || bad+="backtab-apps[$r] "
+  wtype -M shift -k Tab -m shift; r=$(pal_wait "all:kitt") || bad+="backtab-all[$r] "
+  wtype -k F1; r=$(pal_wait "kb:") || bad+="f1-help[$r] "
+  r=$("${QS[@]}" paletteRows 40 2>/dev/null | tail -n 1)
+  [[ $r == "Scopes, Enter jumps there/help:Apps"*help:Proton\ Pass* ]] || bad+="help-rows[$r] "
+  wtype -k BackSpace; r=$(pal_wait "all:") || bad+="backspace-all[$r] "
+  wtype "2*21"; r=$(pal_wait "all:2*21") || bad+="typed-math[$r] "
+  for _ in $(seq 20); do [[ $("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1) == Calculator/calc:42 ]] && break; sleep 0.2; done
+  r=$("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1)
+  [[ $r == Calculator/calc:42 ]] || bad+="math[$r] "
+  grim -o "$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')" "$shot" 2> /dev/null
+  "${QS[@]}" paletteQuery "#ff8800" > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1)
+  [[ $r == "color:#ff8800" ]] || bad+="hex[$r] "
+  r=$("${QS[@]}" paletteKeys 0 2>/dev/null | tail -n 1)
+  [[ $r == "copy hex|copy rgb|copy hsl" ]] || bad+="hex-keys[$r] "
+  "${QS[@]}" paletteRunWith 0 ctrl > /dev/null; sleep 0.5
+  [[ $(wl-paste -n 2>/dev/null) == "rgb(255, 136, 0)" ]] || bad+="hex-ctrl[$(wl-paste -n 2>/dev/null)] "
+  mkdir -p ~/parity-dir/inner
+  "${QS[@]}" paletteQuery "~/parity-d" > /dev/null
+  for _ in $(seq 20); do [[ $("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1) == Files/* ]] && break; sleep 0.2; done
+  r=$("${QS[@]}" paletteRows 2 2>/dev/null | tail -n 1)
+  [[ $r == "Files/folder:parity-dir/"* ]] || bad+="path[$r] "
+  "${QS[@]}" paletteRun 0 > /dev/null
+  r=$(pal_wait "all:~/parity-dir/") || bad+="path-go-in[$r] "
+  for _ in $(seq 20); do [[ $("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1) == *inner* ]] && break; sleep 0.2; done
+  [[ $("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1) == "Files/folder:inner/" ]] || bad+="path-list[$("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1)] "
+  rm -rf ~/parity-dir
+  "${QS[@]}" paletteQuery "github.com/mmrmagno/torus" > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1)
+  [[ $r == "Open/url:https://github.com/mmrmagno/torus" ]] || bad+="url[$r] "
+  "${QS[@]}" paletteQuery "kitty.conf" > /dev/null; sleep 0.3
+  [[ $("${QS[@]}" paletteRows 40 2>/dev/null | tail -n 1) != *url:* ]] || bad+="url-false-positive "
+  [[ -e $stub && ! -L $stub && $(head -c 40 "$stub") != *parity* ]] && bad+="real-pass-cli "
+  printf '#!/usr/bin/env bash\n# parity stub\ncase "$1 $2" in\n  "vault list") echo "- [SID_A==]: Personal" ;;\n  "item list") echo "- [IID_1==]: github.com (state=Active)" ;;\nesac\n' > "$stub"; chmod +x "$stub"
+  "${QS[@]}" paletteQuery "p git" > /dev/null
+  for _ in $(seq 25); do [[ $("${QS[@]}" paletteResults 2>/dev/null | tail -n 1) == pass:github.com* ]] && break; sleep 0.2; done
+  [[ $("${QS[@]}" paletteResults 2>/dev/null | tail -n 1) == pass:github.com* ]] || bad+="pass-scope "
+  "${QS[@]}" paletteQuery "github" > /dev/null; sleep 0.3
+  [[ $("${QS[@]}" paletteRows 40 2>/dev/null | tail -n 1) != *pass:* ]] || bad+="pass-in-all "
+  "${QS[@]}" paletteQuery "" > /dev/null; sleep 0.3
+  [[ $("${QS[@]}" paletteRows 40 2>/dev/null | tail -n 1) != *pass:* ]] || bad+="pass-in-empty-state "
+  rm -f "$stub"
+  "${QS[@]}" paletteQuery "keybind cheat" > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1)
+  [[ $r == "Actions/action:Keybind cheat sheet" ]] || bad+="action-row[$r] "
+  "${QS[@]}" paletteRun 0 > /dev/null; sleep 0.5
+  [[ $("${QS[@]}" isOpen cheatsheet 2>/dev/null | tail -n 1) == true ]] && "${QS[@]}" cheatSheetToggle > /dev/null 2>&1
+  "${QS[@]}" paletteQuery "" > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteRows 40 2>/dev/null | tail -n 1)
+  [[ $r == *"Frequent/action:Keybind cheat sheet"* ]] || bad+="frecent[$r] "
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.3
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == false ]] || bad+="still-open "
+  wl-copy --clear
+  if [[ -z $bad ]]; then section palette2 ok "sections, Tab scopes, F1 help, math/hex/path/url without prefixes, pass only in its scope, frecent empty state"; else section palette2 fail "$bad"; fi
+}
+
+check_projects() {
+  local bad="" r d=~/dev/parity-proj
+  rm -rf "$d"; mkdir -p "$d"
+  git -C "$d" init -q -b parity-branch && git -C "$d" -c user.email=p@example.invalid -c user.name=p commit -q --allow-empty -m init
+  git -C "$d" remote add origin git@github.com:someone/parity-proj.git
+  echo dirty > "$d/new.txt"
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == true ]] && "${QS[@]}" paletteToggle > /dev/null && sleep 0.4
+  "${QS[@]}" paletteToggle > /dev/null; sleep 1
+  "${QS[@]}" paletteQuery "d parity" > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteRows 1 2>/dev/null | tail -n 1)
+  [[ $r == "project:parity-proj" ]] || bad+="project[$r] "
+  r=$("${QS[@]}" paletteSub 0 2>/dev/null | tail -n 1)
+  [[ $r == *parity-branch*"1 changed"* ]] || bad+="branch-dirty[$r] "
+  r=$("${QS[@]}" paletteKeys 0 2>/dev/null | tail -n 1)
+  [[ $r == "terminal|nvim|repo page" ]] || bad+="project-keys[$r] "
+  "${QS[@]}" paletteQuery "parity-pro" > /dev/null; sleep 0.3
+  [[ $("${QS[@]}" paletteRows 40 2>/dev/null | tail -n 1) == *"Projects/project:parity-proj"* ]] || bad+="project-in-all "
+  pkill -x kitty; sleep 0.5
+  "${QS[@]}" paletteQuery "d parity" > /dev/null; sleep 0.3
+  "${QS[@]}" paletteRun 0 > /dev/null
+  for _ in $(seq 40); do hyprctl clients -j | jq -e 'any(.[]; .class == "kitty")' > /dev/null && break; sleep 0.25; done
+  sleep 1
+  r=$(for p in $(pgrep -x kitty); do for k in $(cat /proc/$p/task/*/children 2> /dev/null); do readlink /proc/$k/cwd; done; done | grep -c parity-proj)
+  ((r >= 1)) || bad+="kitty-not-in-project "
+  pkill -x kitty
+  rm -rf "$d"
+  if [[ -z $bad ]]; then section projects ok "d finds a dirty repo with its branch, also in All, Enter opens kitty in it"; else section projects fail "$bad"; fi
+}
+
+check_ssh() {
+  local bad="" r cfg=~/.ssh/config
+  mkdir -p -m 700 ~/.ssh
+  [[ -f $cfg ]] && cp "$cfg" /tmp/parity-ssh-config.bak
+  printf 'Host parity-host parity-alias\n  HostName parity.example\n  User tester\n  ProxyJump parity-jump\nHost *.wild\n  User x\n' >> "$cfg"
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == true ]] && "${QS[@]}" paletteToggle > /dev/null && sleep 0.4
+  "${QS[@]}" paletteToggle > /dev/null; sleep 1
+  "${QS[@]}" paletteQuery "s parity" > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteRows 2 2>/dev/null | tail -n 1)
+  [[ $r == "ssh:parity-alias|ssh:parity-host" || $r == "ssh:parity-host|ssh:parity-alias" ]] || bad+="hosts[$r] "
+  "${QS[@]}" paletteQuery "s parity-host" > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteSub 0 2>/dev/null | tail -n 1)
+  [[ $r == "tester@parity.example  ·  via parity-jump" ]] || bad+="sub[$r] "
+  "${QS[@]}" paletteQuery "s wild" > /dev/null; sleep 0.3
+  [[ -z $("${QS[@]}" paletteRows 5 2>/dev/null | tail -n 1) ]] || bad+="wildcard-listed "
+  "${QS[@]}" paletteQuery "parity-host" > /dev/null; sleep 0.3
+  [[ $("${QS[@]}" paletteRows 40 2>/dev/null | tail -n 1) == *"SSH/ssh:parity-host"* ]] || bad+="not-in-all "
+  "${QS[@]}" paletteQuery "s parity-host" > /dev/null; sleep 0.3
+  "${QS[@]}" paletteRunWith 0 ctrl > /dev/null; sleep 0.5
+  [[ $(wl-paste -n 2>/dev/null) == "ssh parity-host" ]] || bad+="copy[$(wl-paste -n 2>/dev/null)] "
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == false ]] || { bad+="still-open "; "${QS[@]}" paletteToggle > /dev/null; }
+  if [[ -f /tmp/parity-ssh-config.bak ]]; then mv /tmp/parity-ssh-config.bak "$cfg"; else rm -f "$cfg"; fi
+  wl-copy --clear
+  if [[ -z $bad ]]; then section ssh ok "s lists hosts from ~/.ssh/config (aliases, no wildcards), also in All, Ctrl+Enter copies the command"; else section ssh fail "$bad"; fi
+}
+
+check_servers() {
+  local bad="" r pid
+  (cd /tmp && exec python3 -m http.server 8765 --bind 127.0.0.1 > /dev/null 2>&1) &
+  pid=$!
+  for _ in $(seq 40); do
+    "${QS[@]}" devServersRefresh > /dev/null 2>&1; sleep 0.3
+    r=$("${QS[@]}" devServers 2>/dev/null | tail -n 1)
+    [[ $r == *8765:python3* ]] && break
+  done
+  [[ $r == *8765:python3* ]] || bad+="not-listed[$r] "
+  [[ $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8765/) == 200 ]] || bad+="server-not-up "
+  r=$("${QS[@]}" devServerStop 8765 2>/dev/null | tail -n 1)
+  [[ $r == "stopping $pid" ]] || bad+="stop[$r] "
+  for _ in $(seq 25); do kill -0 "$pid" 2> /dev/null || break; sleep 0.2; done
+  kill -0 "$pid" 2> /dev/null && { bad+="still-running "; kill "$pid"; }
+  for _ in $(seq 20); do
+    "${QS[@]}" devServersRefresh > /dev/null 2>&1; sleep 0.3
+    [[ $("${QS[@]}" devServers 2>/dev/null | tail -n 1) != *8765* ]] && break
+  done
+  [[ $("${QS[@]}" devServers 2>/dev/null | tail -n 1) != *8765* ]] || bad+="still-listed "
+  [[ $("${QS[@]}" devServerStop 1 2>/dev/null | tail -n 1) == none ]] || bad+="stops-unknown-port "
+  if [[ -z $bad ]]; then section servers ok "a python http.server shows up in the chip with its port, stop ends it"; else section servers fail "$bad"; fi
+}
+
+check_cmddone() {
+  local bad="" r
+  hyprctl eval 'hl.exec_cmd("kitty --class parity.cmd")' > /dev/null
+  for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity.cmd")' > /dev/null && break; sleep 0.2; done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity.cmd" }))' > /dev/null; sleep 2
+  wtype "sleep 31"; wtype -k Return; sleep 1
+  hyprctl eval 'hl.exec_cmd("kitty --class parity.other")' > /dev/null
+  for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity.other")' > /dev/null && break; sleep 0.2; done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity.other" }))' > /dev/null
+  sleep 34
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.5
+  "${QS[@]}" paletteQuery "n sleep 31" > /dev/null; sleep 0.3
+  r=$("${QS[@]}" paletteSub 0 2>/dev/null | tr '\n' ' ')
+  [[ $r == *"sleep 31 finished with status: 0"* ]] || bad+="no-notification[${r: -120}] "
+  "${QS[@]}" paletteToggle > /dev/null
+  pkill -f "kitty --class parity.(cmd|other)"
+  if [[ -z $bad ]]; then section cmddone ok "kitty reports a 31 s command that finished while unfocused"; else section cmddone fail "$bad"; fi
+}
+
+check_trust() {
+  local bad="" r crashes=${XDG_CACHE_HOME:-$HOME/.cache}/torus/crashes
+  [[ -n ${LOCK_PW:-} ]] || { section trust fail "LOCK_PW not set"; return; }
+  rm -rf "$crashes"
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  if locked_is true; then
+    systemctl --user stop torus-shell.service
+    sleep 2
+    pgrep -x hyprlock > /dev/null && bad+="hyprlock-on-clean-stop "
+    r=$(~/.local/bin/torus-doctor 2>&1)
+    grep -q 'purple screen' <<< "$r" || bad+="doctor-missed-purple "
+    local since; since=$(date '+%F %T')
+    r=$(~/.local/bin/torus-doctor --fix 2>&1)
+    grep -q 'holds the lock again' <<< "$r" || bad+="fix[$(grep lock <<< "$r" | tr -s ' ' | tr '\n' ';')] "
+    locked_is true || bad+="not-locked-after-fix "
+    pgrep -x hyprlock > /dev/null && { bad+="hyprlock-took-over "; pkill -USR1 -x hyprlock; }
+    journalctl --user -u torus-shell --since "$since" --no-pager -o cat | grep -q 'not confirmed after' && bad+="relock-not-confirmed "
+    [[ $(journalctl --user -u torus-shell --since "$since" --no-pager -o cat | grep -c 'Started torus shell') -le 1 ]] || bad+="restarted-twice "
+    sleep 2
+    type_pw "$LOCK_PW"
+    locked_is false || bad+="unlock-after-fix "
+  else
+    bad+="no-lock "
+  fi
+  [[ -z $(ls "$crashes"/*.log 2> /dev/null) ]] || bad+="clean-stop-saved-a-crash "
+  "${QS[@]}" clearNotifs > /dev/null 2>&1
+  systemctl --user kill -s KILL torus-shell.service
+  for _ in $(seq 60); do [[ $("${QS[@]}" isLocked 2> /dev/null) == false ]] && break; sleep 0.5; done
+  [[ -n $(ls "$crashes"/*.log 2> /dev/null) ]] || bad+="no-crash-log "
+  grep -q 'result: signal' "$crashes"/*.log 2> /dev/null || bad+="crash-result "
+  for _ in $(seq 30); do [[ $("${QS[@]}" notifGroups 2> /dev/null) == *torus:* ]] && break; sleep 0.5; done
+  [[ $("${QS[@]}" notifGroups 2> /dev/null) == *torus:* ]] || bad+="no-crash-notification "
+  [[ -e $crashes/pending ]] && bad+="pending-left "
+  grep -q '1 shell crash' <<< "$(~/.local/bin/torus-doctor 2>&1)" || bad+="doctor-no-crash-note "
+  pkill -f 'notify-send -a torus -i dialog-warning' 2> /dev/null
+  "${QS[@]}" clearNotifs > /dev/null 2>&1
+  rm -rf "$crashes"
+  if [[ -z $bad ]]; then section trust ok "doctor --fix relocks a lock nobody draws, a killed shell leaves a log and says so"; else section trust fail "$bad"; fi
+}
+
+check_github() {
+  local bad="" r stub=/usr/local/bin/gh
+  sudo tee "$stub" > /dev/null <<'S'
+#!/bin/sh
+[ "$1" = auth ] && exit 0
+cat <<'J'
+{"data":{"viewer":{"login":"parity","pullRequests":{"nodes":[{"number":7,"title":"parity pr","url":"https://github.com/parity/a/pull/7","isDraft":false,"updatedAt":"2026-11-11T10:00:00Z","repository":{"nameWithOwner":"parity/a"},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}}]},
+"repositories":{"nodes":[{"nameWithOwner":"parity/b","url":"https://github.com/parity/b","isArchived":false,"pushedAt":"2026-11-11T10:00:00Z","defaultBranchRef":{"name":"main","target":{"statusCheckRollup":{"state":"FAILURE"}}}}]}},
+"review":{"nodes":[{"number":3,"title":"parity review","url":"https://github.com/o/c/pull/3","updatedAt":"2026-11-11T08:00:00Z","author":{"login":"pal"},"repository":{"nameWithOwner":"o/c"}}]}}}
+J
+S
+  sudo chmod 755 "$stub"
+  for _ in $(seq 20); do
+    "${QS[@]}" githubRefresh > /dev/null 2>&1; sleep 0.5
+    r=$("${QS[@]}" githubState 2> /dev/null | tail -n 1)
+    [[ $r == ok:* ]] && break
+  done
+  [[ $r == ok:1:1:1:2 ]] || bad+="state[$r] "
+  sleep 1
+  r=$("${QS[@]}" modules 2> /dev/null | tail -n 1)
+  [[ $r == *github* ]] || bad+="no-chip "
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == true ]] && "${QS[@]}" paletteToggle > /dev/null && sleep 0.4
+  "${QS[@]}" paletteToggle > /dev/null; sleep 1
+  "${QS[@]}" paletteQuery "gh " > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteSections 2> /dev/null | tail -n 1)
+  [[ $r == "Review requests:1|Failing:1|My pull requests:1" ]] || bad+="sections[$r] "
+  "${QS[@]}" paletteQuery "gh failing" > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteRows 3 2> /dev/null | tail -n 1)
+  [[ $r == "Failing/github:parity/b" ]] || bad+="search[$r] "
+  "${QS[@]}" paletteToggle > /dev/null
+  sudo rm -f "$stub"
+  if [[ -z $bad ]]; then section github ok "review requests, failing main and my PRs in the chip and under gh in the palette"; else section github fail "$bad"; fi
+}
+
+check_scratch() {
+  local bad="" r d=/tmp/parity-proj
+  rm -rf "$d"; mkdir -p "$d/sub"; git init -q "$d"
+  hyprctl eval "hl.exec_cmd(\"kitty --class parity.proj --directory $d/sub\")" > /dev/null
+  for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity.proj")' > /dev/null && break; sleep 0.2; done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity.proj" }))' > /dev/null; sleep 1
+  ~/.local/bin/torus-dropdown --project
+  for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "torus-dropdown-parity-proj")' > /dev/null && break; sleep 0.2; done
+  r=$(hyprctl clients -j | jq -r '.[] | select(.class == "torus-dropdown-parity-proj") | "\(.workspace.name):\(.floating)"')
+  [[ $r == "special:sc-parity-proj:true" ]] || bad+="spawn[$r] "
+  sleep 1
+  r=$(hyprctl monitors -j | jq -r '[.[].specialWorkspace.name] | join(",")')
+  [[ $r == *special:sc-parity-proj* ]] || bad+="not-shown[$r] "
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:torus-dropdown-parity-proj" }))' > /dev/null; sleep 0.5
+  [[ $(hyprctl activewindow -j | jq -r .class) == torus-dropdown-parity-proj ]] || bad+="not-focused "
+  ~/.local/bin/torus-dropdown --project; sleep 1
+  r=$(hyprctl monitors -j | jq -r '[.[].specialWorkspace.name] | join(",")')
+  [[ $r != *sc-parity-proj* ]] || bad+="not-hidden[$r] "
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:parity.proj" }))' > /dev/null; sleep 0.5
+  ~/.local/bin/torus-dropdown --project; sleep 1
+  [[ $(hyprctl clients -j | jq '[.[] | select(.class == "torus-dropdown-parity-proj")] | length') == 1 ]] || bad+="respawned "
+  ~/.local/bin/torus-dropdown --project 2> /dev/null; sleep 0.5
+  hyprctl monitors -j | jq -e 'any(.[]; .specialWorkspace.name == "special:sc-parity-proj")' > /dev/null && hyprctl eval 'hl.dispatch(hl.dsp.workspace.toggle_special("sc-parity-proj"))' > /dev/null
+  hyprctl eval 'hl.dispatch(hl.dsp.window.close({ window = "class:torus-dropdown-parity-proj" }))' > /dev/null 2>&1
+  hyprctl eval 'hl.dispatch(hl.dsp.window.close({ window = "class:parity.proj" }))' > /dev/null 2>&1
+  sleep 0.5
+  pkill -f 'kitty --class (torus-dropdown-parity-proj|parity.proj)' 2> /dev/null
+  rm -rf "$d"
+  if [[ -z $bad ]]; then section scratch ok "SUPER+\` opens a floating terminal in the git root of the focused window, hides it, reuses it"; else section scratch fail "$bad"; fi
+}
+
+pw_node_id() {
+  pw-cli ls Node | grep -B5 "node.name = \"$1\"" | sed -n 's/^\s*id \([0-9]*\),.*/\1/p' | head -1
+}
+pw_drop() {
+  local id; id=$(pw_node_id "$1"); [[ -n $id ]] && pw-cli destroy "$id" > /dev/null 2>&1
+  return 0
+}
+meeting_is() {
+  local want=$1 tries=${2:-60}
+  for _ in $(seq "$tries"); do [[ $("${QS[@]}" meetingState 2> /dev/null) == "$want"* ]] && return 0; sleep 0.5; done
+  return 1
+}
+
+check_meeting() {
+  local bad="" pid
+  "${QS[@]}" meetingAuto true > /dev/null
+  pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=parity-mic media.class=Audio/Source/Virtual audio.position=[FL FR] object.linger=true }' > /dev/null
+  sleep 1
+  pw-record --target parity-mic /dev/null < /dev/null > /dev/null 2>&1 &
+  pid=$!
+  sleep 12
+  [[ $("${QS[@]}" meetingState) == "idle auto=true mic=true cam=false dnd=false" ]] || bad+="mic-alone[$("${QS[@]}" meetingState)] "
+  pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=parity-cam media.class=Stream/Input/Video object.linger=true }' > /dev/null
+  meeting_is "active" 30 || bad+="no-meeting[$("${QS[@]}" meetingState)] "
+  [[ $("${QS[@]}" dnd) == true ]] || bad+="dnd-not-on "
+  pw_drop parity-cam
+  meeting_is "idle" 60 || bad+="never-ended "
+  [[ $("${QS[@]}" dnd) == false ]] || bad+="dnd-not-restored "
+  "${QS[@]}" setDnd true > /dev/null
+  pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=parity-cam media.class=Stream/Input/Video object.linger=true }' > /dev/null
+  meeting_is "active" 30 || bad+="no-second-meeting "
+  "${QS[@]}" setDnd false > /dev/null
+  pw_drop parity-cam
+  meeting_is "idle" 60 || bad+="second-never-ended "
+  [[ $("${QS[@]}" dnd) == false ]] || bad+="my-dnd-change-overridden "
+  "${QS[@]}" meetingAuto false > /dev/null
+  pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=parity-cam media.class=Stream/Input/Video object.linger=true }' > /dev/null
+  sleep 12
+  [[ $("${QS[@]}" meetingState) == idle* ]] || bad+="auto-off-ignored "
+  "${QS[@]}" meetingAuto true > /dev/null
+  pw_drop parity-cam; kill "$pid" 2> /dev/null; pw_drop parity-mic
+  "${QS[@]}" meetingNow true > /dev/null
+  meeting_is "active" 4 || bad+="manual-start "
+  [[ $("${QS[@]}" dnd) == true ]] || bad+="manual-no-dnd "
+  sleep 25
+  meeting_is "active" 2 || bad+="manual-ended-by-itself "
+  "${QS[@]}" meetingNow false > /dev/null
+  meeting_is "idle" 4 || bad+="manual-end "
+  [[ $("${QS[@]}" dnd) == false ]] || bad+="manual-dnd-left-on "
+  if [[ -z $bad ]]; then section meeting ok "mic plus camera holds notifications, mic alone does not, DND restored, off switch, manual start and end"; else section meeting fail "$bad"; fi
+}
+
+check_overlay() {
+  local bad="" conf=~/.local/state/torus/mangohud.conf r
+  command -v mangohud > /dev/null || { section overlay fail "mangohud not installed in the VM"; return; }
+  ~/.local/bin/torus-mangohud off > /dev/null
+  grep -q '^no_display' "$conf" || bad+="off-still-shows "
+  grep -qi "gpu_color=$(jq -r .accent ~/.local/state/torus/theme/qs-colors.json | tr -d '#')" "$conf" || bad+="no-accent "
+  "${QS[@]}" overlayToggle > /dev/null; sleep 1
+  r=$("${QS[@]}" overlayState 2> /dev/null)
+  [[ $r == "on installed=true" ]] || bad+="state[$r] "
+  grep -q '^no_display' "$conf" && bad+="on-still-hidden "
+  [[ $("${QS[@]}" islandState) == state:osd* ]] || bad+="no-island "
+  "${QS[@]}" overlayToggle > /dev/null; sleep 1
+  grep -q '^no_display' "$conf" || bad+="toggle-off "
+  [[ $(env -i HOME="$HOME" sh -c '. ~/.config/uwsm/env; echo "$MANGOHUD:$MANGOHUD_CONFIGFILE"') == "1:$conf" ]] || bad+="session-env "
+  if [[ -z $bad ]]; then section overlay ok "MangoHud config follows the accent, palette toggles it live, session env set"; else section overlay fail "$bad"; fi
+}
+
+check_containers() {
+  local bad="" r
+  command -v podman > /dev/null || { section containers fail "podman missing in the VM"; return; }
+  podman rm -f parity-box > /dev/null 2>&1
+  timeout 120 podman run -d --name parity-box docker.io/library/busybox:1.37 sleep 100000 > /dev/null 2>&1 || bad+="fixture "
+  for _ in $(seq 20); do r=$("${QS[@]}" containers 2> /dev/null); [[ $r == *podman:parity-box* ]] && break; sleep 1; done
+  [[ $r == *podman:parity-box* ]] || bad+="not-listed[$r] "
+  [[ $("${QS[@]}" isOpen palette 2>/dev/null | tail -n 1) == true ]] && "${QS[@]}" paletteToggle > /dev/null && sleep 0.4
+  "${QS[@]}" paletteToggle > /dev/null; sleep 1
+  "${QS[@]}" paletteQuery "c parity-box" > /dev/null; sleep 0.5
+  r=$("${QS[@]}" paletteRows 1 2> /dev/null)
+  [[ $r == "container:parity-box" ]] || bad+="palette[$r] "
+  [[ $("${QS[@]}" paletteKeys 0 2> /dev/null) == "logs|restart|stop" ]] || bad+="keys "
+  "${QS[@]}" paletteToggle > /dev/null
+  r=$("${QS[@]}" containerAct parity-box stop 2> /dev/null)
+  [[ $r == "stop podman:"* ]] || bad+="stop[$r] "
+  for _ in $(seq 30); do [[ -z $(podman ps -q -f name=parity-box) ]] && break; sleep 1; done
+  [[ -z $(podman ps -q -f name=parity-box) ]] || bad+="still-running "
+  for _ in $(seq 20); do r=$("${QS[@]}" containers 2> /dev/null); [[ $r != *parity-box* ]] && break; sleep 1; done
+  [[ $r != *parity-box* ]] || bad+="still-listed "
+  podman rm -f parity-box > /dev/null 2>&1
+  if [[ -z $bad ]]; then section containers ok "podman container in the dev pill and under c in the palette, stop works"; else section containers fail "$bad"; fi
+}
+
+check_games() {
+  local bad="" S=~/.local/share/Steam
+  [[ -n $(~/.local/bin/torus-games) ]] || { section games fail "no fake Steam library in the VM"; return; }
+  [[ $("${QS[@]}" isOpen games) == true ]] && "${QS[@]}" gamesToggle > /dev/null && sleep 0.5
+  rm -f /tmp/parity-xdg-open
+  mkdir -p ~/.local/share/applications
+  printf '#!/bin/sh\necho "$1" > /tmp/parity-xdg-open\n' > /tmp/parity-steam; chmod +x /tmp/parity-steam
+  printf '[Desktop Entry]\nType=Application\nName=parity steam\nExec=/tmp/parity-steam %%u\nMimeType=x-scheme-handler/steam;\n' > ~/.local/share/applications/parity-steam.desktop
+  xdg-mime default parity-steam.desktop x-scheme-handler/steam
+  "${QS[@]}" gamesToggle > /dev/null; sleep 1.5
+  [[ $("${QS[@]}" isOpen games) == true ]] || bad+="not-open "
+  wtype "portal"; sleep 0.5; wtype -k Return; sleep 2
+  [[ $("${QS[@]}" isOpen games) == false ]] || bad+="still-open "
+  [[ $(cat /tmp/parity-xdg-open 2> /dev/null) == steam://rungameid/620 ]] || bad+="launch[$(cat /tmp/parity-xdg-open 2> /dev/null)] "
+  rm -f ~/.local/share/applications/parity-steam.desktop
+  [[ -n $bad ]] && { timeout 10 grim -o Virtual-1 /tmp/parity-fail-games.png; journalctl --user -u torus-shell --since "-60s" -o cat > /tmp/parity-fail-games.log; hyprctl layers -j > /tmp/parity-fail-games.layers; hyprctl activewindow -j > /tmp/parity-fail-games.active; }
+  if [[ -z $bad ]]; then section games ok "game hub opens, filters by typing, Enter launches the Steam URL and closes"; else section games fail "$bad"; fi
+}
+
+check_threads() {
+  local bad="" r
+  "${QS[@]}" clearNotifs > /dev/null 2>&1; sleep 0.5
+  for b in "hi there" "how are you?" "lunch at 12?"; do notify-send -a ParityChat "Anna" "$b"; sleep 0.3; done
+  notify-send -a ParityChat "Ben" "yo"; sleep 1
+  r=$("${QS[@]}" notifThreads 2> /dev/null)
+  [[ $r == *"ParityChat:Ben=1,Anna=3"* ]] || bad+="threads[$r] "
+  [[ $("${QS[@]}" notifCount) == 4 ]] || bad+="count "
+  "${QS[@]}" clearNotifs > /dev/null 2>&1
+  if [[ -z $bad ]]; then section threads ok "chat messages from one sender fold into one card, newest first"; else section threads fail "$bad"; fi
+}
+
+check_displays() {
+  local bad="" p
+  pos() { hyprctl monitors -j | jq -r '.[] | select(.name=="SIDE") | "\(.x)x\(.y)"'; }
+  rule() { hyprctl eval "hl.monitor({ output = \"SIDE\", mode = \"1920x1080\", position = \"$1\", scale = 1, transform = 3 })" > /dev/null; sleep 1; }
+  hyprctl monitors -j | jq -e 'any(.[]; .name == "SIDE")' > /dev/null || { section displays fail "no SIDE output"; return; }
+  rule 3000x500
+  ~/.local/bin/torus-displays save > /dev/null
+  rule 1280x0
+  hyprctl output remove SIDE > /dev/null; sleep 2
+  hyprctl output create headless SIDE > /dev/null
+  for _ in $(seq 20); do p=$(pos); [[ $p == 3000x500 ]] && break; sleep 0.5; done
+  [[ $p == 3000x500 ]] || bad+="not-restored[$p] "
+  ~/.local/bin/torus-displays forget > /dev/null
+  rule 1280x0
+  [[ $(pos) == 1280x0 ]] || bad+="reset "
+  if [[ -z $bad ]]; then section displays ok "a saved layout comes back when the screen is plugged in again"; else section displays fail "$bad"; fi
+}
+
+check_face() {
+  local bad=""
+  [[ -n ${LOCK_PW:-} ]] || { section face fail "LOCK_PW not set"; return; }
+  printf '#!/bin/sh\n[ -e /tmp/face-ok ] && exit 0\nsleep 2\nexit 1\n' | sudo tee /usr/local/bin/fake-face > /dev/null
+  sudo chmod 755 /usr/local/bin/fake-face
+  printf 'auth sufficient pam_exec.so quiet /usr/local/bin/fake-face\nauth required pam_deny.so\naccount required pam_unix.so\n' | sudo tee /etc/pam.d/torus-face > /dev/null
+  touch /tmp/face-ok
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  locked_is true || bad+="no-lock "
+  locked_is false || bad+="face-did-not-unlock "
+  rm -f /tmp/face-ok
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  locked_is true || bad+="no-second-lock "
+  sleep 4
+  [[ $("${QS[@]}" isLocked) == true ]] || bad+="unknown-face-unlocked "
+  type_pw "$LOCK_PW"
+  locked_is false || bad+="password-after-missed-face "
+  sudo rm -f /etc/pam.d/torus-face /usr/local/bin/fake-face
+  [[ -n $bad ]] && journalctl --user -u torus-shell --since "-90s" -o cat > /tmp/parity-fail-face.log
+  if [[ -z $bad ]]; then section face ok "a recognized face unlocks, an unknown one does not, the password always works"; else section face fail "$bad"; fi
+}
+
+check_reload() {
+  local bad="" ok0 fail0
+  c() { journalctl --user -u torus-shell --no-pager -o cat | grep -c "$1"; }
+  ok0=$(c "Configuration Loaded"); fail0=$(c "Failed to load configuration")
+  "${QS[@]}" reload > /dev/null 2>&1
+  sleep 5
+  (($(c "Configuration Loaded") > ok0)) || bad+="no-reload "
+  (($(c "Failed to load configuration") > fail0)) && bad+="reload-failed "
+  [[ $("${QS[@]}" isLocked 2> /dev/null) == false ]] || bad+="shell-gone "
+  if [[ -z $bad ]]; then section reload ok "a live reload (what install.sh does) loads the config without errors"; else section reload fail "$bad"; fi
+}
+
+check_follow() {
+  local bad="" r
+  focus() { hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$1\" }))" > /dev/null; }
+  focus Virtual-1; sleep 0.6
+  "${QS[@]}" dashboardToggle > /dev/null; sleep 1
+  focus SIDE; sleep 1
+  r=$("${QS[@]}" panelScreen dashboard)
+  [[ $r == Virtual-1 ]] || bad+="dashboard-moved[$r] "
+  "${QS[@]}" dashboardToggle > /dev/null; sleep 0.6
+  focus Virtual-1; sleep 0.6
+  "${QS[@]}" centerToggle > /dev/null; sleep 1
+  focus SIDE; sleep 0.15; focus Virtual-1; sleep 1
+  r=$("${QS[@]}" panelScreen center)
+  [[ $r == Virtual-1 ]] || bad+="center-jumped-on-a-pass[$r] "
+  focus SIDE; sleep 1.2
+  r=$("${QS[@]}" panelScreen center)
+  [[ $r == SIDE ]] || bad+="center-did-not-follow[$r] "
+  "${QS[@]}" centerToggle > /dev/null; sleep 0.5
+  focus Virtual-1
+  if [[ -z $bad ]]; then section follow ok "dashboard stays put, a quick pass to the other screen moves nothing, a real move takes panels along"; else section follow fail "$bad"; fi
 }
 
 check_focus() {
@@ -964,6 +1448,7 @@ check_qmllog() {
   if [[ -z $out ]]; then section qmllog ok "no QML warnings since the shell started"; else section qmllog fail "$(tr '\n' '|' <<<"$out" | cut -c1-600)"; fi
 }
 
+awake
 case ${1:-all} in
   media) check_media ;;
   lock) check_lock ;;
@@ -973,6 +1458,23 @@ case ${1:-all} in
   spin) check_spin ;;
   night) check_night ;;
   palette) check_palette ;;
+  palette2) check_palette2 ;;
+  projects) check_projects ;;
+  ssh) check_ssh ;;
+  servers) check_servers ;;
+  cmddone) check_cmddone ;;
+  trust) check_trust ;;
+  github) check_github ;;
+  scratch) check_scratch ;;
+  meeting) check_meeting ;;
+  overlay) check_overlay ;;
+  containers) check_containers ;;
+  games) check_games ;;
+  threads) check_threads ;;
+  displays) check_displays ;;
+  face) check_face ;;
+  reload) check_reload ;;
+  follow) check_follow ;;
   focus) check_focus ;;
   switch) check_switch ;;
   pass) check_pass ;;
@@ -995,7 +1497,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

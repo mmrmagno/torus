@@ -253,5 +253,7 @@ if ((!no_packages)); then
 fi
 if ((!dry_run)) && [[ $home == "$HOME" ]]; then
   "$REPO/home/.local/bin/torus" setup
+  hyprctl monitors > /dev/null 2>&1 && "$REPO/home/.local/bin/torus-reload" || true
+  "$REPO/home/.local/bin/torus-doctor" --reload-shell > /dev/null 2>&1 || true
 fi
 exit 0

@@ -17,7 +17,8 @@ PanelWindow {
     anchors.top: true
     margins.top: Store.barGap
     implicitWidth: Math.min(900, (screen ? screen.width : 900) - 40)
-    implicitHeight: Math.min(content.implicitHeight + 32, (screen ? screen.height : 1000) - Store.barGap - 16)
+    implicitHeight: Math.floor((screen ? screen.height : 1000) - Store.barGap - 16)
+    mask: Region { item: dashFrame }
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -34,12 +35,18 @@ PanelWindow {
     PwObjectTracker { objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource] }
 
     Rectangle {
+        id: dashFrame
         PanelMotion {
             id: motion
-            target: parent
+            target: dashFrame
             shown: Store.isOpen("dashboard") && !Store.moving
         }
-        anchors.fill: parent
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.min(content.implicitHeight + 32, root.implicitHeight)
+        Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.Top
         radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glass)
         border.width: 1
@@ -282,7 +289,11 @@ PanelWindow {
                                     function pick(x) { Displays.set(displayRow.modelData, Math.max(0, Math.min(100, x / dTrack.width * 100))) }
                                     onPressed: mouse => pick(mouse.x)
                                     onPositionChanged: mouse => { if (pressed) pick(mouse.x) }
-                                    onWheel: wheel => Displays.set(displayRow.modelData, Math.max(0, Math.min(100, displayRow.level + (wheel.angleDelta.y > 0 ? 5 : -5))))
+                                    onReleased: Store.sound("tick")
+                                    onWheel: wheel => {
+                                        Displays.set(displayRow.modelData, Math.max(0, Math.min(100, displayRow.level + (wheel.angleDelta.y > 0 ? 5 : -5))))
+                                        Store.sound("tick")
+                                    }
                                 }
                             }
                             Text { text: Math.round(displayRow.level) + "%"; width: 40; horizontalAlignment: Text.AlignRight; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
@@ -346,7 +357,7 @@ PanelWindow {
             CommuteCard {
                 Layout.fillWidth: true
                 Layout.columnSpan: content.columns
-                Layout.preferredHeight: implicitHeight
+                Layout.preferredHeight: smoothHeight
             }
         }
         }

@@ -31,6 +31,8 @@ yazi
 bat
 fzf
 git-delta
+github-cli
+mangohud
 neovim
 inter-font
 ttf-jetbrains-mono-nerd

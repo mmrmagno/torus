@@ -347,6 +347,7 @@ PanelWindow {
                                         Quickshell.execDetached(["xdg-open", p.substring(0, p.lastIndexOf("/"))])
                                     else if (what === "Delete")
                                         Quickshell.execDetached(["rm", "-f", "--", p])
+                                        Store.sound("delete")
                                     Island.dismiss()
                                 }
                             }

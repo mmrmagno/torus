@@ -10,15 +10,27 @@ case ${1:-list} in
     ;;
   news)
     n=${2:-6}
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/torus/arch-news.tsv
     last=$(grep -a 'starting full system upgrade' "$log" 2> /dev/null | tail -n 1 | sed -n 's/^\[\([^]]*\)\].*/\1/p')
     lastsec=$(date -d "${last:-1970-01-01}" +%s 2> /dev/null || echo 0)
-    curl -sfL --max-time 10 https://archlinux.org/feeds/news/ | tr -d '\n' | awk -v n="$n" 'BEGIN { RS = "<item>" } NR > 1 && NR <= n + 1 {
-      t = $0; sub(/.*<title>/, "", t); sub(/<\/title>.*/, "", t)
-      l = $0; sub(/.*<link>/, "", l); sub(/<\/link>.*/, "", l)
-      d = $0; sub(/.*<pubDate>/, "", d); sub(/<\/pubDate>.*/, "", d)
-      gsub(/&amp;/, "\\&", t); gsub(/&lt;/, "<", t); gsub(/&gt;/, ">", t); gsub(/&quot;/, "\"", t); gsub(/&#39;/, "\x27", t)
-      print d "\t" t "\t" l
-    }' | while IFS=$'\t' read -r pub title link; do
+    age=$(($(date +%s) - $(stat -c %Y "$cache" 2> /dev/null || echo 0)))
+    if ((age > ${TORUS_NEWS_TTL:-3600})); then
+      fresh=$(curl -sfL --max-time 10 "${TORUS_NEWS_URL:-https://archlinux.org/feeds/news/}" | tr -d '\n' | awk 'BEGIN { RS = "<item>" } NR > 1 && NR <= 21 {
+        t = $0; sub(/.*<title>/, "", t); sub(/<\/title>.*/, "", t)
+        l = $0; sub(/.*<link>/, "", l); sub(/<\/link>.*/, "", l)
+        d = $0; sub(/.*<pubDate>/, "", d); sub(/<\/pubDate>.*/, "", d)
+        gsub(/&amp;/, "\\&", t); gsub(/&lt;/, "<", t); gsub(/&gt;/, ">", t); gsub(/&quot;/, "\"", t); gsub(/&#39;/, "\x27", t)
+        print d "\t" t "\t" l
+      }')
+      if [[ -n $fresh ]]; then
+        mkdir -p "$(dirname "$cache")"
+        printf '%s\n' "$fresh" > "$cache"
+      else
+        [[ -f $cache ]] && touch -d "-$((${TORUS_NEWS_TTL:-3600} - 600)) seconds" "$cache"
+      fi
+    fi
+    [[ -f $cache ]] || exit 0
+    head -n "$n" "$cache" | while IFS=$'\t' read -r pub title link; do
       s=$(date -d "$pub" +%s 2> /dev/null || echo 0)
       ((s > lastsec)) && state=new || state=seen
       printf '%s\t%s\t%s\t%s\n' "$state" "$(date -d "$pub" +%F 2> /dev/null)" "$title" "$link"

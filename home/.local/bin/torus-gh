@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+command -v gh > /dev/null || { echo '{"status":"missing"}'; exit 0; }
+gh auth status > /dev/null 2>&1 || { echo '{"status":"signed-out"}'; exit 0; }
+
+q='query {
+  viewer {
+    login
+    pullRequests(first: 30, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes { number title url isDraft updatedAt repository { nameWithOwner }
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } }
+    }
+    repositories(first: 15, ownerAffiliations: OWNER, orderBy: {field: PUSHED_AT, direction: DESC}) {
+      nodes { nameWithOwner url isArchived pushedAt
+        defaultBranchRef { name target { ... on Commit { statusCheckRollup { state } } } } }
+    }
+  }
+  review: search(query: "is:pr is:open review-requested:@me archived:false", type: ISSUE, first: 30) {
+    nodes { ... on PullRequest { number title url updatedAt author { login } repository { nameWithOwner } } }
+  }
+}'
+
+raw=$(gh api graphql -f query="$q" 2> /dev/null) || { echo '{"status":"offline"}'; exit 0; }
+jq -c '
+  def ci: (.commits.nodes[0].commit.statusCheckRollup.state // "") | ascii_downcase;
+  .data | {
+    status: "ok",
+    login: .viewer.login,
+    mine: [.viewer.pullRequests.nodes[] | {repo: .repository.nameWithOwner, number, title, url, draft: .isDraft, updated: .updatedAt, ci: ci}],
+    review: [.review.nodes[] | select(.url) | {repo: .repository.nameWithOwner, number, title, url, updated: .updatedAt, author: (.author.login // "")}],
+    failing: [.viewer.repositories.nodes[]
+      | select((.isArchived | not) and ((.defaultBranchRef.target.statusCheckRollup.state // "") | test("FAILURE|ERROR")))
+      | {repo: .nameWithOwner, branch: .defaultBranchRef.name, url: (.url + "/actions"), updated: .pushedAt}]
+  }' <<< "$raw" 2> /dev/null || echo '{"status":"offline"}'

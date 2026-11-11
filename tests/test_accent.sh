@@ -20,6 +20,15 @@ cp "$HOME/.config/nvim/lua/chadrc.lua" "$F/chadrc.orig"
 
 "$T" accent blue > /dev/null
 assert_eq blue "$("$T" accent)" "accent read back"
+grep -qiE '#(F5E0DC|CBA6F7|9670B0)' "$S/theme/kvantum/torus.svg" && fail "kvantum svg kept the HyDE accent"
+assert_contains "$S/theme/kvantum/torus.svg" "#89b4fa"
+assert_contains "$S/theme/kvantum/torus.svg" "#6887bc"
+assert_contains "$S/theme/kdeglobals" "Theme=Tela-circle-blue"
+for a in lavender mauve peach teal; do
+  "$T" accent $a > /dev/null
+  assert_contains "$S/theme/qt6ct.conf" "icon_theme=Tela-circle-$(case $a in lavender) echo dracula ;; mauve) echo purple ;; peach) echo orange ;; teal) echo manjaro ;; esac)"
+done
+"$T" accent blue > /dev/null
 n=0
 for t in "$REPO"/theme/templates/*.tmpl; do
   out=$S/theme/$(basename "$t" .tmpl)
@@ -54,7 +63,7 @@ assert_eq 1 "$(git config --global --get-all include.path | grep -c 'torus/delta
 assert_eq marc "$(git config --global user.name)" "other git keys untouched"
 assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark"
 assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface color-scheme prefer-dark"
-assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface icon-theme Tela-circle-dracula"
+assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface icon-theme Tela-circle-blue"
 assert_contains "$STUB_LOG" "gsettings set org.gnome.desktop.interface cursor-theme Bibata-Modern-Ice"
 assert_contains "$STUB_LOG" "bat cache --build"
 assert_contains "$STUB_LOG" "fc-cache"

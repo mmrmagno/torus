@@ -11,6 +11,14 @@ Item {
     id: card
 
     required property var notif
+    property var earlier: []
+
+    function dismissAll() {
+        for (const e of earlier.slice())
+            e.dismiss()
+        if (notif)
+            notif.dismiss()
+    }
     property bool popup: false
     readonly property var actions: notif ? notif.actions.filter(a => a.identifier !== "default" && a.text.trim() !== "") : []
     readonly property var defaultAction: notif ? notif.actions.find(a => a.identifier === "default") : null
@@ -116,7 +124,7 @@ Item {
             if (card.popup)
                 card.done()
             else if (card.notif)
-                card.notif.dismiss()
+                card.dismissAll()
         }
     }
 
@@ -201,7 +209,7 @@ Item {
                         font.family: Theme.fontMono
                         font.pixelSize: Theme.fsLg
                         HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: card.notif.dismiss() }
+                        TapHandler { onTapped: card.popup ? card.notif.dismiss() : card.dismissAll() }
                     }
                 }
 
@@ -218,6 +226,27 @@ Item {
                     maximumLineCount: card.popup ? 4 : 8
                     elide: Text.ElideRight
                     textFormat: Text.StyledText
+                }
+
+                Repeater {
+                    model: card.popup ? [] : card.earlier.slice(0, 3)
+                    Text {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        text: "· " + modelData.body.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
+                        color: Theme.overlay
+                        font.family: Theme.fontUi
+                        font.pixelSize: Theme.fsSm
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+                }
+                Text {
+                    visible: !card.popup && card.earlier.length > 3
+                    text: "and " + (card.earlier.length - 3) + " earlier"
+                    color: Theme.overlay
+                    font.family: Theme.fontUi
+                    font.pixelSize: Theme.fsXs
                 }
 
                 Flow {

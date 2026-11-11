@@ -40,6 +40,7 @@ end
 
 bind(MOD .. " + T", "kitty", "[Launcher|Apps] terminal emulator")
 bind(MOD .. " + ALT + T", "torus-dropdown", "[Launcher|Apps] dropdown terminal")
+bind(MOD .. " + grave", "torus-dropdown --project", "[Launcher|Apps] terminal for the focused project")
 bind(MOD .. " + E", "dolphin", "[Launcher|Apps] file explorer")
 bind(MOD .. " + F", "zen", "[Launcher|Apps] browser")
 bind(MOD .. " + C", "kitty -e nvim", "[Launcher|Apps] text editor")
@@ -153,7 +154,7 @@ bind("XF86MonBrightnessDown", "torus-bright down || brightnessctl -q set 5%-", "
 
 bind(MOD .. " + K", "hyprctl switchxkblayout all next", "[Utilities] next keyboard layout", locked)
 bind(MOD .. " + ALT + G", "torus-gamemode", "[Utilities] game mode")
-bind(MOD .. " + SHIFT + G", "torus-menu games", "[Utilities] game launcher")
+bind(MOD .. " + SHIFT + G", ipc("gamesToggle"), "[Utilities] game hub")
 bind(MOD .. " + SHIFT + P", "torus-pick", "[Utilities] color picker")
 bind(MOD .. " + P", "torus-shot s", "[Utilities] screenshot area")
 bind(MOD .. " + CTRL + P", "torus-shot sf", "[Utilities] freeze and screenshot area")
@@ -165,6 +166,7 @@ bind(MOD .. " + SHIFT + C", ipc("captureToggle"), "[Utilities] capture studio")
 bind(MOD .. " + CTRL + S", "torus-shot sc", "[Utilities] OCR to clipboard")
 bind(MOD .. " + SHIFT + R", "torus-record toggle", "[Utilities] start or stop recording")
 bind(MOD .. " + ALT + R", "torus-record replay-save", "[Utilities] save replay")
+bind(MOD .. " + SHIFT + M", "torus-ruler", "[Utilities] measure an area, copies WxH")
 bind(MOD .. " + U", "vpnup", "[Utilities] start vpn connection")
 bind(MOD .. " + Y", "clipscrub", "[Utilities] censor current clipboard")
 
