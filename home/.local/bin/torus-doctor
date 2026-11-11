@@ -160,13 +160,15 @@ check_guard() {
 }
 
 check_journal() {
-  local n
-  n=$(journalctl --user -u torus-shell --since "-1 hour" --no-pager -o cat 2> /dev/null |
+  local n pid
+  pid=$(systemctl --user show -p MainPID --value torus-shell.service 2> /dev/null)
+  [[ -n $pid && $pid != 0 ]] || return
+  n=$(journalctl --user -u torus-shell _PID="$pid" --since "-1 hour" --no-pager -o cat 2> /dev/null |
     grep -E 'WARN|ERROR' | grep -cvE 'dmabuf|dbus\.properties|textinput|portal|objectmanager|qt\.svg')
   if ((n > 0)); then
-    note journal "$n shell warnings in the last hour (journalctl --user -u torus-shell)"
+    note journal "$n warnings from the running shell in the last hour (journalctl --user -u torus-shell _PID=$pid)"
   else
-    ok journal "no shell warnings in the last hour"
+    ok journal "no warnings from the running shell"
   fi
 }
 
