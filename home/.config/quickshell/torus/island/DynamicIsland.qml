@@ -14,7 +14,7 @@ PanelWindow {
     readonly property bool narrow: screen ? screen.width < 1400 : false
     readonly property bool focused: Store.focusedScreen === screen
     readonly property bool flashing: Island.state === "osd" || Island.state === "notification" || Island.state === "shot"
-    readonly property string resting: Island.recording ? "recording" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player ? "media" : "idle"))))
+    readonly property string resting: Island.recording ? "recording" : Island.sharing ? "sharing" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player ? "media" : "idle"))))
     readonly property string mode: flashing && focused ? Island.state : resting
     readonly property bool lyricRow: mode === "media" && Lyrics.line !== ""
     readonly property int pillWidth: {
@@ -23,6 +23,7 @@ PanelWindow {
         case "notification": return 440
         case "shot": return 460
         case "recording": return 170
+        case "sharing": return Math.max(190, shareText.implicitWidth + 56)
         case "focus": return 150
         case "timer": return Math.max(150, timerText.implicitWidth + 56)
         case "media": return lyricRow ? 440 : 380
@@ -55,7 +56,7 @@ PanelWindow {
         radius: Math.min(height / 2, 20)
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1
-        border.color: root.mode === "recording" ? Qt.alpha(Theme.red, 0.7) : Qt.alpha(Theme.accent, 0.35)
+        border.color: root.mode === "recording" ? Qt.alpha(Theme.red, 0.7) : root.mode === "sharing" ? Qt.alpha(Theme.peach, 0.7) : Qt.alpha(Theme.accent, 0.35)
         opacity: root.mode === "" ? 0 : 1
         clip: true
         Behavior on width { NumberAnimation { duration: Theme.durSlow; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
@@ -409,6 +410,31 @@ PanelWindow {
                 color: Timers.paused ? Theme.overlay : Theme.text
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSize
+            }
+        }
+
+        RowLayout {
+            visible: root.mode === "sharing"
+            anchors.centerIn: parent
+            spacing: Theme.sp4
+            Rectangle {
+                Layout.preferredWidth: 10
+                Layout.preferredHeight: 10
+                radius: 5
+                color: Theme.peach
+                SequentialAnimation on opacity {
+                    running: root.mode === "sharing"
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.3; duration: 900 }
+                    NumberAnimation { to: 1; duration: 900 }
+                }
+            }
+            Text {
+                id: shareText
+                color: Theme.text
+                font.family: Theme.fontUi
+                font.pixelSize: Theme.fontSize
+                text: "Sharing · " + Island.shareApps.join(", ")
             }
         }
 

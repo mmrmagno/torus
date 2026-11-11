@@ -16,6 +16,16 @@ Singleton {
     property var flashData: ({})
     property bool armed: false
     property bool recording: false
+    readonly property var shareApps: {
+        if (!Pipewire.nodes.values.some(n => (n.name || "").startsWith("xdph")))
+            return []
+        const apps = Pipewire.nodes.values
+            .filter(n => n.isStream && !n.isSink && !n.audio && (n.properties || {})["media.class"] === "Stream/Input/Video")
+            .map(n => (n.properties || {})["application.process.binary"] || (n.properties || {})["application.name"] || "an app")
+            .filter(a => a !== "gpu-screen-recorder")
+        return Array.from(new Set(apps))
+    }
+    readonly property bool sharing: shareApps.length > 0
     property real recordStart: 0
     readonly property var player: Mpris.players.values.find(p => p.isPlaying) || null
     property var modes: ({})

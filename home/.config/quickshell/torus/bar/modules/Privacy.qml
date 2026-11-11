@@ -18,21 +18,19 @@ Chip {
     }
 
     readonly property var streams: Pipewire.nodes.values.filter(n => n.isStream && !n.isSink)
-    readonly property var micApps: streams.filter(n => n.audio).map(appOf)
-    readonly property var cameraStreams: streams.filter(n => !n.audio && (n.properties || {})["media.class"] === "Stream/Input/Video").map(appOf)
-    readonly property bool sharing: Pipewire.nodes.values.some(n => (n.name || "").startsWith("xdph"))
+    readonly property var micApps: streams.filter(n => n.audio).map(appOf).filter(a => a !== "gpu-screen-recorder")
+    readonly property var cameraStreams: Island.sharing ? [] : streams.filter(n => !n.audio && (n.properties || {})["media.class"] === "Stream/Input/Video").map(appOf)
     property var cameraApps: []
     readonly property var camera: cameraStreams.concat(cameraApps)
-    readonly property bool shown: micApps.length > 0 || camera.length > 0 || sharing
+    readonly property bool shown: micApps.length > 0 || camera.length > 0
 
     PwObjectTracker { objects: root.streams }
 
-    icon: [sharing ? "󰹑" : "", camera.length > 0 ? "󰄀" : "", micApps.length > 0 ? "󰍬" : ""].filter(x => x !== "").join(" ")
+    icon: [camera.length > 0 ? "󰄀" : "", micApps.length > 0 ? "󰍬" : ""].filter(x => x !== "").join(" ")
     iconColor: Theme.peach
     tip: [
         micApps.length > 0 ? "Microphone: " + names(micApps) : "",
-        camera.length > 0 ? "Camera: " + names(camera) : "",
-        sharing ? "Your screen is being shared" : ""
+        camera.length > 0 ? "Camera: " + names(camera) : ""
     ].filter(x => x !== "").join("\n")
 
     // browsers open the webcam directly, without PipeWire, so look at who holds the device
