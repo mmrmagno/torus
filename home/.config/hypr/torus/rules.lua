@@ -2,6 +2,13 @@ local function any(list)
 	return "^(" .. table.concat(list, "|") .. ")$"
 end
 
+-- apps that remember being maximized (kitty) would otherwise open covering the whole workspace
+hl.window_rule({
+	name = "torus_no_app_maximize",
+	match = { class = ".*" },
+	suppress_event = "maximize",
+})
+
 hl.window_rule({
 	name = "torus_float_class",
 	match = {
