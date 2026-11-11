@@ -67,8 +67,10 @@ PanelWindow {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 0
-                    Text { text: "Text from the picture"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
+                    Text { Layout.fillWidth: true; elide: Text.ElideRight; text: "Text from the picture"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
                     Text {
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
                         text: root.copied === "all" ? "All of it is on the clipboard. Click a line to copy only that one."
                             : root.copied === "line" ? "That line is on the clipboard." : "Click a line to copy it."
                         color: root.copied ? Theme.green : Theme.overlay
@@ -88,43 +90,56 @@ PanelWindow {
                 }
             }
 
-            Flickable {
+            Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(contentHeight, (root.screen ? root.screen.height : 800) * 0.7 - 100)
-                contentHeight: linesCol.implicitHeight
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
+                Layout.preferredHeight: flick.height + 16
+                radius: Theme.rCard
+                color: Qt.alpha(Theme.surface0, 0.55)
+                border.width: 1
+                border.color: Qt.alpha(Theme.surface1, 0.6)
 
-                Column {
-                    id: linesCol
-                    width: parent.width
-                    spacing: 2
-                    Repeater {
-                        model: root.lines
-                        Rectangle {
-                            id: line
-                            required property string modelData
-                            readonly property bool blank: modelData.trim() === ""
-                            width: linesCol.width
-                            height: blank ? 10 : lineText.implicitHeight + 8
-                            radius: Theme.rSm
-                            color: !blank && lineHover.hovered ? Qt.alpha(Theme.accent, 0.16) : "transparent"
-                            Text {
-                                id: lineText
-                                visible: !line.blank
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 8
-                                text: line.modelData
-                                color: Theme.text
-                                font.family: Theme.fontUi
-                                font.pixelSize: Theme.fsMd
-                                wrapMode: Text.Wrap
+                Flickable {
+                    id: flick
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 8
+                    height: Math.min(contentHeight, (root.screen ? root.screen.height : 800) * 0.7 - 116)
+                    contentHeight: linesCol.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    Column {
+                        id: linesCol
+                        width: parent.width
+                        spacing: 2
+                        Repeater {
+                            model: root.lines
+                            Rectangle {
+                                id: line
+                                required property string modelData
+                                readonly property bool blank: modelData.trim() === ""
+                                width: linesCol.width
+                                height: blank ? 10 : lineText.implicitHeight + 8
+                                radius: Theme.rSm
+                                color: !blank && lineHover.hovered ? Qt.alpha(Theme.accent, 0.16) : "transparent"
+                                Text {
+                                    id: lineText
+                                    visible: !line.blank
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.leftMargin: 8
+                                    anchors.rightMargin: 8
+                                    text: line.modelData
+                                    color: Theme.text
+                                    font.family: Theme.fontUi
+                                    font.pixelSize: Theme.fsMd
+                                    wrapMode: Text.Wrap
+                                }
+                                HoverHandler { id: lineHover; enabled: !line.blank; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { enabled: !line.blank; onTapped: root.copy(line.modelData.trim(), "line") }
                             }
-                            HoverHandler { id: lineHover; enabled: !line.blank; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { enabled: !line.blank; onTapped: root.copy(line.modelData.trim(), "line") }
                         }
                     }
                 }
