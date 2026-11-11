@@ -53,6 +53,22 @@ check_lock() {
   fi
 }
 
+check_portal() {
+  local pid owner
+  pid=$(pgrep -f '^/usr/lib/xdg-desktop-portal-hyprland' | head -1)
+  if [[ -z $pid ]]; then
+    note portal "xdg-desktop-portal-hyprland is not running (starts on the first screen share)"
+    return
+  fi
+  owner=$(tr '\0' '\n' < "/proc/$pid/environ" 2> /dev/null | sed -n 's/^HYPRLAND_INSTANCE_SIGNATURE=//p')
+  if [[ $owner != "$HYPRLAND_INSTANCE_SIGNATURE" ]]; then
+    bad portal "belongs to an older Hyprland session, screen sharing and recording fail"
+    ((fix)) && "$(dirname "$SELF")/torus-portals" && did portal "restarted for this session"
+  else
+    ok portal "screen sharing portal belongs to this session"
+  fi
+}
+
 check_config() {
   local errors
   errors=$(hyprctl configerrors 2> /dev/null | sed '/^\s*$/d')
@@ -177,6 +193,7 @@ run_checks() {
   check_shell
   check_lock
   check_config
+  check_portal
   check_guard
   check_links
   check_packages

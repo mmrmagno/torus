@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -uo pipefail
+systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-hyprland.service 2> /dev/null
+systemctl --user start xdg-desktop-portal-hyprland.service && systemctl --user start xdg-desktop-portal.service
