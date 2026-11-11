@@ -1,6 +1,6 @@
 [mgr]
 cwd = { fg = "@teal@" }
-hovered = { fg = "@base@", bg = "@mauve@" }
+hovered = { fg = "@base@", bg = "@accent@" }
 preview_hovered = { underline = true }
 find_keyword = { fg = "@yellow@", italic = true }
 find_position = { fg = "@pink@", bg = "reset", italic = true }
@@ -10,12 +10,12 @@ marker_cut = { fg = "@red@", bg = "@red@" }
 border_style = { fg = "@overlay1@" }
 
 [tabs]
-active = { fg = "@base@", bg = "@mauve@" }
-inactive = { fg = "@mauve@", bg = "@surface0@" }
+active = { fg = "@base@", bg = "@accent@" }
+inactive = { fg = "@accent@", bg = "@surface0@" }
 
 [mode]
-normal_main = { fg = "@base@", bg = "@mauve@", bold = true }
-normal_alt = { fg = "@mauve@", bg = "@surface0@" }
+normal_main = { fg = "@base@", bg = "@accent@", bold = true }
+normal_alt = { fg = "@accent@", bg = "@surface0@" }
 select_main = { fg = "@base@", bg = "@green@", bold = true }
 select_alt = { fg = "@green@", bg = "@surface0@" }
 unset_main = { fg = "@base@", bg = "@flamingo@", bold = true }
@@ -34,6 +34,6 @@ rules = [
   { mime = "{audio,video}/*", fg = "@yellow@" },
   { mime = "application/{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}", fg = "@pink@" },
   { mime = "application/{pdf,doc,rtf}", fg = "@green@" },
-  { url = "*/", fg = "@mauve@" },
+  { url = "*/", fg = "@accent@" },
   { url = "*", fg = "@text@" },
 ]

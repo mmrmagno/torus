@@ -64,9 +64,10 @@ for f in mocha macchiato frappe latte; do
   for l in .config/Kvantum/kvantum.kvconfig .config/qt6ct/qt6ct.conf .config/kdeglobals .config/starship/starship.toml .config/yazi/theme.toml .config/lazygit/config.yml .config/gtk-3.0/settings.ini .config/gtk-4.0/settings.ini .config/hypr/hyprtoolkit.conf; do
     [[ -L $HOME/$l && -f $HOME/$l ]] || fail "$f: $l not linked into the state dir"
   done
+  assert_contains "$HOME/.config/Kvantum/torus/torus.kvconfig" "highlight.color=$(jq -r --arg a "$(cat "$S/accent")" '.[$a]' "$P/$f.json")"
   if [[ $f == mocha ]]; then
-    assert_contains "$HOME/.config/Kvantum/kvantum.kvconfig" "theme=hyde-mocha"
-    assert_absent "$S/theme/kvantum"
+    assert_contains "$HOME/.config/Kvantum/kvantum.kvconfig" "theme=torus"
+    cmp -s "$REPO/home/.config/Kvantum/hyde-mocha/hyde-mocha.svg" "$HOME/.config/Kvantum/torus/torus.svg" || fail "mocha: kvantum keeps the HyDE look"
   else
     assert_contains "$HOME/.config/Kvantum/kvantum.kvconfig" "theme=torus"
     assert_file "$HOME/.config/Kvantum/torus/torus.kvconfig"

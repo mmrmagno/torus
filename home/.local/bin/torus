@@ -59,7 +59,7 @@ sed_script() {
       "s/@gtk_theme@/\($gtk)/g",
       "s/@color_scheme@/\($scheme)/g",
       "s/@icon_theme@/\($icons)/g",
-      "s/@kvantum_theme@/\(if $f == "mocha" then "hyde-mocha" else "torus" end)/g"
+      "s/@kvantum_theme@/torus/g"
   ' "$REPO/theme/$flavour.json"
   printf 's|@state@|%s|g\n' "$(printf '%s' "$STATE" | sed 's/[|&\\]/\\&/g')"
 }
@@ -72,11 +72,17 @@ render() {
   for t in "$REPO"/theme/templates/*.tmpl; do
     sed "$script" "$t" > "$tmp/$(basename "$t" .tmpl)"
   done
-  if [[ -f $REPO/theme/kvantum/catppuccin-$flavour.kvconfig ]]; then
+  local kv="" hex
+  if [[ $flavour == mocha && -f $REPO/home/.config/Kvantum/hyde-mocha/hyde-mocha.kvconfig ]]; then
+    kv=$REPO/home/.config/Kvantum/hyde-mocha/hyde-mocha
+  elif [[ -f $REPO/theme/kvantum/catppuccin-$flavour.kvconfig ]]; then
+    kv=$REPO/theme/kvantum/catppuccin-$flavour
+  fi
+  if [[ -n $kv ]]; then
+    hex=$(jq -r --arg a "$accent" '.[$a]' "$REPO/theme/$flavour.json")
     mkdir -p "$tmp/kvantum"
-    for e in kvconfig svg; do
-      sed "$script" "$REPO/theme/kvantum/catppuccin-$flavour.$e" > "$tmp/kvantum/torus.$e"
-    done
+    sed "$script" "$kv.svg" > "$tmp/kvantum/torus.svg"
+    sed "$script" "$kv.kvconfig" | sed -E "s/^((inactive\.)?highlight\.color|link\.color)=.*/\1=$hex/" > "$tmp/kvantum/torus.kvconfig"
   fi
   if [[ -d $STATE/theme ]]; then
     mv -T --exchange "$tmp" "$STATE/theme"
