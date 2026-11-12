@@ -25,6 +25,13 @@ assert_fails "$P" set 730 replay_secs 45
 assert_eq '120:off' "$("$P" settings 730 | jq -r '"\(.replay_secs):\(.hold)"')" "per-game settings stored by app id"
 [[ -f $F/config/torus/games.json ]] || fail "games.json written"
 
+mkdir -p "$F/proc/4242"; printf 'HOME=/x\0SteamAppId=730\0' > "$F/proc/4242/environ"
+stub hyprctl '[[ $1 == clients ]] && echo "[{\"class\":\"cs2\",\"pid\":4242,\"monitor\":1}]"; [[ $1 == monitors ]] && echo "[{\"id\":0,\"name\":\"DP-2\"},{\"id\":1,\"name\":\"DP-1\"}]"; exit 0'
+TORUS_PROC=$F/proc "$P" start cs2
+assert_eq "730:Counter-Strike 2" "$("$P" status | jq -r '"\(.appid):\(.name)"')" "a native game's app id comes from its process (cs2 has no steam_app_ class)"
+grep -q -- "gpu-screen-recorder -w DP-1 .* -r 120 " "$LOG" || fail "its own settings apply: $(cat "$LOG")"
+rm "$F/state/torus/play-session.json"; : > "$LOG"
+stub hyprctl '[[ $1 == clients ]] && echo "[{\"class\":\"steam_app_730\",\"monitor\":1}]"; [[ $1 == monitors ]] && echo "[{\"id\":0,\"name\":\"DP-2\"},{\"id\":1,\"name\":\"DP-1\"}]"; exit 0'
 "$P" start steam_app_730
 grep -q -- "gpu-screen-recorder -w DP-1 -f 60 -a default_output -c mp4 -r 120 -sc .*torus-play-saved -o $F/Videos" "$LOG" || fail "replay buffer on the game's monitor: $(cat "$LOG")"
 assert_eq "Counter-Strike 2:true:off" "$("$P" status | jq -r '"\(.name):\(.replay):\(.hold)"')" "session recorded"

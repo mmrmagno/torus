@@ -72,9 +72,29 @@ def ipc(*args):
     run("qs", "-c", "torus", "ipc", "call", "torus", *args, timeout=3)
 
 
+PROC = os.environ.get("TORUS_PROC", "/proc")
+
+
 def appid_of(cls):
     m = re.match(r"^steam_app_(\d+)$", cls or "")
-    return m.group(1) if m else ""
+    if m:
+        return m.group(1)
+    try:
+        clients = json.loads(run("hyprctl", "clients", "-j") or "[]")
+    except ValueError:
+        return ""
+    for c in clients:
+        if c.get("class") != cls or not c.get("pid"):
+            continue
+        try:
+            env = open(os.path.join(PROC, str(c["pid"]), "environ"), "rb").read().split(b"\0")
+        except OSError:
+            continue
+        for e in env:
+            if e.startswith(b"SteamAppId="):
+                v = e.split(b"=", 1)[1].decode()
+                return v if v.isdigit() and v != "0" else ""
+    return ""
 
 
 def monitor_of(cls):

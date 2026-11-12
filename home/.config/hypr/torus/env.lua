@@ -12,6 +12,14 @@ local vars = {
 	XCURSOR_SIZE = "24",
 	HYPRCURSOR_SIZE = "24",
 }
+local home = os.getenv("HOME")
+local state = (os.getenv("XDG_STATE_HOME") or (home .. "/.local/state")) .. "/torus/"
+local probe = io.open("/usr/bin/mangohud", "r")
+if probe then
+	probe:close()
+	vars.MANGOHUD = "1"
+	vars.MANGOHUD_CONFIGFILE = state .. "mangohud.conf"
+end
 for k, v in pairs(vars) do
 	hl.env(k, v)
 end

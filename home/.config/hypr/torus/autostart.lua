@@ -1,6 +1,6 @@
 local start = {
 	"uwsm finalize",
-	"sh -c 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE && systemctl --user restart torus-shell.service; torus-portals'",
+	"sh -c 'systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE MANGOHUD MANGOHUD_CONFIGFILE && systemctl --user restart torus-shell.service; torus-portals'",
 	"hypridle",
 	"hyprsunset",
 	"wl-paste --type text --watch cliphist store",
