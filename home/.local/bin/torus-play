@@ -121,9 +121,6 @@ def cmd_start(cls):
     if s["overlay"] in ("on", "off"):
         sess["overlay_before"] = run("torus-mangohud", "status").strip()
         run("torus-mangohud", s["overlay"])
-    os.makedirs(LOGS, exist_ok=True)
-    open(os.path.join(STATE, "mangohud-log"), "w").write(LOGS + "\n")
-    run("torus-mangohud", "apply")
     if s["power"] == "balanced":
         run("powerprofilesctl", "set", "balanced")
     if s["replay"] == "on" and not replay_running() and shutil.which("gpu-screen-recorder"):

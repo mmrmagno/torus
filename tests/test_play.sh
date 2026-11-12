@@ -35,7 +35,7 @@ stub hyprctl '[[ $1 == clients ]] && echo "[{\"class\":\"steam_app_730\",\"monit
 "$P" start steam_app_730
 grep -q -- "gpu-screen-recorder -w DP-1 -f 60 -a default_output -c mp4 -r 120 -sc .*torus-play-saved -o $F/Videos" "$LOG" || fail "replay buffer on the game's monitor: $(cat "$LOG")"
 assert_eq "Counter-Strike 2:true:off" "$("$P" status | jq -r '"\(.name):\(.replay):\(.hold)"')" "session recorded"
-[[ -s $F/state/torus/mangohud-log ]] || fail "MangoHud logging switched on for the session"
+[[ -e $F/state/torus/mangohud-log ]] && fail "no MangoHud logging (its log dot sits on top of the game)"
 
 mkdir -p "$F/Videos"
 ffmpeg -v error -f lavfi -i color=c=red:s=64x48:d=2 -c:v libx264 "$F/Videos/Replay_x.mp4"
