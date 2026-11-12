@@ -64,10 +64,6 @@ def slug(name):
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "game"
 
 
-def safe_dir(name):
-    return re.sub(r"[/\x00]", "", name).strip() or "Game"
-
-
 def ipc(*args):
     run("qs", "-c", "torus", "ipc", "call", "torus", *args, timeout=3)
 
@@ -217,7 +213,7 @@ def cmd_end():
 def cmd_saved(path):
     sess = load(SESSION, {})
     name = sess.get("name") or "Game"
-    dest_dir = os.path.join(CLIPS, safe_dir(name))
+    dest_dir = os.path.join(CLIPS, slug(name))
     os.makedirs(dest_dir, exist_ok=True)
     dest = os.path.join(dest_dir, slug(name) + "-" + time.strftime("%Y-%m-%d-%H%M%S") + ".mp4")
     try:
@@ -242,7 +238,7 @@ def thumb(path):
 
 
 def cmd_clips(appid):
-    dirs = [os.path.join(CLIPS, safe_dir(game_name(appid)))] if appid else glob.glob(os.path.join(CLIPS, "*"))
+    dirs = [os.path.join(CLIPS, slug(game_name(appid)))] if appid else glob.glob(os.path.join(CLIPS, "*"))
     files = sorted((p for d in dirs for p in glob.glob(os.path.join(d, "*.mp4"))), key=os.path.getmtime, reverse=True)
     for p in files[:12]:
         print("\t".join([p, str(int(os.path.getmtime(p))), thumb(p)]))

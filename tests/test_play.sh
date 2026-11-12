@@ -40,7 +40,7 @@ assert_eq "Counter-Strike 2:true:off" "$("$P" status | jq -r '"\(.name):\(.repla
 mkdir -p "$F/Videos"
 ffmpeg -v error -f lavfi -i color=c=red:s=64x48:d=2 -c:v libx264 "$F/Videos/Replay_x.mp4"
 dest=$("$P" saved "$F/Videos/Replay_x.mp4")
-[[ $dest == "$F/Videos/Clips/Counter-Strike 2/counter-strike-2-"*.mp4 && -f $dest ]] || fail "clip filed by game: $dest"
+[[ $dest == "$F/Videos/Clips/counter-strike-2/counter-strike-2-"*.mp4 && -f $dest ]] || fail "clip filed by game: $dest"
 grep -q "islandFlash notification Clip saved · Counter-Strike 2 · 120 s" "$LOG" || fail "island says the clip is saved"
 out=$("$P" clips 730)
 [[ $(cut -f1 <<< "$out") == "$dest" && -s $(cut -f3 <<< "$out") ]] || fail "clips listed with a thumbnail: $out"
