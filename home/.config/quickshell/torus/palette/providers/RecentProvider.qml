@@ -35,8 +35,8 @@ Provider {
                     seen[path] = true
                     const dir = path.slice(0, path.lastIndexOf("/")) || "/"
                     return { id: "rf:" + path, kind: "file", glyph: "󰈔", title: path.split("/").pop(), sub: path.replace(root.home, "~") + "  ·  " + l.slice(0, 10), enter: "open",
-                        act: () => Quickshell.execDetached(["xdg-open", path]),
-                        ctrl: { label: "open the folder", act: () => Quickshell.execDetached(["xdg-open", dir]) },
+                        act: () => Quickshell.execDetached(["torus-launch", "xdg-open", path]),
+                        ctrl: { label: "open the folder", act: () => Quickshell.execDetached(["torus-launch", "xdg-open", dir]) },
                         alt: { label: "copy path", act: () => Quickshell.execDetached(["wl-copy", "--", path]) } }
                 }).filter(x => x).slice(0, 40)
             }

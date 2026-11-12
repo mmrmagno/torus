@@ -27,11 +27,11 @@ Singleton {
     }
 
     function updateTorus() {
-        Quickshell.execDetached(["kitty", "--title", "torus-update", "-e", "sh", "-c", "cd \"$(dirname \"$(readlink -f \"$(command -v torus)\")\")/../../..\" && git pull --ff-only && ./install.sh --no-packages; echo; read -n1 -p 'done, press a key'"])
+        Quickshell.execDetached(["torus-launch", "kitty", "--title", "torus-update", "-e", "sh", "-c", "cd \"$(dirname \"$(readlink -f \"$(command -v torus)\")\")/../../..\" && git pull --ff-only && ./install.sh --no-packages; echo; read -n1 -p 'done, press a key'"])
     }
 
     function update() {
-        Quickshell.execDetached(["kitty", "--title", "torus-update", "-e", "sh", "-c", "yay -Syu; echo; read -n1 -p 'done, press a key'"])
+        Quickshell.execDetached(["torus-launch", "kitty", "--title", "torus-update", "-e", "sh", "-c", "yay -Syu; echo; read -n1 -p 'done, press a key'"])
     }
 
     Process {

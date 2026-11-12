@@ -83,7 +83,7 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: root.clips = text.split("\n").filter(l => l).map(l => {
                 const f = l.split("\t")
-                return { path: f[0], at: Number(f[1]) || 0, thumb: f[2] || "" }
+                return { path: f[0], at: Number(f[1]) || 0, thumb: f[2] || "", size: Number(f[3]) || 0 }
             })
         }
     }

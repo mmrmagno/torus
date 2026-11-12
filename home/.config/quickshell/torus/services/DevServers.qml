@@ -22,7 +22,7 @@ Singleton {
     }
 
     function open(s) {
-        Quickshell.execDetached(["xdg-open", "http://localhost:" + s.port])
+        Quickshell.execDetached(["torus-launch", "xdg-open", "http://localhost:" + s.port])
     }
 
     function stop(s) {

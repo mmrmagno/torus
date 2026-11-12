@@ -19,7 +19,7 @@ PanelWindow {
     }
 
     function browse(url) {
-        Quickshell.execDetached(["sh", "-c", "command -v firefox > /dev/null && exec firefox \"$1\" || exec xdg-open \"$1\"", "sh", url])
+        Quickshell.execDetached(["torus-launch", "sh", "-c", "command -v firefox > /dev/null && exec firefox \"$1\" || exec xdg-open \"$1\"", "sh", url])
     }
 
     screen: Store.screenFor("homelab")
@@ -223,7 +223,7 @@ PanelWindow {
                                     title: amtRow.modelData.node + (amtRow.modelData.up ? "  ·  reachable" : "  ·  not reachable")
                                     sub: "TCP 16993 from this workstation"
                                 }
-                                PanelButton { icon: "󰍹"; label: "Console"; implicitHeight: 30; onClicked: Quickshell.execDetached(["kitty", "--class", "torus-amt", "-e", "amt"]) }
+                                PanelButton { icon: "󰍹"; label: "Console"; implicitHeight: 30; onClicked: Quickshell.execDetached(["torus-launch", "kitty", "--class", "torus-amt", "-e", "amt"]) }
                                 PanelButton { icon: "󰖟"; label: "Web"; implicitHeight: 30; onClicked: root.browse(amtRow.modelData.web) }
                             }
                         }

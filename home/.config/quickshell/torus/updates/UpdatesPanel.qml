@@ -211,7 +211,7 @@ PanelWindow {
                             }
                         }
                         HoverHandler { id: newsHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: Quickshell.execDetached(["xdg-open", item.modelData.link]) }
+                        TapHandler { onTapped: Quickshell.execDetached(["torus-launch", "xdg-open", item.modelData.link]) }
                     }
                 }
             }

@@ -241,7 +241,7 @@ def cmd_clips(appid):
     dirs = [os.path.join(CLIPS, slug(game_name(appid)))] if appid else glob.glob(os.path.join(CLIPS, "*"))
     files = sorted((p for d in dirs for p in glob.glob(os.path.join(d, "*.mp4"))), key=os.path.getmtime, reverse=True)
     for p in files[:12]:
-        print("\t".join([p, str(int(os.path.getmtime(p))), thumb(p)]))
+        print("\t".join([p, str(int(os.path.getmtime(p))), thumb(p), str(os.path.getsize(p))]))
 
 
 def cmd_set(appid, key, value):

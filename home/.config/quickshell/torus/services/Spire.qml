@@ -24,7 +24,7 @@ Singleton {
     }
 
     function open(url) {
-        Quickshell.execDetached(["xdg-open", url])
+        Quickshell.execDetached(["torus-launch", "xdg-open", url])
     }
 
     function ago(iso) {

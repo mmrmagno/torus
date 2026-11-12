@@ -33,12 +33,12 @@ Provider {
                 const r = {
                     id: "d:" + path, kind: "project", glyph: "󰊢", title: path.split("/").pop(),
                     sub: short + "  ·  " + branch + (dirty === "0" ? "" : "  ·  " + dirty + " changed"), keys: short + " " + branch,
-                    enter: "terminal", act: () => Quickshell.execDetached(["kitty", "--directory", path]),
-                    ctrl: { label: "nvim", act: () => Quickshell.execDetached(["kitty", "--directory", path, "nvim", "."]) }
+                    enter: "terminal", act: () => Quickshell.execDetached(["torus-launch", "kitty", "--directory", path]),
+                    ctrl: { label: "nvim", act: () => Quickshell.execDetached(["torus-launch", "kitty", "--directory", path, "nvim", "."]) }
                 }
-                r.layout = { label: "workspace", act: () => Quickshell.execDetached(["torus-layout", path]) }
+                r.layout = { label: "workspace", act: () => Quickshell.execDetached(["torus-launch", "torus-layout", path]) }
                 if (url !== "")
-                    r.alt = { label: "repo page", act: () => Quickshell.execDetached(["xdg-open", url]) }
+                    r.alt = { label: "repo page", act: () => Quickshell.execDetached(["torus-launch", "xdg-open", url]) }
                 return r
             })
         }

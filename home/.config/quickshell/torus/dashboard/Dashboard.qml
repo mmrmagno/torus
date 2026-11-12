@@ -344,14 +344,14 @@ PanelWindow {
                             required property var modelData
                             icon: "󰕧"
                             label: Qt.formatDateTime(modelData.date, "dd.MM hh:mm") + "  " + Math.round(modelData.size / 1048576) + " MB"
-                            onClicked: Quickshell.execDetached(["xdg-open", modelData.path])
+                            onClicked: Quickshell.execDetached(["torus-launch", "xdg-open", modelData.path])
                         }
                     }
                     PanelButton {
                         visible: Recordings.count > 0
                         icon: "󰉋"
                         label: "Folder"
-                        onClicked: Quickshell.execDetached(["xdg-open", Recordings.dir])
+                        onClicked: Quickshell.execDetached(["torus-launch", "xdg-open", Recordings.dir])
                     }
                     PanelButton {
                         icon: "󰄀"

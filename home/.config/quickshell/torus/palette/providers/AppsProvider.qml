@@ -17,7 +17,7 @@ Provider {
             if (e.noDisplay)
                 continue
             const entry = e
-            a.push({ id: "app:" + e.id, kind: "app", title: e.name, sub: e.genericName || e.comment || "", keys: (e.keywords || []).join(" "), icon: Quickshell.iconPath(e.icon, true), enter: "launch", act: () => entry.execute() })
+            a.push({ id: "app:" + e.id, kind: "app", title: e.name, sub: e.genericName || e.comment || "", keys: (e.keywords || []).join(" "), icon: Quickshell.iconPath(e.icon, true), enter: "launch", act: () => Quickshell.execDetached(["torus-launch", "--dir", entry.workingDirectory || Quickshell.env("HOME")].concat(entry.runInTerminal ? ["kitty", "-e"] : [], entry.command)) })
         }
         a.sort((x, y) => x.title.localeCompare(y.title))
         items = a

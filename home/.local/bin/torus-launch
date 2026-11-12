@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ ${1:-} == --dir ]]; then
+  cd "$2" 2> /dev/null || true
+  shift 2
+fi
+(($#)) || { echo "usage: torus-launch [--dir DIR] COMMAND [ARGS]" >&2; exit 2; }
+if [[ -S ${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private ]] && command -v systemd-run > /dev/null; then
+  exec systemd-run --user --scope --quiet --collect --slice=app.slice -- "$@"
+fi
+exec "$@"

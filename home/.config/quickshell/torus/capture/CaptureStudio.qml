@@ -33,7 +33,7 @@ PanelWindow {
 
     function act(cmd) {
         Store.setOpen("capture", false)
-        Quickshell.execDetached(["sh", "-c", "sleep 0.35; " + cmd])
+        Quickshell.execDetached(["torus-launch", "sh", "-c", "sleep 0.35; " + cmd])
     }
 
     function ago(t) {
@@ -322,127 +322,45 @@ PanelWindow {
                     spacing: Theme.sp4
                     Repeater {
                         model: root.shownItems
-                        Rectangle {
+                        CaptureTile {
                             id: shot
                             required property var modelData
                             readonly property real w: (body.width - 3 * Theme.sp4) / 4
                             width: w
                             height: w * 0.62 + 34
-                            radius: Theme.rCard
-                            color: Theme.mantle
-                            border.width: 1
-                            border.color: shotHover.hovered ? Theme.accent : Qt.alpha(Theme.surface1, 0.6)
-                            clip: true
-
-                            Image {
-                                id: pic
-                                x: 4
-                                y: 4
-                                width: parent.width - 8
-                                height: shot.w * 0.62 - 4
-                                source: shot.modelData.thumb ? "file://" + shot.modelData.thumb : ""
-                                sourceSize.width: 400
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                cache: false
+                            path: shot.modelData.path
+                            kind: shot.modelData.kind
+                            thumb: shot.modelData.thumb || ""
+                            time: shot.modelData.time
+                            bytes: shot.modelData.size
+                            armed: root.armed === shot.modelData.path
+                            onOpened: {
+                                Store.setOpen("capture", false)
+                                Quickshell.execDetached(["torus-launch", "xdg-open", shot.modelData.path])
                             }
-                            Text {
-                                visible: pic.status !== Image.Ready
-                                anchors.centerIn: pic
-                                text: shot.modelData.kind === "video" ? "󰕧" : "󰋩"
-                                color: Theme.overlay
-                                font.family: Theme.fontMono
-                                font.pixelSize: 26
-                            }
-                            Rectangle {
-                                visible: shot.modelData.kind === "video"
-                                anchors.centerIn: pic
-                                width: 34
-                                height: 34
-                                radius: 17
-                                color: Qt.alpha(Theme.crust, 0.7)
-                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: 1; text: "󰐊"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsXl }
-                            }
-                            RowLayout {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.bottom: parent.bottom
-                                anchors.margins: 8
-                                spacing: Theme.sp2
-                                Text { Layout.fillWidth: true; text: root.ago(shot.modelData.time); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsXs; elide: Text.ElideRight }
-                                Text { text: root.size(shot.modelData.size); color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
-                            }
-
-                            HoverHandler {
-                                id: shotHover
-                                onHoveredChanged: if (!hovered && root.armed === shot.modelData.path) root.armed = ""
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    Store.setOpen("capture", false)
-                                    Quickshell.execDetached(["xdg-open", shot.modelData.path])
-                                }
-                            }
-
-                            Row {
-                                visible: shotHover.hovered
-                                anchors.right: parent.right
-                                anchors.top: parent.top
-                                anchors.margins: 8
-                                spacing: 4
-                                Repeater {
-                                    model: shot.modelData.kind === "image" ? [["󰆏", "copy"], ["󰏫", "edit"], ["󰊄", "text"], ["󰉋", "folder"], ["󰆴", "delete"]] : [["󰆏", "copy"], ["󰉋", "folder"], ["󰆴", "delete"]]
-                                    Rectangle {
-                                        id: mini
-                                        required property var modelData
-                                        readonly property bool danger: modelData[1] === "delete"
-                                        readonly property bool armedHere: danger && root.armed === shot.modelData.path
-                                        width: 26
-                                        height: 26
-                                        radius: 13
-                                        color: miniHover.hovered || armedHere ? (danger ? Theme.red : Theme.accent) : Qt.alpha(Theme.crust, 0.8)
-                                        Behavior on width { NumberAnimation { duration: Theme.durFast } }
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: mini.armedHere ? "󰄬" : mini.modelData[0]
-                                            color: miniHover.hovered || mini.armedHere ? Theme.crust : Theme.text
-                                            font.family: Theme.fontMono
-                                            font.pixelSize: Theme.fsMd
-                                        }
-                                        MouseArea {
-                                            id: miniHover
-                                            readonly property bool hovered: containsMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                const p = shot.modelData.path
-                                                const what = mini.modelData[1]
-                                                if (what === "copy")
-                                                    Quickshell.execDetached(shot.modelData.kind === "image" ? ["sh", "-c", "wl-copy < \"$1\"", "sh", p] : ["sh", "-c", "printf 'file://%s\\n' \"$1\" | wl-copy -t text/uri-list", "sh", p])
-                                                else if (what === "edit")
-                                                    root.act("satty --filename '" + p.replace(/'/g, "'\\''") + "' --early-exit --copy-command wl-copy")
-                                                else if (what === "text")
-                                                    Quickshell.execDetached(["torus-ocr", p])
-                                                else if (what === "folder")
-                                                    Quickshell.execDetached(["xdg-open", p.substring(0, p.lastIndexOf("/"))])
-                                                else if (what === "delete") {
-                                                    if (root.armed !== p) {
-                                                        root.armed = p
-                                                        return
-                                                    }
-                                                    root.armed = ""
-                                                    Quickshell.execDetached(["rm", "-f", "--", p])
-                                                    Store.sound("delete")
-                                                    root.items = root.items.filter(i => i.path !== p)
-                                                }
-                                                if (what === "copy")
-                                                    Quickshell.execDetached(["notify-send", "-a", "torus", "-u", "low", "Copied", p.split("/").pop()])
-                                            }
-                                        }
+                            onAct: what => {
+                                const p = shot.modelData.path
+                                if (what === "disarm") {
+                                    if (root.armed === p)
+                                        root.armed = ""
+                                } else if (what === "copy") {
+                                    Quickshell.execDetached(shot.modelData.kind === "image" ? ["sh", "-c", "wl-copy < \"$1\"", "sh", p] : ["sh", "-c", "printf 'file://%s\\n' \"$1\" | wl-copy -t text/uri-list", "sh", p])
+                                    Quickshell.execDetached(["notify-send", "-a", "torus", "-u", "low", "Copied", p.split("/").pop()])
+                                } else if (what === "edit") {
+                                    root.act("satty --filename '" + p.replace(/'/g, "'\\''") + "' --early-exit --copy-command wl-copy")
+                                } else if (what === "text") {
+                                    Quickshell.execDetached(["torus-ocr", p])
+                                } else if (what === "folder") {
+                                    Quickshell.execDetached(["torus-launch", "xdg-open", p.substring(0, p.lastIndexOf("/"))])
+                                } else if (what === "delete") {
+                                    if (root.armed !== p) {
+                                        root.armed = p
+                                        return
                                     }
+                                    root.armed = ""
+                                    Quickshell.execDetached(["rm", "-f", "--", p])
+                                    Store.sound("delete")
+                                    root.items = root.items.filter(i => i.path !== p)
                                 }
                             }
                         }

@@ -30,7 +30,7 @@ PanelWindow {
     function launch(g) {
         if (!g)
             return
-        Quickshell.execDetached(["xdg-open", "steam://rungameid/" + g.id])
+        Quickshell.execDetached(["torus-launch", "xdg-open", "steam://rungameid/" + g.id])
         Store.setOpen("games", false)
     }
 

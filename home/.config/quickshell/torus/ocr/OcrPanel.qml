@@ -91,7 +91,7 @@ PanelWindow {
                     icon: "󰏫"
                     implicitHeight: 30
                     onClicked: {
-                        Quickshell.execDetached(["kitty", "-e", "nvim", root.file])
+                        Quickshell.execDetached(["torus-launch", "kitty", "-e", "nvim", root.file])
                         Store.setOpen("ocr", false)
                     }
                 }

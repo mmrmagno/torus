@@ -156,7 +156,7 @@ PanelWindow {
                     }
                 }
                 PanelButton { label: root.mineOnly ? "Mine" : "All users"; implicitHeight: 34; active: !root.mineOnly; onClicked: root.mineOnly = !root.mineOnly }
-                PanelButton { label: "btop"; implicitHeight: 34; onClicked: { Quickshell.execDetached(["kitty", "--title", "btop", "-e", "btop"]); Store.setOpen("processes", false) } }
+                PanelButton { label: "btop"; implicitHeight: 34; onClicked: { Quickshell.execDetached(["torus-launch", "kitty", "--title", "btop", "-e", "btop"]); Store.setOpen("processes", false) } }
             }
 
             RowLayout {

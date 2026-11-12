@@ -1620,7 +1620,7 @@ check_play() {
   local bad="" st main clip r
   local state=~/.local/state/torus
   rm -f "$state/play-session.json" "$state/play-last.json"
-  rm -rf ~/Videos/Clips/"Portal 2"
+  rm -rf ~/Videos/Clips/portal-2
   main=$(hyprctl monitors -j | jq -r '.[0].name')
   hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
   hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' > /dev/null
@@ -1637,10 +1637,10 @@ check_play() {
   for _ in $(seq 40); do [[ -s $state/play-session.json ]] && break; sleep 0.25; done
   st=$(jq -r '"\(.name):\(.class)"' "$state/play-session.json" 2> /dev/null)
   [[ $st == "Portal 2:steam_app_620" ]] || bad+="no-session[$st] "
-  [[ -s $state/mangohud-log ]] || bad+="no-mangohud-log "
+  [[ ! -e $state/mangohud-log ]] || bad+="mangohud-logging "
   ffmpeg -v error -y -f lavfi -i testsrc=s=320x240:d=1 -c:v libx264 /tmp/parity-replay.mp4 < /dev/null
   clip=$(torus-play saved /tmp/parity-replay.mp4)
-  [[ $clip == "$HOME/Videos/Clips/Portal 2/portal-2-"*.mp4 && -f $clip ]] || bad+="clip[$clip] "
+  [[ $clip == "$HOME/Videos/Clips/portal-2/portal-2-"*.mp4 && -f $clip ]] || bad+="clip[$clip] "
   [[ $(torus-play clips 620 | cut -f1) == "$clip" ]] || bad+="clips-list "
   jq '.start -= 600' "$state/play-session.json" > /tmp/parity-sess && cat /tmp/parity-sess > "$state/play-session.json"
   hyprctl clients -j | jq -r '.[] | select(.class == "steam_app_620") | .pid' | xargs -r kill
@@ -1649,8 +1649,8 @@ check_play() {
   [[ $r == "Portal 2:10:1" ]] || bad+="recap[$r] "
   [[ ! -e $state/play-session.json ]] || bad+="session-left "
   [[ $(cat "$state/gamemode" 2> /dev/null || echo off) == off ]] || bad+="gamemode-stuck "
-  rm -rf ~/Videos/Clips/"Portal 2" /tmp/parity-replay.mp4 "$state/play-last.json"
-  if [[ -z $bad ]]; then section play ok "a fullscreen steam_app starts a play session, a clip files under Clips/Portal 2, closing the game leaves a recap"; else section play fail "$bad"; fi
+  rm -rf ~/Videos/Clips/portal-2 /tmp/parity-replay.mp4 "$state/play-last.json"
+  if [[ -z $bad ]]; then section play ok "a fullscreen steam_app starts a play session, a clip files under Clips/portal-2, closing the game leaves a recap"; else section play fail "$bad"; fi
 }
 
 check_meetjoin() {

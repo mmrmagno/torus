@@ -389,7 +389,7 @@ PanelWindow {
                                     else if (what === "Text")
                                         Quickshell.execDetached(["torus-ocr", p])
                                     else if (what === "Folder")
-                                        Quickshell.execDetached(["xdg-open", p.substring(0, p.lastIndexOf("/"))])
+                                        Quickshell.execDetached(["torus-launch", "xdg-open", p.substring(0, p.lastIndexOf("/"))])
                                     else if (what === "Delete")
                                         Quickshell.execDetached(["rm", "-f", "--", p])
                                         Store.sound("delete")

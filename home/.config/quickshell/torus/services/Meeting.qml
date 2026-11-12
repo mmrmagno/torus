@@ -21,7 +21,7 @@ Singleton {
     function joinCall(url) {
         if (!/^https:\/\/(meet\.google\.com|teams\.(microsoft|live)\.com|([a-z0-9-]+\.)?zoom\.us)\//.test(url))
             return false
-        Quickshell.execDetached(["xdg-open", url])
+        Quickshell.execDetached(["torus-launch", "xdg-open", url])
         joined = true
         micSeen = false
         joinGuard.restart()

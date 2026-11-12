@@ -15,7 +15,7 @@ Singleton {
     }
 
     function logs(c) {
-        Quickshell.execDetached(["kitty", "--title", c.name + " logs", "torus-containers", "logs", c.engine, c.id])
+        Quickshell.execDetached(["torus-launch", "kitty", "--title", c.name + " logs", "torus-containers", "logs", c.engine, c.id])
     }
 
     function restartProject(engine, project) {

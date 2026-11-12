@@ -35,8 +35,8 @@ Provider {
         const parent = dir ? p : p.slice(0, p.lastIndexOf("/")) || "/"
         const r = {
             id: "f:" + p, kind: dir ? "folder" : "file", glyph: dir ? "󰉋" : "󰈔", title: exact ? tilde(p) : p.split("/").filter(x => x).pop() + (dir ? "/" : ""), sub: tilde(p),
-            enter: "open", act: () => Quickshell.execDetached(["xdg-open", p]),
-            ctrl: { label: "terminal here", act: () => Quickshell.execDetached(["kitty", "--directory", parent]) },
+            enter: "open", act: () => Quickshell.execDetached(["torus-launch", "xdg-open", p]),
+            ctrl: { label: "terminal here", act: () => Quickshell.execDetached(["torus-launch", "kitty", "--directory", parent]) },
             alt: { label: "copy path", act: () => Quickshell.execDetached(["wl-copy", "--", p]) }
         }
         if (dir && !exact) {

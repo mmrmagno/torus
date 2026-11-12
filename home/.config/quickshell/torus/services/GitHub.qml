@@ -17,7 +17,7 @@ Singleton {
     readonly property int wanted: review.length + failing.length + redCi
 
     function open(url) {
-        Quickshell.execDetached(["xdg-open", url])
+        Quickshell.execDetached(["torus-launch", "xdg-open", url])
     }
 
     function refresh() {

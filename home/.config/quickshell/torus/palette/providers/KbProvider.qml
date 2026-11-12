@@ -38,8 +38,8 @@ Provider {
                 if (!m)
                     return null
                 const rel = m[1].replace(root.home + "/dev/kb/", "")
-                return { id: "kb:" + rel, kind: "kb", glyph: "󰈙", title: m[3].trim() || rel, sub: rel + ":" + m[2], enter: "open in nvim", act: () => Quickshell.execDetached(["kitty", "-e", "nvim", "+" + m[2], m[1]]),
-                    ctrl: { label: "open the folder", act: () => Quickshell.execDetached(["xdg-open", m[1].slice(0, m[1].lastIndexOf("/"))]) } }
+                return { id: "kb:" + rel, kind: "kb", glyph: "󰈙", title: m[3].trim() || rel, sub: rel + ":" + m[2], enter: "open in nvim", act: () => Quickshell.execDetached(["torus-launch", "kitty", "-e", "nvim", "+" + m[2], m[1]]),
+                    ctrl: { label: "open the folder", act: () => Quickshell.execDetached(["torus-launch", "xdg-open", m[1].slice(0, m[1].lastIndexOf("/"))]) } }
             }).filter(x => x)
         }
     }

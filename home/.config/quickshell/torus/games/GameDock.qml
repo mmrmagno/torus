@@ -1,8 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Widgets
 import qs
+import qs.components
 import qs.services
 
 Rectangle {
@@ -12,6 +12,7 @@ Rectangle {
     property string mode: "grid"
     property int clipIndex: 0
     property int settingIndex: 0
+    property string armed: ""
     readonly property var rows: [
         { key: "overlay", label: "Overlay", values: ["keep", "on", "off"] },
         { key: "power", label: "Power profile", values: ["performance", "balanced", "keep"] },
@@ -48,7 +49,7 @@ Rectangle {
     function play() {
         const c = clip()
         if (c)
-            Quickshell.execDetached(["xdg-open", c.path])
+            Quickshell.execDetached(["torus-launch", "xdg-open", c.path])
     }
 
     function remove() {
@@ -63,8 +64,10 @@ Rectangle {
 
     function copy() {
         const c = clip()
-        if (c)
-            Quickshell.execDetached(["sh", "-c", "printf 'file://%s\\n' \"$1\" | wl-copy -t text/uri-list", "sh", c.path])
+        if (!c)
+            return
+        Quickshell.execDetached(["sh", "-c", "printf 'file://%s\\n' \"$1\" | wl-copy -t text/uri-list", "sh", c.path])
+        Quickshell.execDetached(["notify-send", "-a", "torus", "-u", "low", "Copied", c.path.split("/").pop()])
     }
 
     onGameChanged: {
@@ -74,7 +77,7 @@ Rectangle {
     }
 
     Layout.fillWidth: true
-    implicitHeight: 132
+    implicitHeight: 186
     radius: Theme.rCard
     color: Qt.alpha(Theme.surface0, 0.55)
     border.width: 1
@@ -109,39 +112,41 @@ Rectangle {
                 model: Play.clips
                 currentIndex: dock.clipIndex
                 highlightMoveDuration: 120
-                delegate: ClippingRectangle {
+                delegate: CaptureTile {
                     id: shot
                     required property var modelData
                     required property int index
-                    width: Math.round(height * 16 / 9)
                     height: strip.height
-                    radius: Theme.rSm
-                    color: Theme.surface1
-                    border.width: dock.mode === "clips" && shot.index === dock.clipIndex ? 2 : 0
-                    border.color: Theme.accent
-                    Image {
-                        anchors.fill: parent
-                        source: shot.modelData.thumb ? "file://" + shot.modelData.thumb : ""
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
+                    width: Math.round((height - 34) / 0.62)
+                    path: shot.modelData.path
+                    kind: "video"
+                    thumb: shot.modelData.thumb
+                    time: shot.modelData.at
+                    bytes: shot.modelData.size
+                    selected: dock.mode === "clips" && shot.index === dock.clipIndex
+                    armed: dock.armed === shot.modelData.path
+                    onOpened: {
+                        dock.mode = "clips"
+                        dock.clipIndex = shot.index
+                        dock.play()
                     }
-                    Text {
-                        anchors.bottom: parent.bottom
-                        anchors.left: parent.left
-                        anchors.margins: 4
-                        text: Qt.formatDateTime(new Date(shot.modelData.at * 1000), "d MMM hh:mm")
-                        color: "white"
-                        style: Text.Outline
-                        styleColor: "#80000000"
-                        font.family: Theme.fontUi
-                        font.pixelSize: Theme.fsXs
-                    }
-                    TapHandler {
-                        onTapped: {
-                            dock.mode = "clips"
-                            dock.clipIndex = shot.index
+                    onAct: what => {
+                        dock.clipIndex = shot.index
+                        if (what === "disarm") {
+                            if (dock.armed === shot.modelData.path)
+                                dock.armed = ""
+                        } else if (what === "copy") {
+                            dock.copy()
+                        } else if (what === "folder") {
+                            Quickshell.execDetached(["torus-launch", "xdg-open", shot.modelData.path.substring(0, shot.modelData.path.lastIndexOf("/"))])
+                        } else if (what === "delete") {
+                            if (dock.armed !== shot.modelData.path) {
+                                dock.armed = shot.modelData.path
+                                return
+                            }
+                            dock.armed = ""
+                            dock.remove()
                         }
-                        onDoubleTapped: dock.play()
                     }
                 }
             }
