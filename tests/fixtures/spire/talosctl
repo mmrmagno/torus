@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# torus-parity-stub
+echo "talosctl $*" >> "${LOG:-/dev/null}"
+case " $* " in
+  *" service ext-tailscale "*) printf 'NODE  192.0.2.21\nID    ext-tailscale\nSTATE Running\nHEALTH OK\n' ;;
+  *" get extensionserviceconfigs "*) echo '{"spec":{"environment":["TS_AUTHKEY=x","TS_ROUTES=192.0.2.0/24"]}}' ;;
+esac

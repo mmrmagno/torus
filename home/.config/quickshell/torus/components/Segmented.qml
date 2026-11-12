@@ -16,7 +16,13 @@ Rectangle {
 
     Rectangle {
         id: thumb
-        readonly property Item target: row.children.length > 0 ? row.children[Math.max(0, root.options.indexOf(root.current))] : null
+        readonly property Item target: {
+            const kids = row.children
+            for (let i = 0; i < kids.length; i++)
+                if (kids[i].on === true)
+                    return kids[i]
+            return null
+        }
         visible: target !== null && root.options.indexOf(root.current) >= 0
         x: target ? row.x + target.x : 0
         y: 3

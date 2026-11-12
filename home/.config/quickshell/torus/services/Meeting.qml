@@ -15,6 +15,21 @@ Singleton {
     property bool setting: false
     readonly property bool wanted: autoOn && InUse.mic && (InUse.cam || Island.sharing)
 
+    property bool joined: false
+    property bool micSeen: false
+
+    function joinCall(url) {
+        if (!/^https:\/\/(meet\.google\.com|teams\.(microsoft|live)\.com|([a-z0-9-]+\.)?zoom\.us)\//.test(url))
+            return false
+        Quickshell.execDetached(["xdg-open", url])
+        joined = true
+        micSeen = false
+        joinGuard.restart()
+        if (!active)
+            begin()
+        return true
+    }
+
     function setAuto(on) {
         autoOn = on
         autoFile.setText(on ? "on\n" : "off\n")
@@ -28,6 +43,7 @@ Singleton {
 
     function endNow() {
         manual = false
+        joined = false
         stopTimer.stop()
         if (active)
             end()
@@ -41,7 +57,7 @@ Singleton {
         setting = true
         Store.dnd = true
         setting = false
-        Island.flash("notification", { summary: "Meeting: notifications held", body: manual ? "until you end the meeting in SUPER+Space" : "they wait until the call ends", app: "torus", icon: "notifications", image: "" }, 4000)
+        Island.flash("notification", { summary: "Meeting: notifications held", body: manual ? "until you end the meeting in SUPER+Space" : "they wait until the call ends", app: "torus", icon: "notifications", image: "", cat: "meeting" }, 4000)
     }
 
     function end() {
@@ -61,7 +77,7 @@ Singleton {
                 startTimer.restart()
         } else {
             startTimer.stop()
-            if (active && !manual)
+            if (active && !manual && !joined)
                 stopTimer.restart()
         }
     }
@@ -71,6 +87,40 @@ Singleton {
         function onDndChanged() {
             if (root.active && !root.setting)
                 root.dndMine = true
+        }
+    }
+
+    Connections {
+        target: InUse
+        function onMicChanged() {
+            if (!root.joined)
+                return
+            if (InUse.mic) {
+                root.micSeen = true
+                callEnd.stop()
+            } else if (root.micSeen) {
+                callEnd.restart()
+            }
+        }
+    }
+
+    Timer {
+        id: callEnd
+        interval: 20000
+        onTriggered: if (root.joined && !InUse.mic) {
+            root.joined = false
+            if (root.active && !root.manual)
+                root.end()
+        }
+    }
+
+    Timer {
+        id: joinGuard
+        interval: 900000
+        onTriggered: if (root.joined && !root.micSeen) {
+            root.joined = false
+            if (root.active && !root.manual)
+                root.end()
         }
     }
 

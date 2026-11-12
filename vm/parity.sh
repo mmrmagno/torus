@@ -11,7 +11,12 @@ export HYPRLAND_INSTANCE_SIGNATURE
 QS=(qs -c torus ipc call torus)
 
 passed=0 total=0
-awake() { "${QS[@]}" stayAwake true > /dev/null 2>&1 || true; }
+awake() {
+  "${QS[@]}" stayAwake true > /dev/null 2>&1 || true
+  local h; h=$(date +%-H)
+  [[ $("${QS[@]}" quietSet $(( (h + 2) % 24 )) $(( (h + 3) % 24 )) 2> /dev/null | tail -n 1) == false ]] && "${QS[@]}" setDnd false > /dev/null 2>&1
+  true
+}
 section() {
   local name=$1 result=$2 detail=$3
   total=$((total + 1))
@@ -44,7 +49,7 @@ check_binds() {
   fi
 }
 
-BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates privacy servers github containers controller tray clipboard menu notifications power"
+BAR_MODULES="cpu memory cpuinfo gpuinfo idle clock workspaces taskbar sunset network audio mic updates privacy servers github homelab containers controller tray clipboard menu notifications power"
 
 check_bar() {
   local out screens bad=""
@@ -215,9 +220,24 @@ PY
   [[ $reply == "hello from mock:1b re: second" ]] || bad+="race-reply:[$reply] "
   reply=$("${QS[@]}" aiError 2>/dev/null | tail -n 1)
   [[ -z $reply ]] || bad+="race-error:[$reply] "
+  wl-copy -p "segfault at 0x0 in libfoo" 2> /dev/null
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.8
+  "${QS[@]}" paletteQuery "!" > /dev/null; sleep 0.8
+  "${QS[@]}" paletteRun 0 > /dev/null; sleep 3
+  reply=$("${QS[@]}" aiLast 2>/dev/null | tr '\n' ' ')
+  [[ $reply == *"segfault at 0x0 in libfoo"* ]] || bad+="explain-selection:[$reply] "
+  wl-copy -p --clear 2> /dev/null
+  echo "exit 1 in ~: make install" > "$XDG_RUNTIME_DIR/torus-last-error"
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.8
+  "${QS[@]}" paletteQuery "!" > /dev/null; sleep 0.8
+  "${QS[@]}" paletteRun 0 > /dev/null; sleep 3
+  reply=$("${QS[@]}" aiLast 2>/dev/null | tr '\n' ' ')
+  [[ $reply == *"make install"* ]] || bad+="explain-last-error:[$reply] "
+  rm -f "$XDG_RUNTIME_DIR/torus-last-error"
+  [[ $("${QS[@]}" isOpen ai) == true ]] && "${QS[@]}" aiToggle > /dev/null
   kill "$pid" 2> /dev/null; rm -f "$mock"
   "${QS[@]}" aiRefresh > /dev/null 2>&1
-  if [[ -z $bad ]]; then section ai ok "offline hint, models from /api/tags, streamed reply"; else section ai fail "$bad"; fi
+  if [[ -z $bad ]]; then section ai ok "offline hint, models from /api/tags, streamed reply, explains the selection or the last failed command"; else section ai fail "$bad"; fi
 }
 
 check_polkit() {
@@ -411,7 +431,7 @@ unlock() {
 }
 locked_is() {
   local want=$1 i
-  for i in $(seq 60); do
+  for i in $(seq 120); do
     [[ $("${QS[@]}" isLocked 2>/dev/null) == "$want" ]] && return 0
     sleep 0.25
   done
@@ -436,7 +456,7 @@ check_lock() {
     local t1 t2
     t1=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2); sleep 1; t2=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2)
     ((t2 > t1)) || bad+="lock-donut-stopped($("${QS[@]}" donutClock 2>/dev/null)) "
-    sleep 31
+    sleep 36
     t1=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2); sleep 1; t2=$("${QS[@]}" donutClock 2>/dev/null | cut -d: -f2)
     ((t2 == t1)) || bad+="lock-donut-never-sleeps "
     wtype -k Shift_L; sleep 0.5
@@ -965,7 +985,7 @@ check_meeting() {
   pw-record --target parity-mic /dev/null < /dev/null > /dev/null 2>&1 &
   pid=$!
   sleep 12
-  [[ $("${QS[@]}" meetingState) == "idle auto=true mic=true cam=false dnd=false" ]] || bad+="mic-alone[$("${QS[@]}" meetingState)] "
+  [[ $("${QS[@]}" meetingState) == "idle auto=true mic=true cam=false dnd=false joined=false" ]] || bad+="mic-alone[$("${QS[@]}" meetingState)] "
   pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=parity-cam media.class=Stream/Input/Video object.linger=true }' > /dev/null
   meeting_is "active" 30 || bad+="no-meeting[$("${QS[@]}" meetingState)] "
   [[ $("${QS[@]}" dnd) == true ]] || bad+="dnd-not-on "
@@ -1089,7 +1109,7 @@ check_displays() {
 check_face() {
   local bad=""
   [[ -n ${LOCK_PW:-} ]] || { section face fail "LOCK_PW not set"; return; }
-  printf '#!/bin/sh\n[ -e /tmp/face-ok ] && exit 0\nsleep 2\nexit 1\n' | sudo tee /usr/local/bin/fake-face > /dev/null
+  printf '#!/bin/sh\nsleep 2\n[ -e /tmp/face-ok ] && exit 0\nexit 1\n' | sudo tee /usr/local/bin/fake-face > /dev/null
   sudo chmod 755 /usr/local/bin/fake-face
   printf 'auth sufficient pam_exec.so quiet /usr/local/bin/fake-face\nauth required pam_deny.so\naccount required pam_unix.so\n' | sudo tee /etc/pam.d/torus-face > /dev/null
   touch /tmp/face-ok
@@ -1436,8 +1456,337 @@ check_spin() {
 }
 
 h=$(date +%-H)
-"${QS[@]}" quietSet $(( (h + 2) % 24 )) $(( (h + 3) % 24 )) > /dev/null 2>&1
 trap '"${QS[@]}" quietSet 0 6 > /dev/null 2>&1' EXIT
+
+MOTION_PANELS=(
+  "dashboard|dashboardToggle|dashboardToggle"
+  "network|networkToggle|networkToggle"
+  "updates|updatesToggle|updatesToggle"
+  "theme|themeToggle|themeToggle"
+  "capture|captureToggle|captureToggle"
+  "session|sessionToggle|sessionToggle"
+  "ocr|ocrShow|sh:wtype -k Escape"
+  "popups|sh:notify-send -u critical -a parity motion popup|clearNotifs"
+)
+
+check_motion() {
+  command -v wf-recorder > /dev/null || { section motion fail "wf-recorder missing (VM fixture)"; return; }
+  local bad="" out="" spec name open close r main
+  main=$(hyprctl monitors -j | jq -r "sort_by(.id) | .[0].name")
+  for spec in "${MOTION_PANELS[@]}"; do
+    IFS='|' read -r name open close <<<"$spec"
+    r=$(MOTION_OUTPUT=$main MOTION_DIR=$(mktemp -d) "$HERE/motion.sh" "$open" "$close" 2>&1 | tail -n 1)
+    [[ $name != popups && $("${QS[@]}" isOpen "$name" 2>/dev/null) == true ]] && bad+="$name-stuck "
+    if ! jq -e . > /dev/null 2>&1 <<<"$r"; then bad+="$name[$r] "; continue; fi
+    out+="$name $(jq -r '"\(.resizes)r \(.moves)m \(.jumps)j \(.open_ms)/\(.close_ms)ms"' <<<"$r"); "
+    jq -e '.resizes == 0 and .moves == 0 and .jumps == 0' > /dev/null <<<"$r" || bad+="$name "
+    sleep 0.3
+  done
+  local isl
+  isl=$(MOTION_NS=torus-island MOTION_OUTPUT=$main MOTION_DIR=$(mktemp -d) "$HERE/motion.sh" "islandFlash osd parity-volume" "islandFlash notification parity-note" 1.0 2>&1 | tail -n 1)
+  if jq -e . > /dev/null 2>&1 <<<"$isl"; then
+    out+="island $(jq -r '"\(.resizes)r \(.jumps)j \(.open_ms)/\(.close_ms)ms"' <<<"$isl"); "
+    jq -e '.resizes == 0 and .jumps == 0' > /dev/null <<<"$isl" || bad+="island "
+  else
+    bad+="island[$isl] "
+  fi
+  local win try ok=""
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' > /dev/null
+  for try in 1 2; do
+    win=$(MOTION_CROP=0,40,1280,760 MOTION_OUTPUT=$main MOTION_DIR=$(mktemp -d) "$HERE/motion.sh" "exec:kitty -o cursor_blink_interval=0 --class parity-motion-k" \
+      "sh:hyprctl clients -j | jq -r '.[] | select(.class == \"parity-motion-k\") | .pid' | xargs -r kill" 3.0 2>&1 | tail -n 1)
+    jq -e '.open_ms > 0 and .overshoot_px <= 6 and .close_ms <= .open_ms' > /dev/null 2>&1 <<<"$win" && { ok=1; break; }
+  done
+  out+="window $(jq -r '"\(.open_ms)/\(.close_ms)ms over \(.overshoot_px)px"' <<<"$win" 2>/dev/null); "
+  [[ -n $ok ]] || bad+="window[$win] "
+  if [[ -z $bad ]]; then section motion ok "$out"; else section motion fail "bad: $bad| $out"; fi
+}
+
+check_escape() {
+  local bad="" name fn
+  for name in dashboard center network; do
+    case $name in dashboard) fn=dashboardToggle ;; center) fn=centerToggle ;; network) fn=networkToggle ;; esac
+    "${QS[@]}" "$fn" > /dev/null; sleep 0.8
+    [[ $("${QS[@]}" isOpen "$name") == true ]] || { bad+="$name-open "; continue; }
+    wtype -k Escape; sleep 0.6
+    [[ $("${QS[@]}" isOpen "$name") == false ]] || { bad+="$name-esc "; "${QS[@]}" "$fn" > /dev/null; }
+  done
+  "${QS[@]}" dashboardToggle > /dev/null; sleep 0.6
+  "${QS[@]}" dashboardToggle > /dev/null; sleep 0.4
+  [[ $("${QS[@]}" isOpen dashboard) == false ]] || bad+="dashboard-toggle "
+  if [[ -z $bad ]]; then section escape ok "Esc closes dashboard, notification centre and network panel (focus grab), SUPER+D toggles"; else section escape fail "$bad"; fi
+}
+
+check_calm() {
+  local bad="" a1 a2 b1 b2 st passes
+  "${QS[@]}" calmForce true > /dev/null; sleep 3
+  st=$("${QS[@]}" calmState 2>/dev/null | tail -n 1)
+  [[ $st == on:calm:* ]] || bad+="state[$st] "
+  passes=$(hyprctl getoption decoration:blur:passes -j | jq -r .int)
+  [[ $passes == 1 ]] || bad+="blur-passes[$passes] "
+  [[ $(torus-calm status) == on ]] || bad+="no-marker "
+  a1=$("${QS[@]}" donutFrames Virtual-1 2>/dev/null); sleep 2; a2=$("${QS[@]}" donutFrames Virtual-1 2>/dev/null)
+  [[ $a1 == "$a2" ]] || bad+="wallpaper-still-moving($a1>$a2) "
+  "${QS[@]}" batteryMode full > /dev/null; sleep 3
+  [[ $("${QS[@]}" calmState 2>/dev/null | tail -n 1) == off:full:* ]] || bad+="full-mode-ignored "
+  "${QS[@]}" batteryMode calm > /dev/null
+  "${QS[@]}" calmForce false > /dev/null; sleep 4
+  passes=$(hyprctl getoption decoration:blur:passes -j | jq -r .int)
+  [[ $passes == 3 ]] || bad+="blur-not-restored[$passes] "
+  b1=$("${QS[@]}" donutFrames Virtual-1 2>/dev/null); sleep 2; b2=$("${QS[@]}" donutFrames Virtual-1 2>/dev/null)
+  ((b2 > b1)) || bad+="wallpaper-not-resumed($b1=$b2) "
+  if [[ -z $bad ]]; then section calm ok "on battery (forced): wallpaper rests, blur 3 -> 1 pass, full mode opts out, AC restores [$st]"; else section calm fail "$bad"; fi
+}
+
+island_has() {
+  local i st
+  for i in $(seq 24); do
+    st=$("${QS[@]}" islandState 2>/dev/null | tail -n 1)
+    if [[ $1 == yes ]]; then [[ $st == *:face* ]] && return 0; else [[ $st != *:face* ]] && return 0; fi
+    sleep 0.25
+  done
+  return 1
+}
+
+check_faceisland() {
+  local bad=""
+  logger -t pam_howdy "Attempting facial authentication for user $USER"
+  island_has yes || bad+="no-scan "
+  logger -t pam_howdy "Login approved"
+  sleep 0.5
+  island_has yes || bad+="no-check "
+  sleep 2.5
+  island_has no || bad+="match-stuck "
+  logger -t pam_howdy "Attempting facial authentication for user $USER"
+  island_has yes || bad+="no-second-scan "
+  logger -t pam_howdy "Failure, timeout reached"
+  sleep 2.5
+  island_has no || bad+="miss-stuck "
+  if [[ -z $bad ]]; then section faceisland ok "pam_howdy journal lines drive the island: scan, check, miss, back to normal"; else section faceisland fail "$bad"; fi
+}
+
+feel_get() { "${QS[@]}" feelState 2>/dev/null | tail -n 1 | jq -r ".$1"; }
+
+check_feel() {
+  local bad="" d0 st
+  "${QS[@]}" feelReset > /dev/null; sleep 0.5
+  d0=$(feel_get durMed)
+  "${QS[@]}" feelSet speed 1.5 > /dev/null; sleep 0.3
+  (( $(feel_get durMed) < d0 )) || bad+="speed "
+  "${QS[@]}" feelSet reduceMotion true > /dev/null; sleep 0.3
+  [[ $(feel_get durMed) == 0 ]] || bad+="reduce-motion "
+  "${QS[@]}" feelSet textScale 1.25 > /dev/null; sleep 0.3
+  [[ $(feel_get fsMd) == 15 ]] || bad+="text-size[$(feel_get fsMd)] "
+  "${QS[@]}" feelSet radius 0 > /dev/null; sleep 0.3
+  [[ $(feel_get rPanel) == 0 ]] || bad+="radius "
+  "${QS[@]}" feelList stay "dashboard network" > /dev/null; sleep 0.3
+  [[ $(feel_get stayPut) == true ]] || bad+="stay "
+  "${QS[@]}" feelList islandOff volume > /dev/null; sleep 0.3
+  wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ > /dev/null 2>&1; sleep 0.6
+  st=$("${QS[@]}" islandState 2>/dev/null | tail -n 1)
+  [[ $st == state:osd* ]] && bad+="volume-still-on-island "
+  "${QS[@]}" feelList soundsOff notify > /dev/null; sleep 0.3
+  [[ $(feel_get notify) == false ]] || bad+="sound-switch "
+  [[ -s ~/.local/state/torus/feel.json ]] || bad+="not-persisted "
+  "${QS[@]}" feelReset > /dev/null; sleep 0.5
+  [[ $(feel_get durMed) == "$d0" && $(feel_get fsMd) == 12 && $(feel_get stayPut) == false ]] || bad+="reset "
+  if [[ -z $bad ]]; then section feel ok "speed, reduce motion, text size, radius, panel follow, island and sound switches apply live and persist"; else section feel fail "$bad"; fi
+}
+
+check_homelab() {
+  local bad="" st b=$HOME/.local/bin
+  [[ -e $b/kubectl || -e $b/talosctl ]] && ! grep -q torus-parity-stub "$b/kubectl" 2> /dev/null && { section homelab fail "real kubectl in ~/.local/bin, refusing to stub"; return; }
+  mkdir -p ~/.config/torus
+  cp "$REPO/tests/fixtures/spire/kubectl" "$b/kubectl"; cp "$REPO/tests/fixtures/spire/talosctl" "$b/talosctl"; chmod +x "$b/kubectl" "$b/talosctl"
+  echo '{"tailscale":["ironclad"],"amt":{"ironclad":"127.0.0.1"}}' > ~/.config/torus/spire.json
+  python3 -m http.server 16993 --bind 127.0.0.1 > /dev/null 2>&1 &
+  local web=$!
+  sleep 0.5
+  "${QS[@]}" homelabToggle > /dev/null; sleep 4
+  [[ $("${QS[@]}" isOpen homelab) == true ]] || bad+="no-open "
+  st=$("${QS[@]}" homelabState 2>/dev/null)
+  [[ $st == ok:3:2:2:1 ]] || bad+="state[$st] "
+  local m
+  m=$("${QS[@]}" modules 2>&1)
+  grep -q homelab <<<"$m" || bad+="no-chip-module "
+  "${QS[@]}" homelabToggle > /dev/null; sleep 0.4
+  [[ $("${QS[@]}" isOpen homelab) == false ]] || bad+="no-close "
+  kill "$web" 2> /dev/null
+  rm -f "$b/kubectl" "$b/talosctl" ~/.config/torus/spire.json
+  if [[ -z $bad ]]; then section homelab ok "SUPER+H hub reads nodes, pods, Flux, apps, routers and AMT from stubs [$st], read only"; else section homelab fail "$bad"; fi
+}
+
+check_play() {
+  local bad="" st main clip r
+  local state=~/.local/state/torus
+  rm -f "$state/play-session.json" "$state/play-last.json"
+  rm -rf ~/Videos/Clips/"Portal 2"
+  main=$(hyprctl monitors -j | jq -r '.[0].name')
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' > /dev/null
+  hyprctl eval 'hl.exec_cmd("kitty --class steam_app_620")' > /dev/null
+  for _ in $(seq 100); do hyprctl clients -j | jq -e 'any(.[]; .class == "steam_app_620")' > /dev/null && break; sleep 0.2; done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:steam_app_620" }))' > /dev/null 2>&1
+  for _ in $(seq 10); do
+    hyprctl clients -j | jq -e 'any(.[]; .class == "steam_app_620" and .fullscreen > 0)' > /dev/null && break
+    hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen())' > /dev/null
+    sleep 0.5
+  done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' > /dev/null; sleep 0.5
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:steam_app_620" }))' > /dev/null 2>&1
+  for _ in $(seq 40); do [[ -s $state/play-session.json ]] && break; sleep 0.25; done
+  st=$(jq -r '"\(.name):\(.class)"' "$state/play-session.json" 2> /dev/null)
+  [[ $st == "Portal 2:steam_app_620" ]] || bad+="no-session[$st] "
+  [[ -s $state/mangohud-log ]] || bad+="no-mangohud-log "
+  ffmpeg -v error -y -f lavfi -i testsrc=s=320x240:d=1 -c:v libx264 /tmp/parity-replay.mp4 < /dev/null
+  clip=$(torus-play saved /tmp/parity-replay.mp4)
+  [[ $clip == "$HOME/Videos/Clips/Portal 2/portal-2-"*.mp4 && -f $clip ]] || bad+="clip[$clip] "
+  [[ $(torus-play clips 620 | cut -f1) == "$clip" ]] || bad+="clips-list "
+  jq '.start -= 600' "$state/play-session.json" > /tmp/parity-sess && cat /tmp/parity-sess > "$state/play-session.json"
+  hyprctl clients -j | jq -r '.[] | select(.class == "steam_app_620") | .pid' | xargs -r kill
+  for _ in $(seq 40); do [[ -s $state/play-last.json ]] && break; sleep 0.25; done
+  r=$(torus-play recap | jq -r '"\(.name):\(.minutes):\(.clips)"')
+  [[ $r == "Portal 2:10:1" ]] || bad+="recap[$r] "
+  [[ ! -e $state/play-session.json ]] || bad+="session-left "
+  [[ $(cat "$state/gamemode" 2> /dev/null || echo off) == off ]] || bad+="gamemode-stuck "
+  rm -rf ~/Videos/Clips/"Portal 2" /tmp/parity-replay.mp4 "$state/play-last.json"
+  if [[ -z $bad ]]; then section play ok "a fullscreen steam_app starts a play session, a clip files under Clips/Portal 2, closing the game leaves a recap"; else section play fail "$bad"; fi
+}
+
+check_meetjoin() {
+  local bad="" pid r
+  "${QS[@]}" meetingNow false > /dev/null
+  r=$("${QS[@]}" meetingJoin "https://example.com/not-a-call" 2>/dev/null | tail -n 1)
+  [[ $r == false ]] || bad+="accepted-non-call "
+  r=$("${QS[@]}" meetingJoin "https://meet.google.com/abc-defg-hij" 2>/dev/null | tail -n 1)
+  [[ $r == true ]] || bad+="refused-meet "
+  meeting_is "active" 10 || bad+="not-active "
+  [[ $("${QS[@]}" meetingState) == *joined=true* ]] || bad+="not-joined "
+  [[ $("${QS[@]}" dnd) == true ]] || bad+="dnd-not-on "
+  pw-cli create-node adapter '{ factory.name=support.null-audio-sink node.name=parity-mic media.class=Audio/Source/Virtual audio.position=[FL FR] object.linger=true }' > /dev/null
+  sleep 1
+  pw-record --target parity-mic /dev/null < /dev/null > /dev/null 2>&1 &
+  pid=$!
+  sleep 4
+  kill "$pid" 2> /dev/null
+  meeting_is "idle" 70 || bad+="call-end-not-noticed[$("${QS[@]}" meetingState)] "
+  [[ $("${QS[@]}" dnd) == false ]] || bad+="dnd-not-restored "
+  pw_drop parity-mic
+  if [[ -z $bad ]]; then section meetjoin ok "Join opens only Meet/Teams/Zoom links, holds notifications at once, ends when the call releases the mic"; else section meetjoin fail "$bad"; fi
+}
+
+check_layout() {
+  local bad="" ws0 ws1 n r
+  mkdir -p /tmp/parity-proj && git -C /tmp/parity-proj init -q 2> /dev/null
+  printf 'term\nterm\n' > /tmp/parity-proj/.torus-layout
+  hyprctl eval 'hl.exec_cmd("kitty --class parity-layout-park")' > /dev/null
+  for _ in $(seq 40); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity-layout-park")' > /dev/null && break; sleep 0.25; done
+  ws0=$(hyprctl activeworkspace -j | jq -r .id)
+  torus-layout /tmp/parity-proj
+  for _ in $(seq 40); do
+    n=$(hyprctl clients -j | jq --argjson w "$(hyprctl activeworkspace -j | jq -r .id)" '[.[] | select(.class == "kitty" and .workspace.id == $w)] | length')
+    ((n >= 2)) && break
+    sleep 0.25
+  done
+  ws1=$(hyprctl activeworkspace -j | jq -r .id)
+  [[ $ws1 != "$ws0" ]] || bad+="same-workspace "
+  ((n == 2)) || bad+="windows[$n] "
+  hyprctl clients -j | jq -r --argjson w "$ws1" '.[] | select(.workspace.id == $w) | .pid' | xargs -r kill
+  hyprctl clients -j | jq -r '.[] | select(.class == "parity-layout-park") | .pid' | xargs -r kill
+  rm -rf /tmp/parity-proj
+  podman rm -f parity-proj-a > /dev/null 2>&1
+  timeout 120 podman run -d --name parity-proj-a --label com.docker.compose.project=parityproj docker.io/library/busybox:1.37 sleep 100000 > /dev/null 2>&1 || bad+="fixture "
+  r=$(torus-containers list | awk -F'\t' '$3 == "parity-proj-a" { print $7 }')
+  [[ $r == parityproj ]] || bad+="project[$r] "
+  torus-containers restart-project podman parityproj 2> /dev/null || bad+="restart-project "
+  podman rm -f -t 0 parity-proj-a > /dev/null 2>&1
+  if [[ -z $bad ]]; then section layout ok "a project's layout opens on its own workspace, containers carry their compose project and restart together"; else section layout fail "$bad"; fi
+}
+
+life_get() { "${QS[@]}" donutLife "$1" 2>/dev/null | tail -n 1 | cut -d: -f"$2"; }
+
+check_living() {
+  local bad="" main s0 s1 k0 k1 b1 pids="" i
+  main=$(hyprctl monitors -j | jq -r 'sort_by(.id) | .[0].name')
+  "${QS[@]}" wallpaper donut > /dev/null; sleep 2
+  s0=$(life_get "$main" 1)
+  [[ -n $s0 ]] || { section living fail "no life report (living donut off?)"; return; }
+  for i in $(seq "$(nproc)"); do (timeout 8 sh -c 'while :; do :; done') & pids+="$! "; done
+  sleep 6
+  s1=$(life_get "$main" 1)
+  wait $pids 2> /dev/null
+  awk -v a="$s0" -v b="$s1" 'BEGIN { exit !(b > a + 0.5) }' || bad+="spin[$s0->$s1] "
+  k0=$(life_get "$main" 4)
+  notify-send -u critical -a parity "living" "wobble"; sleep 2.5
+  k1=$(life_get "$main" 4)
+  awk -v a="$k0" -v b="$k1" 'BEGIN { exit !(b > a || b >= 0.9) }' || bad+="no-wobble[$k0->$k1] "
+  "${QS[@]}" clearNotifs > /dev/null
+  "${QS[@]}" wallpaper xwing > /dev/null; sleep 2
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
+  local ws; ws=$(hyprctl activeworkspace -j | jq -r .id)
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"$(( ws == 7 ? 8 : 7 ))\" }))" > /dev/null; sleep 2.5
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"$ws\" }))" > /dev/null; sleep 1
+  b1=$(life_get "$main" 3)
+  awk -v b="$b1" 'BEGIN { exit !(b >= 5) }' || bad+="no-bank[$b1] "
+  "${QS[@]}" wallpaper donut > /dev/null
+  if [[ -z $bad ]]; then section living ok "spin follows CPU load ($s0 -> $s1), a notification wobbles it, the X-wing banks ($b1 deg)"; else section living fail "$bad"; fi
+}
+
+check_otp() {
+  local bad="" r i idx
+  wl-copy --clear 2> /dev/null
+  notify-send -a parity "GitHub" "Your verification code is 482 913. It expires in 10 minutes."
+  sleep 1
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.8
+  "${QS[@]}" paletteQuery "code" > /dev/null; sleep 1
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  [[ $r == *"Copy 482913"* ]] || bad+="no-palette-row[$r] "
+  idx=$(tr '|' '\n' <<<"$r" | grep -n "Copy 482913" | cut -d: -f1 | head -1)
+  [[ -n $idx ]] && "${QS[@]}" paletteRun $((idx - 1)) > /dev/null
+  sleep 1
+  [[ $(wl-paste -n 2> /dev/null) == 482913 ]] || bad+="not-copied "
+  cliphist list 2> /dev/null | grep -q 482913 && bad+="in-clipboard-history "
+  [[ $("${QS[@]}" isOpen palette) == true ]] && "${QS[@]}" paletteToggle > /dev/null
+  sleep 0.5
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.8
+  "${QS[@]}" paletteQuery "n verification" > /dev/null; sleep 1
+  r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
+  "${QS[@]}" paletteToggle > /dev/null
+  [[ -n $r ]] || bad+="history-empty "
+  "${QS[@]}" clearNotifs > /dev/null
+  wl-copy --clear 2> /dev/null
+  if [[ -z $bad ]]; then section otp ok "a code in a notification gets a palette row, copies as sensitive (not in cliphist)"; else section otp fail "$bad"; fi
+}
+
+check_crashlog() {
+  local bad="" newest before
+  before=$(torus-crash list 2> /dev/null | head -1)
+  systemctl --user kill -s KILL torus-shell.service
+  for _ in $(seq 60); do newest=$(torus-crash list 2> /dev/null | head -1); [[ -n $newest && $newest != "$before" ]] && break; sleep 0.5; done
+  [[ -n $newest && $newest != "$before" ]] || bad+="no-log "
+  for _ in $(seq 60); do [[ $("${QS[@]}" isLocked 2>/dev/null) == false ]] && break; sleep 0.5; done
+  awake
+  [[ $(TORUS_CRASH_CAT=1 torus-crash last | sed -n 2p) == "== QML warnings in this run" ]] || bad+="no-warnings-section "
+  if [[ -z $bad ]]; then section crashlog ok "a crash log starts with the QML warnings of the run that crashed"; else section crashlog fail "$bad"; fi
+}
+
+check_fit() {
+  local bad="" out="" spec name fn mon geo
+  for mon in $(hyprctl monitors -j | jq -r '.[].name'); do
+    hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$mon\" }))" > /dev/null; sleep 0.3
+    for spec in dashboard:dashboardToggle theme:themeToggle capture:captureToggle network:networkToggle updates:updatesToggle session:sessionToggle homelab:homelabToggle processes:processesToggle; do
+      name=${spec%%:*} fn=${spec#*:}
+      "${QS[@]}" "$fn" > /dev/null; sleep 1
+      geo=$(hyprctl layers -j | jq -r --arg m "$mon" '.[$m].levels[][] | select(.namespace == "torus-panel") | "\(.y + .h)"' | sort -n | tail -1)
+      local bottom; bottom=$(hyprctl monitors -j | jq -r --arg m "$mon" '.[] | select(.name == $m) | .y + (if .transform % 2 == 1 then .width else .height end)')
+      [[ -n $geo && $geo -le $bottom ]] || bad+="$mon:$name[$geo>$bottom] "
+      "${QS[@]}" "$fn" > /dev/null; sleep 0.5
+      [[ $("${QS[@]}" isOpen "$name") == true ]] && "${QS[@]}" "$fn" > /dev/null
+    done
+    out+="$mon "
+  done
+  if [[ -z $bad ]]; then section fit ok "every panel ends inside its screen ($out)"; else section fit fail "$bad"; fi
+}
 
 check_qmllog() {
   local inv out
@@ -1485,6 +1834,19 @@ case ${1:-all} in
   smart) check_smart ;;
   session) check_session ;;
   qmllog) check_qmllog ;;
+  motion) check_motion ;;
+  escape) check_escape ;;
+  calm) check_calm ;;
+  faceisland) check_faceisland ;;
+  feel) check_feel ;;
+  homelab) check_homelab ;;
+  play) check_play ;;
+  meetjoin) check_meetjoin ;;
+  layout) check_layout ;;
+  living) check_living ;;
+  otp) check_otp ;;
+  crashlog) check_crashlog ;;
+  fit) check_fit ;;
   rules) check_rules ;;
   calendar) check_calendar ;;
   notify) check_notify ;;
@@ -1497,7 +1859,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_fit; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

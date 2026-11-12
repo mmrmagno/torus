@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import qs
 import qs.components
+import qs.services
 
 PanelWindow {
     id: root
@@ -44,6 +45,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("games") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     onVisibleChanged: if (visible) {
+        dock.mode = "grid"
         search.text = ""
         grid.currentIndex = 0
         if (!loader.running)
@@ -101,8 +103,32 @@ PanelWindow {
                         grid.currentIndex = 0
                     }
                     Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Tab) {
+                            dock.mode = dock.mode === "grid" ? (Play.clips.length > 0 ? "clips" : "settings") : (dock.mode === "clips" ? "settings" : "grid")
+                            event.accepted = true
+                            return
+                        }
+                        if (dock.mode !== "grid" && event.key !== Qt.Key_Escape) {
+                            const ctrl = event.modifiers & Qt.ControlModifier
+                            if (dock.mode === "clips" && (event.key === Qt.Key_Left || event.key === Qt.Key_Right))
+                                dock.step(event.key === Qt.Key_Right ? 1 : -1)
+                            else if (dock.mode === "clips" && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter))
+                                dock.play()
+                            else if (dock.mode === "clips" && event.key === Qt.Key_Delete)
+                                dock.remove()
+                            else if (dock.mode === "clips" && ctrl && event.key === Qt.Key_C)
+                                dock.copy()
+                            else if (dock.mode === "settings" && (event.key === Qt.Key_Up || event.key === Qt.Key_Down))
+                                dock.step(event.key === Qt.Key_Down ? 1 : -1)
+                            else if (dock.mode === "settings" && (event.key === Qt.Key_Left || event.key === Qt.Key_Right))
+                                dock.cycle(event.key === Qt.Key_Right ? 1 : -1)
+                            else
+                                return
+                            event.accepted = true
+                            return
+                        }
                         if (event.key === Qt.Key_Escape)
-                            Store.setOpen("games", false)
+                            dock.mode === "grid" ? Store.setOpen("games", false) : dock.mode = "grid"
                         else if (event.key === Qt.Key_Right)
                             grid.moveCurrentIndexRight()
                         else if (event.key === Qt.Key_Left)
@@ -216,10 +242,15 @@ PanelWindow {
                 }
             }
 
+            GameDock {
+                id: dock
+                game: root.selected
+            }
+
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.sp6
-                Text { text: "↵ play  ·  arrows move  ·  type to filter  ·  Esc closes"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+                Text { text: "↵ play  ·  arrows move  ·  type to filter  ·  Tab clips and settings  ·  Esc closes"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
             }
         }
     }

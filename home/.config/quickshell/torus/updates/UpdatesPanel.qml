@@ -25,7 +25,8 @@ PanelWindow {
         right: 10
     }
     implicitWidth: 420
-    implicitHeight: Math.min(680, body.implicitHeight + 32)
+    implicitHeight: Math.floor(Math.min(680, Store.panelRoom(screen, 16)))
+    mask: Region { item: updFrame }
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -33,20 +34,26 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("updates") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     HyprlandFocusGrab {
-        active: Store.isOpen("updates")
+        active: Store.isOpen("updates") && root.backingWindowVisible
         windows: [root]
         onCleared: Store.setOpen("updates", false)
     }
 
     Rectangle {
+        id: updFrame
         focus: true
         Keys.onEscapePressed: Store.setOpen("updates", false)
         PanelMotion {
             id: motion
-            target: parent
+            target: updFrame
             shown: Store.isOpen("updates") && !Store.moving
         }
-        anchors.fill: parent
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.min(body.implicitHeight + 32, root.implicitHeight)
+        Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.TopRight
         radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1
@@ -136,6 +143,45 @@ PanelWindow {
                 }
 
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.surface1; Layout.topMargin: 4; Layout.bottomMargin: 4 }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: Updates.torusInstalled !== null
+                    spacing: Theme.sp4
+                    Text { Layout.fillWidth: true; text: "torus"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
+                    Text {
+                        visible: Updates.torus.length === 0
+                        text: Updates.torusInstalled ? "up to date at " + Updates.torusInstalled.hash : ""
+                        color: Theme.overlay
+                        font.family: Theme.fontMono
+                        font.pixelSize: Theme.fsXs
+                    }
+                    PanelButton {
+                        visible: Updates.torus.length > 0
+                        icon: "󰚰"
+                        label: "Update torus"
+                        implicitHeight: 28
+                        onClicked: {
+                            Store.setOpen("updates", false)
+                            Updates.updateTorus()
+                        }
+                    }
+                }
+
+                Repeater {
+                    model: Updates.torus.slice(0, 12)
+                    RowLayout {
+                        id: crow
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: Theme.sp4
+                        Text { text: crow.modelData.hash; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
+                        Text { Layout.fillWidth: true; text: crow.modelData.subject; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd; elide: Text.ElideRight }
+                        Text { text: crow.modelData.date; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
+                    }
+                }
+
+                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.surface1; Layout.topMargin: 4; Layout.bottomMargin: 4; visible: Updates.torusInstalled !== null }
 
                 Text { text: "Arch news"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
 

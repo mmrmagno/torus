@@ -1,0 +1,17 @@
+home/.config/quickshell/torus/bar/Bar.qml Section
+home/.config/quickshell/torus/components/Mixer.qml DeviceRow
+home/.config/quickshell/torus/dashboard/CommuteCard.qml Field
+home/.config/quickshell/torus/dashboard/CommuteCard.qml IconButton
+home/.config/quickshell/torus/dashboard/CommuteCard.qml Legs
+home/.config/quickshell/torus/dashboard/CommuteCard.qml Lines
+home/.config/quickshell/torus/dashboard/Dashboard.qml StatRow
+home/.config/quickshell/torus/network/NetPanel.qml Heading
+home/.config/quickshell/torus/network/NetPanel.qml SmallButton
+home/.config/quickshell/torus/network/NetPanel.qml Toggle
+home/.config/quickshell/torus/notifications/Center.qml LiveCard
+home/.config/quickshell/torus/processes/ProcPanel.qml Cell
+home/.config/quickshell/torus/processes/ProcPanel.qml Header
+home/.config/quickshell/torus-safe/shell.qml Button
+home/.config/quickshell/torus/session/SessionPanel.qml WindowRow
+home/.config/quickshell/torus/studio/ThemeStudio.qml FlavourCard
+home/.config/quickshell/torus/studio/ThemeStudio.qml Heading

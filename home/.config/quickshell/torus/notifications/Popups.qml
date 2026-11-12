@@ -17,13 +17,23 @@ PanelWindow {
         right: 10
     }
     implicitWidth: 400
-    implicitHeight: Math.max(1, column.implicitHeight)
+    implicitHeight: Store.panelRoom(screen, 16)
+    mask: Region { regions: cardRegions.instances }
     exclusiveZone: 0
     color: "transparent"
     visible: Notifs.popups.length > 0 && !Store.isOpen("center")
     WlrLayershell.namespace: "torus-notifications"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+    Variants {
+        id: cardRegions
+        model: column.children
+        Region {
+            required property Item modelData
+            item: modelData
+        }
+    }
 
     Column {
         id: column

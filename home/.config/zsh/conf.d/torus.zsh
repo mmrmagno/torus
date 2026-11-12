@@ -24,3 +24,11 @@ _torus() {
 }
 torus_compdef() { (( $+functions[compdef] )) && compdef _torus torus && add-zsh-hook -d precmd torus_compdef; }
 add-zsh-hook precmd torus_compdef
+torus_ci_pre() { [[ $1 == (git|g)\ push* ]] && torus_ci_pushed=1 || torus_ci_pushed=; }
+torus_ci_post() { local rc=$?; [[ -n $torus_ci_pushed && $rc == 0 ]] && (( $+commands[torus-ci] )) && { torus-ci "$PWD" > /dev/null 2>&1 &! }; torus_ci_pushed=; return $rc; }
+add-zsh-hook preexec torus_ci_pre
+precmd_functions=(torus_ci_post ${precmd_functions:#torus_ci_post})
+torus_err_pre() { torus_err_cmd=$1; }
+torus_err_post() { local rc=$?; [[ $rc != 0 && $rc != 130 && -n $torus_err_cmd ]] && print -r -- "exit $rc in ${PWD/#$HOME/~}: $torus_err_cmd" >| ${XDG_RUNTIME_DIR:-/tmp}/torus-last-error; torus_err_cmd=; return $rc; }
+add-zsh-hook preexec torus_err_pre
+precmd_functions=(torus_err_post ${precmd_functions:#torus_err_post})

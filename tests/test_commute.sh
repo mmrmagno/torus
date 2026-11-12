@@ -43,7 +43,7 @@ setcfg '{"evening": "07:30"}'
 out=$("$C" alert --now "$NOW")
 assert_eq "True evening" "$(q 'd["due"], d["slot"]' <<< "$out" | tr -d "(),'")" "evening alert due in its window"
 q 'd["title"]' <<< "$out" | grep -q '^Trains home, leave in 5 min$' || fail "alert title: $(q 'd["title"]' <<< "$out")"
-q 'd["body"]' <<< "$out" | grep -q '^08:05 → 08:55  IC 1  pl. 7  50 min  +2$' || fail "alert body: $(q 'd["body"]' <<< "$out")"
+q 'd["body"]' <<< "$out" | grep -q '^08:05 → 08:55 · IC 1 · pl. 7 · 50 min · +2 late$' || fail "alert body: $(q 'd["body"]' <<< "$out")"
 assert_eq False "$(q 'd["due"]' <<< "$("$C" alert --now $((NOW + 60)))")" "an alert shows once a day"
 "$C" alert snooze --now $((NOW + 60)) > /dev/null
 assert_eq False "$(q 'd["due"]' <<< "$("$C" alert --now $((NOW + 300)))")" "snoozed alert waits"

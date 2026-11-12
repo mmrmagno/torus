@@ -1,0 +1,9 @@
+[Unit]
+Description=torus: VM parity run every night at 04:00
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

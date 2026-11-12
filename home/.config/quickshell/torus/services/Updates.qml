@@ -9,6 +9,8 @@ Singleton {
     property int count: -1
     property var packages: []
     property var news: []
+    property var torus: []
+    property var torusInstalled: null
     property bool checking: false
     readonly property int unread: news.filter(n => n.state === "new").length
 
@@ -22,6 +24,10 @@ Singleton {
     function fetchNews() {
         if (!newsProc.running)
             newsProc.running = true
+    }
+
+    function updateTorus() {
+        Quickshell.execDetached(["kitty", "--title", "torus-update", "-e", "sh", "-c", "cd \"$(dirname \"$(readlink -f \"$(command -v torus)\")\")/../../..\" && git pull --ff-only && ./install.sh --no-packages; echo; read -n1 -p 'done, press a key'"])
     }
 
     function update() {
@@ -54,6 +60,21 @@ Singleton {
         }
     }
 
+    Process {
+        id: torusProc
+        command: ["torus-updates", "torus", "20"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const rows = text.split("\n").filter(l => l).map(l => {
+                    const f = l.split("\t")
+                    return { kind: f[0], hash: f[1], subject: f[2], date: f[3] }
+                })
+                root.torusInstalled = rows.find(r => r.kind === "installed") || null
+                root.torus = rows.filter(r => r.kind === "new")
+            }
+        }
+    }
+
     Timer {
         interval: 1800000
         running: true
@@ -62,6 +83,8 @@ Singleton {
         onTriggered: {
             root.check()
             root.fetchNews()
+            if (!torusProc.running)
+                torusProc.running = true
         }
     }
 }

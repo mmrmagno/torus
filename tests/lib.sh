@@ -1,4 +1,5 @@
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=tag.gpgsign GIT_CONFIG_VALUE_1=false
 
 fail() {
   echo "FAIL: $*" >&2

@@ -205,7 +205,8 @@ hl.on("window.active", function(w)
 	if w and is_game(w) and (w.fullscreen or 0) ~= 0 then
 		guard.addr = w.address
 		if gamemode() == "off" then
-			hl.exec_cmd("torus-gamemode auto-on")
+			local cls = w.class or ""
+			hl.exec_cmd("torus-gamemode auto-on " .. (cls:match("^[%w_.-]+$") and cls or ""))
 		end
 		if not guard.released then
 			raise_moat(w, "game focused")

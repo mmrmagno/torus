@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+SELF=$(readlink -f "$0")
+REPO=$(cd "$(dirname "$SELF")/../../.." && pwd)
+RUN=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+export HYPRLAND_INSTANCE_SIGNATURE=${HYPRLAND_INSTANCE_SIGNATURE:-$(ls -t "$RUN/hypr" 2> /dev/null | head -1)}
+PANELS=${TORUS_PARITY_PANELS:-"dashboard:dashboardToggle overview:overviewToggle cheatsheet:cheatSheetToggle center:centerToggle network:networkToggle updates:updatesToggle theme:themeToggle capture:captureToggle session:sessionToggle palette:paletteToggle clip:clipToggle games:gamesToggle"}
+ESC=${TORUS_PARITY_ESC:-"dashboard:dashboardToggle center:centerToggle network:networkToggle"}
+WAIT=${TORUS_PARITY_WAIT:-0.6}
+
+fails=0
+if [[ -t 1 ]]; then G=$'\e[32m' R=$'\e[31m' Y=$'\e[33m' N=$'\e[0m'; else G="" R="" Y="" N=""; fi
+ok() { printf '  %sok%s    %-10s %s\n' "$G" "$N" "$1" "$2"; }
+bad() { printf '  %sFAIL%s  %-10s %s\n' "$R" "$N" "$1" "$2"; fails=$((fails + 1)); }
+note() { printf '  %sskip%s  %-10s %s\n' "$Y" "$N" "$1" "$2"; }
+ipc() { timeout 3 qs -c torus ipc call torus "$@" 2> /dev/null | tail -n 1; }
+
+check_ipc() {
+  local l
+  l=$(ipc isLocked)
+  case $l in
+    false) ok ipc "the shell answers" ;;
+    true) bad ipc "the screen is locked, unlock and run again"; exit 1 ;;
+    *) bad ipc "the shell does not answer IPC (torus doctor)"; exit 1 ;;
+  esac
+}
+
+check_panels() {
+  local spec name fn broken="" n=0
+  for spec in $PANELS; do
+    name=${spec%%:*} fn=${spec#*:}
+    n=$((n + 1))
+    ipc "$fn" > /dev/null; sleep "$WAIT"
+    [[ $(ipc isOpen "$name") == true ]] || broken+="$name(open) "
+    [[ $(ipc isOpen "$name") == true ]] && ipc "$fn" > /dev/null
+    sleep "$WAIT"
+    [[ $(ipc isOpen "$name") == false ]] || { broken+="$name(close) "; ipc "$fn" > /dev/null; }
+  done
+  if [[ -z $broken ]]; then ok panels "$n panels open and close"; else bad panels "$broken"; fi
+}
+
+check_esc() {
+  if [[ ! -t 0 || -n ${TORUS_PARITY_NO_KEYS:-} ]]; then
+    note esc "needs your keyboard (run it in a terminal)"
+    return
+  fi
+  local spec name fn broken=""
+  for spec in $ESC; do
+    name=${spec%%:*} fn=${spec#*:}
+    printf '  ....  %-10s press Enter to open it, then Esc to close it (touchpad or mouse where it is) ' "$name"
+    read -r _ < /dev/tty
+    ipc "$fn" > /dev/null
+    for _ in $(seq 40); do [[ $(ipc isOpen "$name") == false ]] && break; sleep 0.2; done
+    [[ $(ipc isOpen "$name") == false ]] || { broken+="$name "; ipc "$fn" > /dev/null; }
+  done
+  if [[ -z $broken ]]; then ok esc "Esc closes $(wc -w <<<"$ESC") panels"; else bad esc "Esc did not close: $broken"; fi
+}
+
+bind_list() {
+  hyprctl binds -j | jq -r '
+    def mods: [ (if (.modmask/64|floor)%2==1 then "SUPER" else empty end), (if (.modmask/4|floor)%2==1 then "CTRL" else empty end), (if (.modmask/8|floor)%2==1 then "ALT" else empty end), (if .modmask%2==1 then "SHIFT" else empty end)] | join("+");
+    .[] | ((mods) as $m | if $m=="" then .key else $m+"+"+.key end) + (if .release then " release" else "" end)' | sort -u
+}
+
+check_binds() {
+  local want missing errors
+  want=$REPO/tests/binds.expected
+  [[ -f $want ]] || { note binds "no tests/binds.expected in $REPO"; return; }
+  missing=$(comm -23 <(sort -u "$want") <(bind_list) | tr '\n' ' ')
+  errors=$(hyprctl configerrors 2>&1 | grep -v '^\s*$' | head -3 | tr '\n' ' ')
+  if [[ -z $missing && -z $errors ]]; then
+    ok binds "$(sort -u "$want" | wc -l) binds loaded, no config errors"
+  else
+    bad binds "missing: ${missing:-none} errors: ${errors:-none}"
+  fi
+}
+
+check_sound() {
+  local f=/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga seen=""
+  [[ -f $f ]] || { bad sound "freedesktop sound theme missing"; return; }
+  setsid -f pw-play --volume 0.05 "$f" > /dev/null 2>&1 < /dev/null
+  for _ in $(seq 15); do
+    seen=$(pw-dump 2> /dev/null | jq -r '[.[] | select(.type == "PipeWire:Interface:Node" and .info.props["media.class"] == "Stream/Output/Audio" and (.info.props["application.name"] // "" | test("pw-play|pw-cat")))] | length')
+    [[ ${seen:-0} -gt 0 ]] && break
+    sleep 0.1
+  done
+  if [[ ${seen:-0} -gt 0 ]]; then
+    ok sound "a test sound reached $(pactl get-default-sink 2> /dev/null || echo "the default sink")"
+  else
+    bad sound "no playback stream showed up in PipeWire"
+  fi
+}
+
+check_qml() {
+  local inv out
+  inv=$(systemctl --user show -p InvocationID --value torus-shell 2> /dev/null)
+  out=$(journalctl --user -u torus-shell "_SYSTEMD_INVOCATION_ID=$inv" --no-pager -o cat 2> /dev/null | sed 's/\x1b\[[0-9;]*m//g' |
+    awk '/Configuration Loaded/ { buf = ""; next } { buf = buf $0 "\n" } END { printf "%s", buf }' |
+    grep -E 'WARN qml|ERROR|TypeError|ReferenceError|[Bb]inding loop|Unable to assign|is not a function|Cannot read property' |
+    grep -vE 'dmabuf|quickshell\.dbus' | sort -u | head -3)
+  if [[ -z $out ]]; then ok qml "no QML warnings since the shell last loaded its config"; else bad qml "$(tr '\n' '|' <<<"$out" | cut -c1-300)"; fi
+}
+
+echo "torus parity on $(cat /etc/hostname 2> /dev/null || uname -n), $(hyprctl version -j 2> /dev/null | jq -r '"Hyprland " + .tag' 2> /dev/null)"
+check_ipc
+check_binds
+check_panels
+check_esc
+check_sound
+check_qml
+((fails)) && echo "  $fails problem(s)"
+exit "$fails"

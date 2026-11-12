@@ -92,7 +92,8 @@ PanelWindow {
     anchors.top: true
     margins.top: Store.barGap
     implicitWidth: Math.min(820, (screen ? screen.width : 900) - 40)
-    implicitHeight: Math.min((screen ? screen.height : 900) - Store.barGap - 20, body.implicitHeight + 40)
+    implicitHeight: Store.panelRoom(screen, 20)
+    mask: Region { item: capFrame }
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -100,7 +101,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("capture") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     HyprlandFocusGrab {
-        active: Store.isOpen("capture")
+        active: Store.isOpen("capture") && root.backingWindowVisible
         windows: [root]
         onCleared: Store.setOpen("capture", false)
     }
@@ -117,12 +118,18 @@ PanelWindow {
     }
 
     Rectangle {
-        anchors.fill: parent
+        id: capFrame
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.min(body.implicitHeight + 40, root.implicitHeight)
+        Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.Top
         focus: true
         Keys.onEscapePressed: Store.setOpen("capture", false)
         PanelMotion {
             id: motion
-            target: parent
+            target: capFrame
             shown: Store.isOpen("capture") && !Store.moving
         }
         radius: Theme.rPanel

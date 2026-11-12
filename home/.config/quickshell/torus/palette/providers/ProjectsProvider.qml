@@ -8,7 +8,7 @@ Provider {
     name: "Projects"
     glyph: "󰊢"
     prefix: "d "
-    help: "git repos under ~/dev; Enter terminal, Ctrl nvim, Alt the repo page"
+    help: "git repos under ~/dev; Enter terminal, Ctrl nvim, Alt the repo page, Alt+Shift the whole workspace"
     inAll: true
 
     property var items: []
@@ -36,6 +36,7 @@ Provider {
                     enter: "terminal", act: () => Quickshell.execDetached(["kitty", "--directory", path]),
                     ctrl: { label: "nvim", act: () => Quickshell.execDetached(["kitty", "--directory", path, "nvim", "."]) }
                 }
+                r.layout = { label: "workspace", act: () => Quickshell.execDetached(["torus-layout", path]) }
                 if (url !== "")
                     r.alt = { label: "repo page", act: () => Quickshell.execDetached(["xdg-open", url]) }
                 return r

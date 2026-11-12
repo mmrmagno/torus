@@ -44,7 +44,7 @@ Singleton {
         lastSeen = seen
         const k = kind(b.ID_USB_INTERFACES)
         const name = (b.ID_MODEL_FROM_DATABASE || (b.ID_MODEL || "").replace(/_/g, " ") || k[1]).trim()
-        Island.flash("osd", { icon: k[0], label: name + (b.ACTION === "add" ? " connected" : " removed"), value: -1 }, 2200)
+        Island.flash("osd", { icon: k[0], label: name + (b.ACTION === "add" ? " connected" : " removed"), value: -1, cat: "devices" }, 2200)
         Store.sound(b.ACTION === "add" ? "device-in" : "device-out")
     }
 

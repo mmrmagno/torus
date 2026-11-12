@@ -133,6 +133,7 @@ cmd_up() {
   [[ ${2:-} == --from || -z ${2:-} ]] || die "usage: up <name> [--from base|hyde]"
   [[ -f $V/$from.qcow2 ]] || die "no image $from"
   ! current >/dev/null || die "a VM is already running: $(current)"
+  [[ ! -e $V/$name.qcow2 ]] || die "$name exists: boot it with 'start $name' (up would wipe it), or 'rebuild $name'"
   qemu-img create -q -f qcow2 -b "$V/$from.qcow2" -F qcow2 "$V/$name.qcow2"
   cp "$V/$from.vars.fd" "$V/$name.vars.fd"
   chmod 644 "$V/$name.vars.fd"
@@ -144,7 +145,9 @@ cmd_start() {
   local name=$1
   [[ -f $V/$name.qcow2 ]] || die "no overlay $name"
   ! current >/dev/null || die "a VM is already running: $(current)"
-  $(qemu_base "$name" "$V/$name.qcow2" "$V/$name.vars.fd")
+  local pin=()
+  [[ -n ${TORUS_VM_CPUS:-} ]] && pin=(taskset -c "$TORUS_VM_CPUS")
+  "${pin[@]}" nice -n "${TORUS_VM_NICE:-15}" $(qemu_base "$name" "$V/$name.qcow2" "$V/$name.vars.fd")
   wait_ssh "${TORUS_VM_WAIT:-300}" || die "ssh did not come up"
   echo "up: $name"
 }
@@ -223,14 +226,29 @@ cmd_freeze() {
   echo "$V/$image.qcow2"
 }
 
+cmd_rebuild() {
+  local name=$1 image=${2:-$1-golden}
+  [[ -f $V/$image.qcow2 ]] || die "no frozen image $image (make one with: freeze $name $image)"
+  ! running "$name" || die "stop $name first"
+  if [[ -e $V/$name.qcow2 ]]; then
+    local keep=$name-lost-$(date +%Y%m%d-%H%M%S)
+    mv "$V/$name.qcow2" "$V/$keep.qcow2"
+    mv "$V/$name.vars.fd" "$V/$keep.vars.fd" 2>/dev/null || true
+    echo "old overlay kept as $keep"
+  fi
+  rm -rf "$V/$name.tpm" "$V/$name.from"
+  cmd_up "$name" --from "$image"
+}
+
 cmd_rm() {
   local name=$1
   [[ $name != base && $name != hyde ]] || die "refusing to remove a frozen image"
+  [[ ! -e $V/$name.qcow2 || -w $V/$name.qcow2 ]] || die "refusing to remove a frozen image"
   ! running "$name" || die "stop $name first"
   rm -rf "$V/$name.qcow2" "$V/$name.vars.fd" "$V/$name.from" "$V/$name.pid" "$V/$name.qmp" "$V/$name.tpm" "$V/$name.swtpm.sock"
 }
 
-(($#)) || die "usage: torus-vm fetch-iso|create|up|ssh|scp-to|scp-from|shot|reboot|down|freeze|rm"
+(($#)) || die "usage: torus-vm fetch-iso|create|up|ssh|scp-to|scp-from|shot|reboot|down|freeze|rebuild|rm"
 cmd=$1; shift
 case $cmd in
   fetch-iso) cmd_fetch_iso ;;
@@ -247,6 +265,7 @@ case $cmd in
   reboot) cmd_reboot ;;
   down) cmd_down "$@" ;;
   freeze) cmd_freeze "$@" ;;
+  rebuild) cmd_rebuild "$@" ;;
   rm) cmd_rm "$@" ;;
   *) die "unknown command $cmd" ;;
 esac

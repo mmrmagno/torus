@@ -14,11 +14,13 @@ PanelWindow {
     readonly property bool narrow: screen ? screen.width < 1400 : false
     readonly property bool focused: Store.focusedScreen === screen
     readonly property bool flashing: Island.state === "osd" || Island.state === "notification" || Island.state === "shot"
-    readonly property string resting: Island.recording ? "recording" : Island.sharing ? "sharing" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player ? "media" : "idle"))))
-    readonly property string mode: flashing && focused ? Island.state : resting
+    readonly property string resting: Island.recording ? "recording" : Island.sharing ? "sharing" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player && Feel.islandOn("music") ? "media" : "idle"))))
+    readonly property bool faceOn: FaceScan.state !== "idle"
+    readonly property string mode: faceOn && focused ? "face" : (flashing && focused ? Island.state : resting)
     readonly property bool lyricRow: mode === "media" && Lyrics.line !== ""
     readonly property int pillWidth: {
         switch (mode) {
+        case "face": return Math.max(190, faceText.implicitWidth + 64)
         case "osd": return 300
         case "notification": return 440
         case "shot": return 460
@@ -32,6 +34,13 @@ PanelWindow {
         }
     }
     readonly property int pillHeight: mode === "notification" ? 56 : (mode === "shot" ? 92 : Store.barHeight)
+
+    property var osdData: ({})
+    property var noteData: ({})
+    property var shotData: ({})
+    Binding { target: root; property: "osdData"; value: Island.flashData; when: root.mode === "osd"; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "noteData"; value: Island.flashData; when: root.mode === "notification"; restoreMode: Binding.RestoreNone }
+    Binding { target: root; property: "shotData"; value: Island.flashData; when: root.mode === "shot"; restoreMode: Binding.RestoreNone }
 
     onModeChanged: Island.report(screen.name, mode === "" ? "hidden" : mode)
     Component.onCompleted: Island.report(screen.name, mode === "" ? "hidden" : mode)
@@ -56,7 +65,7 @@ PanelWindow {
         radius: Math.min(height / 2, 20)
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1
-        border.color: root.mode === "recording" ? Qt.alpha(Theme.red, 0.7) : root.mode === "sharing" ? Qt.alpha(Theme.peach, 0.7) : Qt.alpha(Theme.accent, 0.35)
+        border.color: root.mode === "face" ? (FaceScan.state === "fail" ? Qt.alpha(Theme.red, 0.8) : FaceScan.state === "ok" ? Qt.alpha(Theme.green, 0.8) : Qt.alpha(Theme.accent, 0.6)) : root.mode === "recording" ? Qt.alpha(Theme.red, 0.7) : root.mode === "sharing" ? Qt.alpha(Theme.peach, 0.7) : Qt.alpha(Theme.accent, 0.35)
         opacity: root.mode === "" ? 0 : 1
         clip: true
         Behavior on width { NumberAnimation { duration: Theme.durSlow; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
@@ -94,7 +103,31 @@ PanelWindow {
         }
 
         RowLayout {
-            visible: root.mode === "idle"
+            opacity: root.mode === "face" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "face" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "face" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
+            anchors.centerIn: parent
+            spacing: Theme.sp5
+            FaceRing {
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 20
+                phase: FaceScan.state
+            }
+            Text {
+                id: faceText
+                text: FaceScan.state === "ok" ? "Recognized" : FaceScan.state === "fail" ? (FaceScan.reason === "too dark" ? "Too dark" : "Not recognized") : "Looking for you"
+                color: FaceScan.state === "fail" ? Theme.red : Theme.text
+                font.family: Theme.fontUi
+                font.pixelSize: Theme.fontSize
+            }
+        }
+
+        RowLayout {
+            opacity: root.mode === "idle" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "idle" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "idle" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.centerIn: parent
             spacing: Theme.sp4
             readonly property var win: Hyprland.activeToplevel
@@ -119,7 +152,10 @@ PanelWindow {
         }
 
         RowLayout {
-            visible: root.mode === "media"
+            opacity: root.mode === "media" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "media" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "media" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.fill: parent
             anchors.leftMargin: 5
             anchors.rightMargin: 14
@@ -212,31 +248,34 @@ PanelWindow {
         }
 
         RowLayout {
-            visible: root.mode === "osd"
+            opacity: root.mode === "osd" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "osd" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "osd" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.centerIn: parent
             spacing: Theme.sp5
             Text {
-                text: Island.flashData.icon || ""
+                text: root.osdData.icon || ""
                 color: Theme.accent
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSize + 3
             }
             Rectangle {
-                visible: Island.flashData.value !== undefined && Island.flashData.value >= 0
+                visible: root.osdData.value !== undefined && root.osdData.value >= 0
                 Layout.preferredWidth: 150
                 Layout.preferredHeight: 6
                 radius: Theme.rXs
                 color: Theme.surface1
                 Rectangle {
-                    width: parent.width * Math.min(1, Math.max(0, Island.flashData.value || 0))
+                    width: parent.width * Math.min(1, Math.max(0, root.osdData.value || 0))
                     height: parent.height
                     radius: Theme.rXs
-                    color: (Island.flashData.value || 0) > 1 ? Theme.peach : Theme.accent
+                    color: (root.osdData.value || 0) > 1 ? Theme.peach : Theme.accent
                     Behavior on width { NumberAnimation { duration: Theme.durFast } }
                 }
             }
             Text {
-                text: Island.flashData.label || ""
+                text: root.osdData.label || ""
                 color: Theme.text
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fontSize
@@ -244,23 +283,26 @@ PanelWindow {
         }
 
         RowLayout {
-            visible: root.mode === "notification"
+            opacity: root.mode === "notification" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "notification" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "notification" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.fill: parent
             anchors.leftMargin: 14
             anchors.rightMargin: 16
             spacing: Theme.sp5
             NotifIcon {
                 size: 28
-                image: Island.flashData.image || ""
-                appIcon: Island.flashData.icon || ""
-                app: Island.flashData.app || ""
+                image: root.noteData.image || ""
+                appIcon: root.noteData.icon || ""
+                app: root.noteData.app || ""
             }
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 0
                 Text {
                     Layout.fillWidth: true
-                    text: Island.flashData.summary || ""
+                    text: root.noteData.summary || ""
                     color: Theme.text
                     font.family: Theme.fontUi
                     font.pixelSize: Theme.fontSize + 1
@@ -269,7 +311,7 @@ PanelWindow {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: Island.flashData.body || Island.flashData.app || ""
+                    text: root.noteData.body || root.noteData.app || ""
                     color: Theme.subtext
                     font.family: Theme.fontUi
                     font.pixelSize: Theme.fontSize - 1
@@ -281,11 +323,14 @@ PanelWindow {
 
         RowLayout {
             id: shotRow
-            visible: root.mode === "shot"
+            opacity: root.mode === "shot" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "shot" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "shot" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.fill: parent
             anchors.margins: 10
             spacing: Theme.sp6
-            readonly property string path: Island.flashData.path || ""
+            readonly property string path: root.shotData.path || ""
 
             HoverHandler { onHoveredChanged: Island.hold(hovered) }
 
@@ -335,7 +380,7 @@ PanelWindow {
                             HoverHandler { id: shotHover; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
                                 onTapped: {
-                                    const p = Island.flashData.path || ""
+                                    const p = root.shotData.path || ""
                                     if (!p)
                                         return
                                     const what = shotBtn.modelData[1]
@@ -358,7 +403,10 @@ PanelWindow {
         }
 
         RowLayout {
-            visible: root.mode === "focus"
+            opacity: root.mode === "focus" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "focus" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "focus" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.centerIn: parent
             spacing: Theme.sp4
             Canvas {
@@ -386,7 +434,10 @@ PanelWindow {
         }
 
         RowLayout {
-            visible: root.mode === "timer"
+            opacity: root.mode === "timer" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "timer" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "timer" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.centerIn: parent
             spacing: Theme.sp4
             Canvas {
@@ -415,7 +466,10 @@ PanelWindow {
         }
 
         RowLayout {
-            visible: root.mode === "sharing"
+            opacity: root.mode === "sharing" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "sharing" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "sharing" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.centerIn: parent
             spacing: Theme.sp4
             Rectangle {
@@ -440,7 +494,10 @@ PanelWindow {
         }
 
         RowLayout {
-            visible: root.mode === "recording"
+            opacity: root.mode === "recording" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "recording" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "recording" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.centerIn: parent
             spacing: Theme.sp4
             Rectangle {

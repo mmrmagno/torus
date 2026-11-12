@@ -155,6 +155,7 @@ bind("XF86MonBrightnessDown", "torus-bright down || brightnessctl -q set 5%-", "
 bind(MOD .. " + K", "hyprctl switchxkblayout all next", "[Utilities] next keyboard layout", locked)
 bind(MOD .. " + ALT + G", "torus-gamemode", "[Utilities] game mode")
 bind(MOD .. " + SHIFT + G", ipc("gamesToggle"), "[Utilities] game hub")
+bind(MOD .. " + H", ipc("homelabToggle"), "[Utilities] homelab hub (Spire, read only)")
 bind(MOD .. " + SHIFT + P", "torus-pick", "[Utilities] color picker")
 bind(MOD .. " + P", "torus-shot s", "[Utilities] screenshot area")
 bind(MOD .. " + CTRL + P", "torus-shot sf", "[Utilities] freeze and screenshot area")

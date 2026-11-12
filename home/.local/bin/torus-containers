@@ -12,7 +12,8 @@ engines() {
 case ${1:-list} in
   list)
     for e in $(engines); do
-      timeout 5 "$e" ps --format "$fmt" 2> /dev/null | awk -v e="$e" -F'\t' -v OFS='\t' 'NF >= 4 { print e, $1, $2, $3, $4, $5 }'
+      p='{{.Label "com.docker.compose.project"}}'
+      timeout 5 "$e" ps --format "$fmt\t$p" 2> /dev/null | awk -v e="$e" -F'\t' -v OFS='\t' 'NF >= 4 { p = $6; if (p == "<no value>") p = ""; print e, $1, $2, $3, $4, $5, p }'
     done
     ;;
   logs | restart | stop)
@@ -21,5 +22,12 @@ case ${1:-list} in
     if [[ $1 == logs ]]; then exec "$e" logs -f --tail 200 "$id"; fi
     timeout 60 "$e" "$1" "$id" > /dev/null
     ;;
-  *) echo "usage: torus-containers list|logs|restart|stop" >&2; exit 2 ;;
+  restart-project)
+    e=${2:-}; p=${3:-}
+    [[ $e == docker || $e == podman ]] && [[ $p =~ ^[0-9a-zA-Z_.-]+$ ]] || { echo "usage: torus-containers restart-project docker|podman PROJECT" >&2; exit 2; }
+    ids=$(timeout 10 "$e" ps -q --filter "label=com.docker.compose.project=$p")
+    [[ -n $ids ]] || exit 1
+    timeout 120 "$e" restart $ids > /dev/null
+    ;;
+  *) echo "usage: torus-containers list|logs|restart|stop|restart-project" >&2; exit 2 ;;
 esac

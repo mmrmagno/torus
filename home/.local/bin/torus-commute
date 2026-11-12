@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from datetime import datetime
+from xml.etree import ElementTree
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -14,6 +15,8 @@ CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "t
 ALERT_STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "torus/commute-alert"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "torus/commute.json"
 API = os.environ.get("TORUS_COMMUTE_API", "https://transport.opendata.ch/v1")
+OJP = os.environ.get("TORUS_COMMUTE_OJP", "https://api.opentransportdata.swiss/ojp20")
+OJP_KEY = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "torus/ojp.key"
 FRESH = 60
 SHOWN = 3
 
@@ -72,6 +75,105 @@ def request(start, end):
     if data.get("errors"):
         raise ValueError("the timetable could not find this route, check the addresses")
     return data.get("connections") or []
+
+
+def ojp_key():
+    try:
+        if OJP_KEY.stat().st_mode & 0o077:
+            return ""
+        return OJP_KEY.read_text().strip()
+    except OSError:
+        return ""
+
+
+def ojp_post(body, key):
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    xml = ('<?xml version="1.0" encoding="UTF-8"?><OJP xmlns="http://www.vdv.de/ojp" xmlns:siri="http://www.siri.org.uk/siri" '
+           'version="2.0"><OJPRequest><siri:ServiceRequest><siri:RequestTimestamp>' + now + '</siri:RequestTimestamp>'
+           '<siri:RequestorRef>torus</siri:RequestorRef>' + body.replace("NOW", now) + '</siri:ServiceRequest></OJPRequest></OJP>')
+    req = Request(OJP, data=xml.encode(), method="POST",
+                  headers={"Authorization": "Bearer " + key, "Content-Type": "application/xml", "User-Agent": "torus-commute"})
+    with urlopen(req, timeout=15) as response:
+        return strip_ns(ElementTree.fromstring(response.read()))
+
+
+def strip_ns(root):
+    for el in root.iter():
+        el.tag = el.tag.split("}", 1)[-1]
+    return root
+
+
+def text(el, path):
+    found = el.find(path) if el is not None else None
+    return (found.text or "").strip() if found is not None and found.text else ""
+
+
+def xml_escape(value):
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def ojp_place(name, key):
+    body = ('<OJPLocationInformationRequest><siri:RequestTimestamp>NOW</siri:RequestTimestamp><InitialInput><Name>'
+            + xml_escape(name) + '</Name></InitialInput><Restrictions><Type>stop</Type><Type>address</Type>'
+            '<NumberOfResults>1</NumberOfResults></Restrictions></OJPLocationInformationRequest>')
+    place = ojp_post(body, key).find(".//PlaceResult/Place")
+    if place is None:
+        raise ValueError("backup timetable does not know " + name)
+    label = text(place, "Name/Text") or name
+    ref = text(place, ".//StopPlaceRef")
+    if ref:
+        return f"<StopPlaceRef>{xml_escape(ref)}</StopPlaceRef><Name><Text>{xml_escape(label)}</Text></Name>"
+    lon, lat = text(place, "GeoPosition/Longitude"), text(place, "GeoPosition/Latitude")
+    if not lon or not lat:
+        raise ValueError("backup timetable has no position for " + name)
+    return (f"<GeoPosition><siri:Longitude>{lon}</siri:Longitude><siri:Latitude>{lat}</siri:Latitude></GeoPosition>"
+            f"<Name><Text>{xml_escape(label)}</Text></Name>")
+
+
+def iso_ts(value):
+    try:
+        return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        return None
+
+
+def ojp_request(start, end, key):
+    body = ('<OJPTripRequest><siri:RequestTimestamp>NOW</siri:RequestTimestamp><Origin><PlaceRef>' + ojp_place(start, key)
+            + '</PlaceRef><DepArrTime>NOW</DepArrTime></Origin><Destination><PlaceRef>' + ojp_place(end, key)
+            + '</PlaceRef></Destination><Params><NumberOfResults>6</NumberOfResults></Params></OJPTripRequest>')
+    items = []
+    for trip in ojp_post(body, key).iter("Trip"):
+        sections = []
+        for legs in trip.findall("Leg"):
+            timed = legs.find("TimedLeg")
+            if timed is not None:
+                board, alight = timed.find("LegBoard"), timed.find("LegAlight")
+                dep = text(board, "ServiceDeparture/EstimatedTime") or text(board, "ServiceDeparture/TimetabledTime")
+                planned = text(board, "ServiceDeparture/TimetabledTime")
+                arr = text(alight, "ServiceArrival/EstimatedTime") or text(alight, "ServiceArrival/TimetabledTime")
+                svc = timed.find("Service")
+                delay = max(0, round(((iso_ts(dep) or 0) - (iso_ts(planned) or 0)) / 60)) if dep and planned else 0
+                sections.append({
+                    "departure": {"station": {"name": text(board, "StopPointName/Text")}, "departureTimestamp": iso_ts(dep),
+                                  "platform": text(board, "EstimatedQuay/Text") or text(board, "PlannedQuay/Text"), "delay": delay},
+                    "arrival": {"station": {"name": text(alight, "StopPointName/Text")}, "arrivalTimestamp": iso_ts(arr)},
+                    "journey": {"category": text(svc, "PublishedServiceName/Text"), "number": "",
+                                "to": text(svc, "DestinationText/Text")}})
+            else:
+                dur = text(legs, ".//Duration")
+                mins = 0
+                if dur.startswith("PT"):
+                    h = dur[2:].split("H")[0] if "H" in dur else "0"
+                    m = dur.split("H")[-1].replace("PT", "").split("M")[0] if "M" in dur else "0"
+                    mins = int(h or 0) * 60 + int(m or 0)
+                sections.append({"departure": {}, "arrival": {}, "walk": {"duration": mins * 60}})
+        start_t, end_t = iso_ts(text(trip, "StartTime")), iso_ts(text(trip, "EndTime"))
+        if start_t and end_t:
+            items.append({"from": {"departureTimestamp": start_t}, "to": {"arrivalTimestamp": end_t},
+                          "transfers": int(text(trip, "Transfers") or 0), "sections": sections})
+    if not items:
+        raise ValueError("backup timetable found no trips")
+    return items
 
 
 def stamp(stop, field):
@@ -141,15 +243,27 @@ def connections(config, to_work, now):
     hit = read_cache().get(key)
     if hit and now - hit["at"] < FRESH:
         items, updated = hit["items"], hit["at"]
+        if hit.get("source") == "ojp":
+            result.update(backup=True, message="backup timetable")
     else:
         try:
             items, updated = request(start, end), now
             write_cache({key: {"at": now, "items": items}})
         except Exception as exc:
-            if not hit:
-                return {**result, "ok": False, "message": "timetable unreachable: " + str(exc)[:80]}
-            items, updated = hit["items"], hit["at"]
-            result.update(stale=True, message="offline, showing the last result")
+            backup = ojp_key()
+            items = None
+            if backup:
+                try:
+                    items, updated = ojp_request(start, end, backup), now
+                    write_cache({key: {"at": now, "items": items, "source": "ojp"}})
+                    result.update(backup=True, message="backup timetable")
+                except Exception:
+                    items = None
+            if items is None:
+                if not hit:
+                    return {**result, "ok": False, "message": "timetable unreachable: " + str(exc)[:80]}
+                items, updated = hit["items"], hit["at"]
+                result.update(stale=True, message="offline, showing the last result")
     result["updated"] = updated
     result["connections"] = best(items, now)
     if not result["connections"]:
@@ -244,8 +358,8 @@ def alert(action, now):
         lines = []
         for c in result["connections"]:
             line = time.strftime("%H:%M", time.localtime(c["dep"])) + " → " + time.strftime("%H:%M", time.localtime(c["arr"]))
-            line += "  " + " ".join(c["lines"]) + (f"  pl. {c['platform']}" if c["platform"] else "")
-            line += f"  {c['minutes']} min" + (f"  +{c['delay']}" if c["delay"] else "")
+            line += " · " + " ".join(c["lines"]) + (f" · pl. {c['platform']}" if c["platform"] else "")
+            line += f" · {c['minutes']} min" + (f" · +{c['delay']} late" if c["delay"] else "")
             lines.append(line)
         first = result["connections"][0]
         leave = max(0, round((first["dep"] - now) / 60))

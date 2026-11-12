@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -uo pipefail
+REPO=$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd)
+dev=$HOME/dev/priv/torus-dev
+[[ -d $dev/.git || -f $dev/.git ]] && REPO=$dev
+export TORUS_NIGHTLY_REPO=${TORUS_NIGHTLY_REPO:-$REPO}
+exec "$REPO/vm/nightly.sh" "$@"

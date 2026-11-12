@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# torus-parity-stub
+echo "kubectl $*" >> "${LOG:-/dev/null}"
+args=" $* "
+case $args in
+  *" config current-context "*) [[ -n ${NOCTX:-} ]] && exit 1; echo admin@spire ;;
+  *" get nodes "*) cat <<'J'
+{"items":[
+ {"metadata":{"name":"architect","labels":{"node-role.kubernetes.io/control-plane":""}},"status":{"conditions":[{"type":"Ready","status":"True"}],"addresses":[{"type":"InternalIP","address":"192.0.2.11"}],"nodeInfo":{"kubeletVersion":"v1.34.1","osImage":"Talos (v1.11.3)"}}},
+ {"metadata":{"name":"ironclad","labels":{}},"status":{"conditions":[{"type":"Ready","status":"False"}],"addresses":[{"type":"InternalIP","address":"192.0.2.21"}],"nodeInfo":{"kubeletVersion":"v1.34.1","osImage":"Talos (v1.11.3)"}}}]}
+J
+  ;;
+  *" top node "*) printf 'architect 250m 6%% 2100Mi 27%%\nironclad 1200m 10%% 9000Mi 14%%\n' ;;
+  *" get pods "*) echo '{"items":[{"metadata":{"namespace":"apps","name":"web-1"},"status":{"phase":"Running","containerStatuses":[{"ready":false,"state":{"waiting":{"reason":"CrashLoopBackOff"}}}]}},{"metadata":{"namespace":"apps","name":"ok-1"},"status":{"phase":"Running","containerStatuses":[{"ready":true}]}},{"metadata":{"namespace":"x","name":"job-1"},"status":{"phase":"Succeeded"}}]}' ;;
+  *" get kustomizations"*) echo '{"items":[{"metadata":{"namespace":"flux-system","name":"apps"},"status":{"conditions":[{"type":"Ready","status":"True","message":"Applied"}]}}]}' ;;
+  *" get helmreleases"*) echo '{"items":[{"metadata":{"namespace":"monitoring","name":"grafana"},"status":{"conditions":[{"type":"Ready","status":"False","message":"upgrade retries exhausted"}]}}]}' ;;
+  *" get events "*) echo '{"items":[{"metadata":{"namespace":"apps"},"involvedObject":{"kind":"Pod","name":"web-1"},"reason":"BackOff","message":"Back-off restarting","lastTimestamp":"2026-11-11T20:00:00Z"}]}' ;;
+  *" get httproutes "*) echo '{"items":[{"metadata":{"namespace":"apps","name":"grafana"},"spec":{"hostnames":["grafana.example.test"]}},{"metadata":{"namespace":"apps","name":"blog"},"spec":{"hostnames":["blog.example.test"]}}]}' ;;
+  *" get cronjobs "*) echo '{"items":[{"metadata":{"namespace":"talos-backup","name":"talos-backup"},"spec":{"schedule":"0 */6 * * *"},"status":{"lastSuccessfulTime":"2026-11-11T18:00:00Z"}}]}' ;;
+  *) exit 1 ;;
+esac

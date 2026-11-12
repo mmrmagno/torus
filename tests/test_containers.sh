@@ -12,9 +12,9 @@ for e in docker podman; do
 echo "$e \$*" >> "\$STUB_LOG"
 [[ -n \${STUB_DOWN_$e:-} ]] && exit 1
 if [[ \$1 == ps ]]; then
-  [[ \$2 == -q ]] && exit 0
-  [[ $e == docker ]] && printf 'a1b2\tweb\tnginx:1.27\tUp 3 hours\t0.0.0.0:8080->80/tcp\nc3d4\tdb\tpostgres:17\tUp 2 minutes (healthy)\t\n'
-  [[ $e == podman ]] && printf 'e5f6\tcache\tredis:7\tUp 5 seconds\t\n'
+  [[ \$2 == -q ]] && { [[ \$* == *compose.project=shop* ]] && printf 'a1b2\nc3d4\n'; exit 0; }
+  [[ $e == docker ]] && printf 'a1b2\tweb\tnginx:1.27\tUp 3 hours\t0.0.0.0:8080->80/tcp\tshop\nc3d4\tdb\tpostgres:17\tUp 2 minutes (healthy)\t\tshop\n'
+  [[ $e == podman ]] && printf 'e5f6\tcache\tredis:7\tUp 5 seconds\t\t<no value>\n'
 fi
 exit 0
 S
@@ -24,7 +24,8 @@ T=$REPO/home/.local/bin/torus-containers
 
 out=$("$T" list)
 assert_eq 3 "$(grep -c . <<< "$out")" "docker and podman listed"
-assert_eq "docker	a1b2	web	nginx:1.27	Up 3 hours	0.0.0.0:8080->80/tcp" "$(head -1 <<< "$out")" "fields"
+assert_eq "docker	a1b2	web	nginx:1.27	Up 3 hours	0.0.0.0:8080->80/tcp	shop" "$(head -1 <<< "$out")" "fields with the compose project"
+assert_eq "podman	e5f6	cache	redis:7	Up 5 seconds		" "$(tail -1 <<< "$out")" "no project is empty, not <no value>"
 grep -q "^podman	e5f6	cache	redis:7" <<< "$out" || fail "podman row: $out"
 assert_eq 2 "$(STUB_DOWN_podman=1 "$T" list | grep -c .)" "an engine that does not answer is skipped"
 assert_eq "" "$(STUB_DOWN_podman=1 STUB_DOWN_docker=1 "$T" list)" "nothing when no engine answers"
@@ -34,3 +35,7 @@ grep -q '^docker restart a1b2$' "$STUB_LOG" || fail "restart"
 grep -q '^podman stop e5f6$' "$STUB_LOG" || fail "stop"
 assert_fails "$T" stop docker 'a1;rm -rf /'
 assert_fails "$T" stop kubectl a1b2
+"$T" restart-project docker shop
+grep -q '^docker restart a1b2 c3d4$' "$STUB_LOG" || fail "restart project restarts its containers: $(cat "$STUB_LOG")"
+assert_fails "$T" restart-project docker 'shop;id'
+

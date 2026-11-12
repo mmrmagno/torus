@@ -66,7 +66,20 @@ Singleton {
             for (const a of awayItems)
                 apps[a] = (apps[a] || 0) + 1
             const top = Object.keys(apps).sort((a, b) => apps[b] - apps[a])
+            if (awayItems.length >= 3 && Ai.status === "online") {
+                summaryOffer.lines = history.filter(h => h.time >= awaySince).slice(0, 40).map(h => "- " + h.app + ": " + h.summary + (h.body ? " (" + h.body.slice(0, 160) + ")" : ""))
+                summaryOffer.command = ["notify-send", "-a", "torus", "-i", "notifications", "-t", "60000", "-A", "sum=Summarize", "While you were away: " + awayItems.length + " notifications", "the local model can sum them up"]
+                summaryOffer.running = true
+            }
             Island.flash("notification", { summary: "While you were away: " + awayItems.length + (awayItems.length === 1 ? " notification" : " notifications"), body: top.slice(0, 3).map(a => a + (apps[a] > 1 ? " ×" + apps[a] : "")).join(", ") + (top.length > 3 ? " and more" : ""), app: "torus", icon: "notifications", image: "" }, 6000)
+        }
+    }
+
+    Process {
+        id: summaryOffer
+        property var lines: []
+        stdout: StdioCollector {
+            onStreamFinished: if (text.trim() === "sum") Ai.summarize(summaryOffer.lines)
         }
     }
 
@@ -105,8 +118,30 @@ Singleton {
         }
     }
 
+    property var otp: ({})
+
+    function otpOf(text) {
+        const t = (text || "").replace(/<[^>]*>/g, " ")
+        if (!/(code|otp|verif|passcode|one[- ]?time|2fa|two[- ]factor|sign[- ]?in|login|bestätigung|sicherheits)/i.test(t))
+            return ""
+        const m = t.match(/(?:^|[^\d])(\d{6,8})(?!\d)/) || t.match(/(?:^|[^\d])(\d{3})[ -](\d{3})(?!\d)/)
+        return m ? (m[2] ? m[1] + m[2] : m[1]) : ""
+    }
+
+    function copyOtp(code) {
+        if (!/^\d{6,8}$/.test(code))
+            return
+        Quickshell.execDetached(["sh", "-c", "printf %s \"$1\" | wl-copy --sensitive; sleep 90; [ \"$(wl-paste -n 2>/dev/null)\" = \"$1\" ] && wl-copy --clear", "sh", code])
+        Island.flash("osd", { icon: "󰌆", label: "code copied, clears in 90 s", value: -1 }, 1600)
+    }
+
     function remember(n) {
-        const plain = (n.body || "").replace(/<[^>]*>/g, "")
+        const code = otpOf((n.summary || "") + " " + (n.body || ""))
+        if (code !== "")
+            otp = { code: code, app: n.appName || "", until: Date.now() + 120000 }
+        let plain = (n.body || "").replace(/<[^>]*>/g, "")
+        if (code !== "")
+            plain = plain.split(code).join("••••••").replace(code.slice(0, 3) + " " + code.slice(3), "••• •••").replace(code.slice(0, 3) + "-" + code.slice(3), "•••-•••")
         history = [{ app: n.appName || "", summary: n.summary || "", body: plain, time: Date.now() }].concat(history).slice(0, 200)
     }
 
@@ -218,7 +253,9 @@ Singleton {
             return
         lastSound = Date.now()
         const ev = h["sound-file"] ? "file:" + h["sound-file"] : (h["sound-name"] ? "name:" + h["sound-name"] : (n.urgency === NotificationUrgency.Critical ? "critical" : "notify"))
-        Quickshell.execDetached(["torus-sound", "play", ev])
+        if (!Feel.soundOn("notify"))
+            return
+        Quickshell.execDetached(["torus-sound", "play", ev, String(Feel.soundVolume)])
     }
 
     function clearAll() {
@@ -302,7 +339,7 @@ Singleton {
             }
             root.playFor(n)
             const loud = n.urgency === NotificationUrgency.Critical || n.actions.length > 0
-            const quiet = Store.dnd || Store.gamemode
+            const quiet = Store.dnd || (Store.gamemode && Play.hold)
             if (!loud && !quiet && !recent)
                 Island.notify(n)
             else if (loud && (!quiet || n.urgency === NotificationUrgency.Critical)) {

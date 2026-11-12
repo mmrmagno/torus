@@ -26,7 +26,8 @@ PanelWindow {
     anchors.top: true
     margins.top: Store.barGap
     implicitWidth: Math.min(640, (screen ? screen.width : 800) - 40)
-    implicitHeight: Math.min((screen ? screen.height : 800) * 0.7, body.implicitHeight + 32)
+    implicitHeight: Math.floor((screen ? screen.height : 800) * 0.7)
+    mask: Region { item: ocrFrame }
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -37,17 +38,23 @@ PanelWindow {
     Timer { id: copiedReset; interval: 2500; onTriggered: root.copied = "" }
 
     HyprlandFocusGrab {
-        active: Store.isOpen("ocr")
+        active: Store.isOpen("ocr") && root.backingWindowVisible
         windows: [root]
         onCleared: Store.setOpen("ocr", false)
     }
 
     Rectangle {
-        anchors.fill: parent
+        id: ocrFrame
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.min(body.implicitHeight + 32, root.implicitHeight)
+        Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.Top
         focus: true
         Keys.onEscapePressed: Store.setOpen("ocr", false)
         Keys.onReturnPressed: { root.copy(source.text().trim(), "all"); Store.setOpen("ocr", false) }
-        PanelMotion { id: motion; target: parent; shown: Store.isOpen("ocr") && !Store.moving }
+        PanelMotion { id: motion; target: ocrFrame; shown: Store.isOpen("ocr") && !Store.moving }
         radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1

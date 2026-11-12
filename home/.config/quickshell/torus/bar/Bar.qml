@@ -12,7 +12,7 @@ PanelWindow {
     readonly property var groups: ({
         left: [["cpu", "memory", "cpuinfo", "gpuinfo"], ["idle", "clock"], ["workspaces", "taskbar"]],
         narrow: [["media"]],
-        right: [["containers", "servers", "github"], ["controller"], ["privacy", "updates", "clipboard", "tray", "notifications"], ["sunset", "backlight", "network", "audio", "mic", "battery", "power"], ["menu"]]
+        right: [["containers", "servers", "github", "homelab"], ["controller"], ["privacy", "updates", "clipboard", "tray", "notifications"], ["sunset", "backlight", "network", "audio", "mic", "battery", "power"], ["menu"]]
     })
     property var loaders: []
     property var shown: ({})

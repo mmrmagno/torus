@@ -24,8 +24,10 @@ play() {
 case ${1:-status} in
   on | off) mkdir -p "$(dirname "$flag")"; echo "$1" > "$flag"; echo "$1" ;;
   status) [[ $(cat "$flag" 2> /dev/null) == on ]] && echo on || echo off ;;
-  play)
-    [[ $(cat "$flag" 2> /dev/null) == on ]] || exit 0
+  play | preview)
+    [[ $1 == preview || $(cat "$flag" 2> /dev/null) == on ]] || exit 0
+    scale=${3:-1}
+    [[ $scale =~ ^[0-9]+(\.[0-9]+)?$ ]] || scale=1
     case ${2:-} in
       open) f=audio-volume-change v=0.35 ;;
       lock) f=service-logout v=0.5 ;;
@@ -54,7 +56,7 @@ case ${1:-status} in
       *) exit 2 ;;
     esac
     [[ -f $dir/$f.oga ]] || exit 0
-    play "$dir/$f.oga" "$v"
+    play "$dir/$f.oga" "$(awk -v a="$v" -v b="$scale" 'BEGIN { v = a * b; if (v > 1) v = 1; printf "%g", v }')"
     ;;
-  *) echo "usage: torus-sound on|off|status|play open|lock|unlock|shot|tick|device-in|device-out|error|online|offline|plug|unplug|delete|record-start|record-stop|notify|critical|name:NAME|file:PATH" >&2; exit 2 ;;
+  *) echo "usage: torus-sound on|off|status|play|preview open|lock|unlock|shot|tick|device-in|device-out|error|online|offline|plug|unplug|delete|record-start|record-stop|notify|critical|name:NAME|file:PATH" >&2; exit 2 ;;
 esac

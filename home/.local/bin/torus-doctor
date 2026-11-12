@@ -227,6 +227,18 @@ check_journal() {
   fi
 }
 
+check_nightly() {
+  local f=$STATE/parity-nightly at result detail when
+  [[ -f $f ]] || return
+  IFS=$'\t' read -r at result detail < "$f"
+  when=$(date -d "$at" '+%a %H:%M' 2> /dev/null || echo "$at")
+  case $result in
+    ok) ok nightly "parity $detail, $when" ;;
+    skipped) note nightly "skipped $when: $detail" ;;
+    *) bad nightly "parity failed $when: $detail (log in ~/.cache/torus/nightly)" ;;
+  esac
+}
+
 snapshot() {
   local dir
   dir=${XDG_CACHE_HOME:-$HOME/.cache}/torus/snapshots/$(date +%Y%m%d-%H%M%S)
@@ -259,14 +271,16 @@ run_checks() {
   check_fresh
   check_journal
   check_crashes
+  check_nightly
 }
 
 case ${1:-} in
   --snapshot) snapshot; exit 0 ;;
   --reload-shell) reload_shell; exit 0 ;;
+  --parity) exec "$(dirname "$SELF")/torus-parity" ;;
   --fix) fix=1 ;;
   "") ;;
-  *) echo "usage: torus doctor [--fix | --snapshot]" >&2; exit 2 ;;
+  *) echo "usage: torus doctor [--fix | --snapshot | --parity]" >&2; exit 2 ;;
 esac
 echo "torus doctor${D} $REPO${N}"
 run_checks

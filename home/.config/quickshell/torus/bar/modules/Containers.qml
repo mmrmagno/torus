@@ -34,9 +34,45 @@ Chip {
             Repeater {
                 model: root.list
 
+                Column {
+                    id: grp
+                    required property var modelData
+                    required property int index
+                    readonly property bool first: index === 0 ? modelData.project !== "" : root.list[index - 1].project !== modelData.project
+                    width: card.width
+
+                RowLayout {
+                    visible: grp.first
+                    width: card.width
+                    height: 24
+                    Text {
+                        Layout.fillWidth: true
+                        text: grp.modelData.project || "Other"
+                        color: Theme.overlay
+                        font.family: Theme.fontUi
+                        font.pixelSize: Theme.fsXs
+                        font.weight: Font.DemiBold
+                        font.capitalization: Font.AllUppercase
+                    }
+                    Text {
+                        visible: grp.modelData.project !== ""
+                        text: "󰑓 restart project"
+                        color: projArea.containsMouse ? Theme.accent : Theme.subtext
+                        font.family: Theme.fontUi
+                        font.pixelSize: Theme.fsXs
+                        MouseArea {
+                            id: projArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: ContainerWatch.restartProject(grp.modelData.engine, grp.modelData.project)
+                        }
+                    }
+                }
+
                 Rectangle {
                     id: srow
-                    required property var modelData
+                    readonly property var modelData: grp.modelData
                     width: card.width
                     height: 48
                     radius: Theme.rCard
@@ -115,6 +151,7 @@ Chip {
                             }
                         }
                     }
+                }
                 }
             }
 

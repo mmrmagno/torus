@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from urllib.request import Request, urlopen
+
+STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "torus/rain.json"
+CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "torus/rain-place.json"
+METEO = os.environ.get("TORUS_RAIN_API", "https://api.open-meteo.com/v1/forecast")
+PLACE = os.environ.get("TORUS_RAIN_PLACE", "https://wttr.in/?format=j1")
+WINDOWS = {"morning": (6 * 60 + 30, 9 * 60 + 30), "evening": (16 * 60 + 30, 19 * 60 + 30)}
+WET = 0.1
+
+
+def get(url):
+    with urlopen(Request(url, headers={"User-Agent": "torus-rain"}), timeout=10) as r:
+        return json.load(r)
+
+
+def place(now):
+    try:
+        c = json.loads(CACHE.read_text())
+        if now - c["at"] < 86400:
+            return c["lat"], c["lon"]
+    except (OSError, ValueError, KeyError):
+        pass
+    a = get(PLACE)["nearest_area"][0]
+    lat, lon = float(a["latitude"]), float(a["longitude"])
+    CACHE.parent.mkdir(parents=True, exist_ok=True)
+    CACHE.write_text(json.dumps({"at": now, "lat": lat, "lon": lon}))
+    return lat, lon
+
+
+def window(now):
+    t = time.localtime(now)
+    if t.tm_wday >= 5:
+        return ""
+    m = t.tm_hour * 60 + t.tm_min
+    return next((k for k, (a, b) in WINDOWS.items() if a <= m < b), "")
+
+
+def check(now, force=False):
+    slot = window(now)
+    if not slot and not force:
+        return {"due": False}
+    day = time.strftime("%Y-%m-%d", time.localtime(now))
+    try:
+        state = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        state = {}
+    if state.get(slot) == day and not force:
+        return {"due": False, "told": True}
+    lat, lon = place(now)
+    d = get(f"{METEO}?latitude={lat:.3f}&longitude={lon:.3f}&minutely_15=precipitation&forecast_minutely_15=8&timeformat=unixtime")
+    m = d.get("minutely_15") or {}
+    times, rain = m.get("time") or [], m.get("precipitation") or []
+    slots = [(int(t), float(p or 0)) for t, p in zip(times, rain)]
+    slots = [(at, p) for at, p in slots if at + 900 > now and at <= now + 3600]
+    if not slots or slots[0][1] >= WET:
+        return {"due": False, "raining": bool(slots) and slots[0][1] >= WET}
+    first = next(((at, p) for at, p in slots[1:] if p >= WET), None)
+    if not first:
+        return {"due": False}
+    mins = max(5, round((first[0] - now) / 60 / 5) * 5)
+    total = sum(p for at, p in slots if at >= first[0])
+    state[slot or "manual"] = day
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(json.dumps(state))
+    heavy = "heavy rain" if first[1] >= 1.0 else "rain"
+    return {"due": True, "title": f"{heavy.capitalize()} in {mins} min", "body": f"about {total:.1f} mm in the hour after, take a jacket"}
+
+
+def main():
+    now = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[1] == "--now" else int(time.time())
+    force = "--force" in sys.argv
+    try:
+        print(json.dumps(check(now, force)))
+    except Exception as e:
+        print(json.dumps({"due": False, "error": str(e)[:80]}))
+
+
+if __name__ == "__main__":
+    main()

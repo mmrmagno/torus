@@ -117,3 +117,10 @@ grep -q 'restart torus-shell' "$STUB_LOG" && fail "no restart after a clean relo
 assert_eq restarted "$(STUB_RELOAD_FAILS=1 TORUS_RELOAD_WAIT=0 "$D" --reload-shell)" "a failed reload falls back to a restart"
 grep -q 'restart torus-shell' "$STUB_LOG" || fail "restart after a failed reload"
 grep -q 'torus-reload' "$REPO/install.sh" || fail "install reloads Hyprland, git replaces binds.lua without it noticing"
+printf '2026-11-12T04:31:00+01:00\tok\t52/52 on polish@abc1234\n' > "$XDG_STATE_HOME/torus/parity-nightly"
+out=$(TZ=Europe/Zurich "$D" 2>&1) || true
+grep -q 'ok    nightly    parity 52/52 on polish@abc1234, Thu 04:31' <<< "$out" || fail "nightly line: $(grep nightly <<< "$out")"
+printf '2026-11-12T04:31:00+01:00\tfail\t50/52 on polish@abc1234, failed: lock face \n' > "$XDG_STATE_HOME/torus/parity-nightly"
+out=$(TZ=Europe/Zurich "$D" 2>&1) && fail "a failed nightly is a problem"
+grep -q 'FAIL  nightly    parity failed Thu 04:31: 50/52' <<< "$out" || fail "failed nightly named: $(grep nightly <<< "$out")"
+rm -f "$XDG_STATE_HOME/torus/parity-nightly"

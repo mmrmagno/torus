@@ -14,6 +14,11 @@ Singleton {
     property bool barHidden: false
     readonly property int barHeight: barHidden ? 0 : (barPreset === "compact" ? 24 : 28)
     readonly property int barGap: barHidden ? 6 : barHeight + (barPreset === "compact" ? 3 : 4) + 8
+    readonly property int barReserved: barHidden ? 0 : barHeight + (barPreset === "compact" ? 3 : 4)
+
+    function panelRoom(scr, margin) {
+        return Math.floor((scr ? scr.height : 900) - barGap - barReserved - margin)
+    }
     property var modules: ({})
     property var open: ({})
     readonly property var focusedScreen: {
@@ -68,6 +73,14 @@ Singleton {
         for (let i = 0; i < walls.count; i++)
             out.push("still:" + walls.get(i, "filePath"))
         return out
+    }
+
+    property var life: ({})
+
+    function reportLife(screenName, s) {
+        const l = Object.assign({}, life)
+        l[screenName] = s
+        life = l
     }
 
     function reportFrames(screenName, n) {
@@ -135,7 +148,7 @@ Singleton {
     property var screenOf: ({})
     property var pendingScreen: null
 
-    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games", "dashboard"]
+    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games", "homelab"].concat(Feel.list("stay"))
     readonly property var exclusive: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games"]
     property var activeScreen: null
     property bool moving: false
@@ -153,7 +166,7 @@ Singleton {
 
     Timer {
         id: dwell
-        interval: 400
+        interval: Math.max(1, Feel.followDelay)
         onTriggered: root.follow()
     }
 
@@ -194,7 +207,7 @@ Singleton {
     property var soundAt: ({})
 
     function sound(ev) {
-        if (!sounds)
+        if (!sounds || !Feel.soundOn(ev))
             return
         const now = Date.now()
         if (now - (soundAt[ev] || 0) < (ev === "tick" ? 110 : 400))
@@ -202,7 +215,7 @@ Singleton {
         const a = Object.assign({}, soundAt)
         a[ev] = now
         soundAt = a
-        Quickshell.execDetached(["torus-sound", "play", ev])
+        Quickshell.execDetached(["torus-sound", "play", ev, String(Feel.soundVolume)])
     }
 
     function setSounds(on) {

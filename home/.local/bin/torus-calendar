@@ -2,6 +2,7 @@
 import calendar
 import os
 import subprocess
+import re
 import sys
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -83,10 +84,21 @@ def events(lines):
                 elif name == "EXDATE":
                     for v in value.split(","):
                         cur["exdate"].append(when(v, params)[0])
-                elif name in ("SUMMARY", "LOCATION", "RRULE", "UID", "STATUS"):
+                elif name in ("SUMMARY", "LOCATION", "RRULE", "UID", "STATUS", "DESCRIPTION", "URL", "X-GOOGLE-CONFERENCE"):
                     cur[name] = value
             except ValueError:
                 cur["broken"] = True
+
+
+CALL = re.compile(r"https://(?:meet\.google\.com/[a-z]{3}-[a-z]{4}-[a-z]{3}|teams\.(?:microsoft|live)\.com/[^\s<>\"\\]+|(?:[a-z0-9-]+\.)?zoom\.us/(?:j|my|w)/[^\s<>\"\\]+)")
+
+
+def call_link(e):
+    for key in ("X-GOOGLE-CONFERENCE", "LOCATION", "URL", "DESCRIPTION"):
+        m = CALL.search(unescape(e.get(key, "")))
+        if m:
+            return m.group(0).rstrip(".,;)")
+    return ""
 
 
 def ints(v):
@@ -195,9 +207,9 @@ def parse(text, frm, days):
             f = s + length
             if f <= lo or s >= hi:
                 continue
-            out.append((s.astimezone(tz), f.astimezone(tz), allday, unescape(e.get("SUMMARY", "event")), unescape(e.get("LOCATION", ""))))
+            out.append((s.astimezone(tz), f.astimezone(tz), allday, unescape(e.get("SUMMARY", "event")), unescape(e.get("LOCATION", "")), call_link(e)))
     out.sort(key=lambda x: (x[0], x[3]))
-    return ["%s\t%s\t%d\t%s\t%s" % (s.strftime("%Y-%m-%dT%H:%M"), f.strftime("%Y-%m-%dT%H:%M"), a, t.replace("\t", " "), l.replace("\t", " ")) for s, f, a, t, l in out]
+    return ["%s\t%s\t%d\t%s\t%s\t%s" % (s.strftime("%Y-%m-%dT%H:%M"), f.strftime("%Y-%m-%dT%H:%M"), a, t.replace("\t", " "), l.replace("\t", " "), k) for s, f, a, t, l, k in out]
 
 
 def main():

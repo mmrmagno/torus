@@ -22,7 +22,8 @@ Item {
     property bool popup: false
     readonly property var actions: notif ? notif.actions.filter(a => a.identifier !== "default" && a.text.trim() !== "") : []
     readonly property var defaultAction: notif ? notif.actions.find(a => a.identifier === "default") : null
-    readonly property string body: notif ? notif.body.replace(/<img\b[^>]*>/gi, "").trim() : ""
+    readonly property string code: notif ? Notifs.otpOf((notif.summary || "") + " " + (notif.body || "")) : ""
+    readonly property string body: notif ? notif.body.replace(/<img\b[^>]*>/gi, "").trim().replace(/\n/g, "<br>") : ""
     readonly property bool hasBody: body.replace(/<[^>]*>/g, "").replace(/&nbsp;|&#160;/gi, " ").trim() !== ""
     signal done
 
@@ -252,7 +253,24 @@ Item {
                 Flow {
                     Layout.fillWidth: true
                     spacing: Theme.sp3
-                    visible: card.actions.length > 0
+                    visible: card.actions.length > 0 || card.code !== ""
+                    Rectangle {
+                        visible: card.code !== ""
+                        width: codeText.implicitWidth + 16
+                        height: 24
+                        radius: Theme.rSm
+                        color: codeHover.hovered ? Theme.accent : Qt.alpha(Theme.accent, 0.25)
+                        Text {
+                            id: codeText
+                            anchors.centerIn: parent
+                            text: "󰆏  Copy " + card.code
+                            color: codeHover.hovered ? Theme.crust : Theme.text
+                            font.family: Theme.fontUi
+                            font.pixelSize: Theme.fsMd
+                        }
+                        HoverHandler { id: codeHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: Notifs.copyOtp(card.code) }
+                    }
                     Repeater {
                         model: card.actions
                         Rectangle {

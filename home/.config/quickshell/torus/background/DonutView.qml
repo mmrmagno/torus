@@ -8,6 +8,20 @@ Item {
 
     property bool live: true
     property bool throttle: false
+    property bool living: false
+    readonly property real load: Math.max(0, Math.min(1, SysStats.cpu / 100))
+    property real spin: living ? 0.6 + 1.6 * load : 1
+    Behavior on spin { NumberAnimation { duration: 1500; easing.type: Easing.InOutSine } }
+    property real kick: 0
+    property real peakKick: 0
+    property real peakBank: 0
+    onBankChanged: if (Math.abs(bank) > peakBank) peakBank = Math.abs(bank)
+    onKickChanged: if (kick > peakKick) peakKick = kick
+    property real bank: 0
+    property int lastNotifs: 0
+    Component.onCompleted: lastNotifs = Store.notifCount
+    property int lastWs: 0
+    readonly property bool calm: living && load < 0.06
     property string shape: "torus"
     readonly property int gridW: shape === "xwing" ? DonutClock.w * 2 : DonutClock.w
     readonly property int gridH: shape === "xwing" ? DonutClock.h * 2 : DonutClock.h
@@ -18,6 +32,45 @@ Item {
     readonly property real cellW: Math.round(cellH * 0.6)
     readonly property string shaderDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/torus/shaders/"
     signal frame
+
+    Connections {
+        target: Store
+        enabled: view.living
+        function onNotifCountChanged() {
+            if (Store.notifCount > view.lastNotifs)
+                wobble.restart()
+            view.lastNotifs = Store.notifCount
+        }
+    }
+
+    property int workspaceId: 0
+    onWorkspaceIdChanged: {
+        if (living && shape === "xwing" && lastWs > 0 && workspaceId > 0 && workspaceId !== lastWs) {
+            bankDir = workspaceId > lastWs ? 1 : -1
+            bankAnim.restart()
+        }
+        lastWs = workspaceId
+    }
+    property int bankDir: 1
+
+    NumberAnimation { id: wobble; target: view; property: "kick"; from: 1; to: 0; duration: 900; easing.type: Easing.OutCubic }
+
+    SequentialAnimation {
+        id: bankAnim
+        NumberAnimation { target: view; property: "bank"; to: 9 * view.bankDir; duration: 260; easing.type: Easing.OutCubic }
+        NumberAnimation { target: view; property: "bank"; to: 0; duration: 700; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
+    }
+
+    rotation: view.bank
+    property real breath: 0
+    scale: 1 + breath * 0.018
+    SequentialAnimation on breath {
+        running: view.calm && view.live && view.visible
+        loops: Animation.Infinite
+        NumberAnimation { from: 0; to: 1; duration: 3200; easing.type: Easing.InOutSine }
+        NumberAnimation { from: 1; to: 0; duration: 3200; easing.type: Easing.InOutSine }
+    }
+    onCalmChanged: if (!calm) breath = 0
 
     implicitWidth: cellW * gridW
     implicitHeight: cellH * gridH
@@ -31,7 +84,7 @@ Item {
             if (++view.skip < Math.max(1, Math.round(rate / (view.throttle ? 30 : 60))))
                 return
             view.skip = 0
-            view.t += Math.min(view.acc, 0.1) * (1 + Visualizer.bass * 1.6)
+            view.t += Math.min(view.acc, 0.1) * (1 + Visualizer.bass * 1.6) * view.spin
             view.acc = 0
             DonutClock.ticks++
             view.frame()
@@ -72,7 +125,7 @@ Item {
         width: view.gridW
         height: view.gridH
         property point grid: Qt.point(view.gridW, view.gridH)
-        property point ab: Qt.point((1 + view.t * DonutClock.speedA) % (2 * Math.PI), (1 + view.t * DonutClock.speedB) % (2 * Math.PI))
+        property point ab: Qt.point((1 + view.t * DonutClock.speedA + view.kick * 0.5 * Math.sin(view.t * 30)) % (2 * Math.PI), (1 + view.t * DonutClock.speedB + view.kick * 0.35 * Math.cos(view.t * 26)) % (2 * Math.PI))
         fragmentShader: "file://" + view.shaderDir + view.shape + ".frag.qsb"
     }
 

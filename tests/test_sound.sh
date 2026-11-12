@@ -5,7 +5,8 @@ set -euo pipefail
 F=$(mktemp -d)
 trap 'rm -rf "$F"' EXIT
 mkdir -p "$F/bin" "$F/sounds"
-export XDG_STATE_HOME=$F/state PATH=$F/bin:$PATH STUB_LOG=$F/calls TORUS_SOUNDS=$F/sounds
+export XDG_STATE_HOME=$F/state XDG_CACHE_HOME=$F/cache PATH=$F/bin:$PATH STUB_LOG=$F/calls TORUS_SOUNDS=$F/sounds
+printf '#!/bin/sh\n[ "$1" = get-default-sink ] && echo sink0\n[ "$1" = list ] && printf "0\\tsink0\\tPipeWire\\ts32le 2ch 48000Hz\\tRUNNING\\n"\nexit 0\n' > "$F/bin/pactl"; chmod +x "$F/bin/pactl"
 printf '#!/usr/bin/env bash\necho "pw-play $*" >> "$STUB_LOG"\n' > "$F/bin/pw-play"; chmod +x "$F/bin/pw-play"
 for f in audio-volume-change service-logout service-login camera-shutter trash-empty device-added device-removed message-new-instant dialog-warning bell dialog-error network-connectivity-established network-connectivity-lost power-plug power-unplug; do : > "$F/sounds/$f.oga"; done
 T=$REPO/home/.local/bin/torus-sound
@@ -54,3 +55,10 @@ assert_fails "$T" play bogus
 "$T" off > /dev/null
 assert_eq off "$("$T" status)" "off again"
 grep -q 'torus-sound play shot' "$REPO/home/.local/bin/torus-shot" || fail "screenshots play the shutter"
+: > "$STUB_LOG"
+"$T" play tick 0.5
+sleep 0.3
+grep -q "pw-play" "$STUB_LOG" && fail "play stays silent while sounds are off"
+"$T" preview tick 0.5
+for _ in $(seq 20); do grep -q pw-play "$STUB_LOG" && break; sleep 0.1; done
+grep -q "pw-play --volume 0.15 $F/sounds/audio-volume-change.oga" "$STUB_LOG" || fail "preview plays even when off, scaled by the volume slider: $(cat "$STUB_LOG")"

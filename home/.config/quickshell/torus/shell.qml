@@ -24,6 +24,7 @@ import qs.network
 import qs.updates
 import qs.ocr
 import qs.processes
+import qs.spire
 
 ShellRoot {
     Variants {
@@ -69,6 +70,7 @@ ShellRoot {
     ClipPanel {}
     CommandPanel {}
     GameHub {}
+    SpireHub {}
     NetPanel {}
     UpdatesPanel {}
     AiPanel {}

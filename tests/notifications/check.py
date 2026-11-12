@@ -28,6 +28,8 @@ ShellRoot {
    actions: [{identifier: "default", text: "", invoke: () => root.invoked++}, {identifier: "x", text: " ", invoke: () => {}}]}
  }
  TestCase { id: test; when: false }
+ NotifCard { id: otpCard; visible: false; width: 400; notif: ({summary: "GitHub", body: "Your verification code is 482 913.", urgency: 1, appName: "mail", appIcon: "", image: "", id: 90, hasInlineReply: false, actions: [], dismiss: () => {}}) }
+ NotifCard { id: plainCard; visible: false; width: 400; notif: ({summary: "Order 1234567 shipped", body: "tracking 99887766", urgency: 1, appName: "shop", appIcon: "", image: "", id: 91, hasInlineReply: false, actions: [], dismiss: () => {}}) }
  FloatingWindow {
   visible: true
   implicitWidth: 440
@@ -77,6 +79,8 @@ ShellRoot {
     test.wait(300)
     Notifs.openReply(card.notif)
     expect(Notifs.opened === "center" && Notifs.replyTarget === 1, "reply opens the centre aimed at the notification")
+    expect(otpCard.code === "482913", "a verification code is found, got " + otpCard.code)
+    expect(plainCard.code === "", "digits without a code word are not a code, got " + plainCard.code)
     console.log("NOTIFICATION_TESTS_PASSED")
    } catch (e) {
     console.log("NOTIFICATION_TESTS_FAILED " + e.message)
@@ -110,17 +114,22 @@ Singleton {
  function ago(n) { return "now" }
  function dismissPopup(n) {}
  function openReply(n) { replyTarget = n.id; Store.setOpen("center", true); opened = Store.lastOpen }
+ function copyOtp(code) {}
+OTPOF
 }
 '''
 
 with tempfile.TemporaryDirectory(prefix="torus-notification-test-") as directory:
     root = Path(directory)
-    for rel in ("Theme.qml", "components/PanelButton.qml", "components/NotifIcon.qml", "notifications/NotifCard.qml"):
+    for rel in ("Theme.qml", "Feel.qml", "components/PanelButton.qml", "components/NotifIcon.qml", "notifications/NotifCard.qml"):
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / rel, root / rel)
     (root / "services").mkdir()
     (root / "Store.qml").write_text(STORE)
-    (root / "services/Notifs.qml").write_text(NOTIFS)
+    real = (source / "services/Notifs.qml").read_text()
+    start = real.index("    function otpOf(text) {")
+    otpof = real[start:real.index("\n    }\n", start) + 6]
+    (root / "services/Notifs.qml").write_text(NOTIFS.replace("OTPOF", otpof))
     (root / "shell.qml").write_text(SHELL)
     runtime = root / "runtime"
     runtime.mkdir(mode=0o700)

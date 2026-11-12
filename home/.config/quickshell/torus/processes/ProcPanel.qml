@@ -57,7 +57,7 @@ PanelWindow {
     anchors.top: true
     margins.top: Store.barGap
     implicitWidth: Math.min(860, (screen ? screen.width : 900) - 40)
-    implicitHeight: Math.min((screen ? screen.height : 900) - Store.barGap - 20, 640)
+    implicitHeight: Math.min(Store.panelRoom(screen, 20), 640)
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -65,7 +65,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("processes") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     HyprlandFocusGrab {
-        active: Store.isOpen("processes")
+        active: Store.isOpen("processes") && root.backingWindowVisible
         windows: [root]
         onCleared: Store.setOpen("processes", false)
     }

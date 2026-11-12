@@ -55,7 +55,8 @@ PanelWindow {
         })
     }
     implicitWidth: Math.min(760, (screen ? screen.width : 800) - 40)
-    implicitHeight: Math.min((screen ? screen.height : 900) - Store.barGap - 20, body.implicitHeight + 40)
+    implicitHeight: Store.panelRoom(screen, 20)
+    mask: Region { item: studioFrame }
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -63,7 +64,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("theme") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     HyprlandFocusGrab {
-        active: Store.isOpen("theme")
+        active: Store.isOpen("theme") && root.backingWindowVisible
         windows: [root]
         onCleared: Store.setOpen("theme", false)
     }
@@ -93,12 +94,18 @@ PanelWindow {
     }
 
     Rectangle {
-        anchors.fill: parent
+        id: studioFrame
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.min(body.implicitHeight + 40, root.implicitHeight)
+        Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.Top
         focus: true
         Keys.onEscapePressed: Store.setOpen("theme", false)
         PanelMotion {
             id: motion
-            target: parent
+            target: studioFrame
             shown: Store.isOpen("theme") && !Store.moving
         }
         radius: Theme.rPanel
@@ -400,6 +407,8 @@ PanelWindow {
                         onPicked: value => Store.setWidgets(value)
                     }
                 }
+
+                FeelSection {}
             }
         }
     }

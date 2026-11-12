@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Read-only by design: only get/top/version style verbs. tests/test_spire.sh fails on anything that writes.
+set -uo pipefail
+
+conf=${TORUS_SPIRE_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/torus/spire.json}
+T=${TORUS_SPIRE_TIMEOUT:-8}
+
+cfg() { jq -c "${1}" "$conf" 2> /dev/null || echo "${2:-null}"; }
+path_from_conf() {
+  local v
+  v=$(jq -r ".$1 // empty" "$conf" 2> /dev/null) || return
+  [[ -n $v ]] && echo "${v/#\~/$HOME}"
+}
+if [[ -z ${KUBECONFIG:-} ]]; then k8s=$(path_from_conf kubeconfig); [[ -n $k8s ]] && export KUBECONFIG=$k8s; fi
+if [[ -z ${TALOSCONFIG:-} ]]; then tc=$(path_from_conf talosconfig); [[ -n $tc ]] && export TALOSCONFIG=$tc; fi
+k() { timeout "$T" kubectl --request-timeout=5s "$@" 2> /dev/null; }
+
+nodes() {
+  local j top
+  j=$(k get nodes -o json) || { echo '[]'; return; }
+  top=$(k top node --no-headers 2> /dev/null | awk '{ printf "%s\t%s\t%s\n", $1, $3, $5 }')
+  jq -c --arg top "$top" '
+    ($top | split("\n") | map(select(. != "") | split("\t") | { (.[0]): { cpu: .[1], mem: .[2] } }) | add // {}) as $t
+    | [.items[] | {
+        name: .metadata.name,
+        ready: ([.status.conditions[] | select(.type == "Ready") | .status][0] == "True"),
+        role: (if (.metadata.labels | has("node-role.kubernetes.io/control-plane")) then "control plane" else "worker" end),
+        ip: ([.status.addresses[] | select(.type == "InternalIP") | .address][0]),
+        kubelet: .status.nodeInfo.kubeletVersion,
+        os: .status.nodeInfo.osImage,
+        cpu: ($t[.metadata.name].cpu // ""),
+        mem: ($t[.metadata.name].mem // "")
+      }]' <<< "$j"
+}
+
+pods() {
+  k get pods -A -o json | jq -c '[.items[]
+    | select(.status.phase != "Succeeded")
+    | select(.status.phase != "Running" or ([.status.containerStatuses[]?.ready] | all | not))
+    | { ns: .metadata.namespace, name: .metadata.name, phase: .status.phase,
+        why: ([.status.containerStatuses[]?.state.waiting.reason // empty][0] // .status.phase) }]' 2> /dev/null || echo '[]'
+}
+
+flux_list() {
+  k get "$1" -A -o json | jq -c '[.items[] | {
+      ns: .metadata.namespace, name: .metadata.name,
+      ready: ([.status.conditions[]? | select(.type == "Ready") | .status][0] == "True"),
+      msg: ([.status.conditions[]? | select(.type == "Ready") | .message][0] // "")
+    }]' 2> /dev/null || echo '[]'
+}
+
+events() {
+  k get events -A --field-selector type=Warning -o json | jq -c '[.items | sort_by(.lastTimestamp // .eventTime) | reverse | .[:8][]
+    | { ns: .metadata.namespace, obj: (.involvedObject.kind + "/" + .involvedObject.name), reason: .reason,
+        msg: (.message | .[:160]), at: (.lastTimestamp // .eventTime) }]' 2> /dev/null || echo '[]'
+}
+
+apps() {
+  k get httproutes -A -o json | jq -c '[.items[] | .spec.hostnames[]? as $h
+    | { name: .metadata.name, ns: .metadata.namespace, host: $h, url: ("https://" + $h) }] | unique_by(.host) | sort_by(.host)' 2> /dev/null || echo '[]'
+}
+
+backups() {
+  k get cronjobs -A -o json | jq -c '[.items[] | select(.metadata.name | test("backup"))
+    | { ns: .metadata.namespace, name: .metadata.name, last: (.status.lastSuccessfulTime // ""), schedule: .spec.schedule }]' 2> /dev/null || echo '[]'
+}
+
+tailscale() {
+  local n ip st routes out="[]"
+  for n in $(cfg '.tailscale[]?' "" | tr -d '"'); do
+    ip=$(jq -r --arg n "$n" '.[] | select(.name == $n) | .ip' <<< "$NODES")
+    [[ -n $ip && $ip != null ]] || continue
+    st=$(timeout "$T" talosctl -n "$ip" service ext-tailscale 2> /dev/null | awk '$1 == "STATE" { print $2 } $1 == "HEALTH" && $2 != "?" { h = $2 } END { if (h) print h }' | paste -sd' ')
+    routes=$(timeout "$T" talosctl -n "$ip" get extensionserviceconfigs tailscale -o json 2> /dev/null |
+      jq -r '[.spec.environment[]? | select(startswith("TS_ROUTES=")) | sub("TS_ROUTES="; "")] | join(",")' 2> /dev/null)
+    out=$(jq -c --arg n "$n" --arg s "${st:-unknown}" --arg r "$routes" '. + [{ node: $n, state: $s, routes: $r }]' <<< "$out")
+  done
+  echo "$out"
+}
+
+amt_check() {
+  local out="[]" n ip up
+  while IFS=$'\t' read -r n ip; do
+    [[ -n $n ]] || continue
+    if timeout 2 bash -c ">/dev/tcp/$ip/16993" 2> /dev/null; then up=true; else up=false; fi
+    out=$(jq -c --arg n "$n" --arg ip "$ip" --argjson up "$up" '. + [{ node: $n, ip: $ip, up: $up, web: ("https://" + $ip + ":16993") }]' <<< "$out")
+  done < <(jq -r '.amt // {} | to_entries[] | "\(.key)\t\(.value)"' "$conf" 2> /dev/null)
+  echo "$out"
+}
+
+status() {
+  local ctx
+  ctx=$(timeout 3 kubectl config current-context 2> /dev/null)
+  if [[ -z $ctx ]]; then
+    jq -nc '{ ok: false, reason: "no kubectl context" }'
+    return
+  fi
+  NODES=$(nodes)
+  if [[ $NODES == "[]" ]]; then
+    jq -nc --arg c "$ctx" '{ ok: false, context: $c, reason: "cluster not reachable" }'
+    return
+  fi
+  jq -nc --arg c "$ctx" --argjson nodes "$NODES" --argjson pods "$(pods)" \
+    --argjson ks "$(flux_list kustomizations.kustomize.toolkit.fluxcd.io)" --argjson hr "$(flux_list helmreleases.helm.toolkit.fluxcd.io)" \
+    --argjson events "$(events)" --argjson apps "$(apps)" --argjson backups "$(backups)" --argjson ts "$(tailscale)" \
+    --arg at "$(date -Iseconds)" '{
+      ok: true, context: $c, at: $at, nodes: $nodes, pods: $pods, kustomizations: $ks, helmreleases: $hr,
+      events: $events, apps: $apps, backups: $backups, tailscale: $ts,
+      problems: (([$nodes[] | select(.ready | not)] | length) + ($pods | length)
+        + ([$ks[] | select(.ready | not)] | length) + ([$hr[] | select(.ready | not)] | length))
+    }'
+}
+
+case ${1:-status} in
+  status) status ;;
+  amt-check) amt_check ;;
+  *) echo "usage: torus-spire status | amt-check" >&2; exit 2 ;;
+esac

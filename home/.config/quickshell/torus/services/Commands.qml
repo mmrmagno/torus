@@ -16,7 +16,7 @@ Singleton {
     readonly property string home: Quickshell.env("HOME")
     readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/torus"
 
-    readonly property var providers: [appsP, windowsP, actionsP, projectsP, recentP, sshP, githubP, containersP, displaysP, calcP, filesP, webP, colorsP, emojiP, timerP, notifsP, kbP, aiP, passP]
+    readonly property var providers: [appsP, windowsP, actionsP, projectsP, recentP, sshP, githubP, containersP, displaysP, calcP, filesP, webP, colorsP, emojiP, timerP, notifsP, otpP, kbP, aiP, passP]
     readonly property var win: windowsP
     readonly property var prefixed: providers.filter(p => p.prefix !== "").sort((a, b) => b.prefix.length - a.prefix.length)
     readonly property var parsed: R.parse(query, prefixed, tabScope)
@@ -114,7 +114,7 @@ Singleton {
     function run(item, how) {
         if (!item)
             return
-        const a = how === "ctrl" ? item.ctrl : (how === "alt" ? item.alt : item)
+        const a = how === "ctrl" ? item.ctrl : (how === "alt" ? item.alt : (how === "layout" ? item.layout : item))
         if (!a || !a.act)
             return
         if (a.keep) {
@@ -183,6 +183,7 @@ Singleton {
     EmojiProvider { id: emojiP }
     TimerProvider { id: timerP }
     NotifsProvider { id: notifsP }
+    OtpProvider { id: otpP }
     KbProvider { id: kbP }
     AiProvider { id: aiP }
     PassProvider { id: passP }

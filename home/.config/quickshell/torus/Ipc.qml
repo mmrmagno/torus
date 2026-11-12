@@ -212,6 +212,10 @@ IpcHandler {
         return Store.frames[screen] || 0
     }
 
+    function donutLife(screen: string): string {
+        return Store.life[screen] || ""
+    }
+
     function donutPaused(state: bool): void {
         Store.donutPaused = state
     }
@@ -270,6 +274,10 @@ IpcHandler {
             Store.setOpen("alttab", false)
         else
             Store.altTabber.step(dir)
+    }
+
+    function rainCheck(): void {
+        Weather.checkRain()
     }
 
     function weatherOk(): bool {
@@ -381,6 +389,14 @@ IpcHandler {
         Store.toggle("games")
     }
 
+    function homelabToggle(): void {
+        Store.toggle("homelab")
+    }
+
+    function homelabState(): string {
+        return (Spire.ok ? "ok" : "off") + ":" + Spire.problems + ":" + (Spire.data.nodes || []).length + ":" + (Spire.data.apps || []).length + ":" + Spire.amt.length
+    }
+
     function githubState(): string {
         return GitHub.status + ":" + GitHub.review.length + ":" + GitHub.mine.length + ":" + GitHub.failing.length + ":" + GitHub.wanted
     }
@@ -390,7 +406,7 @@ IpcHandler {
     }
 
     function meetingState(): string {
-        return (Meeting.active ? "active" : "idle") + " auto=" + Meeting.autoOn + " mic=" + InUse.mic + " cam=" + InUse.cam + " dnd=" + Store.dnd
+        return (Meeting.active ? "active" : "idle") + " auto=" + Meeting.autoOn + " mic=" + InUse.mic + " cam=" + InUse.cam + " dnd=" + Store.dnd + " joined=" + Meeting.joined
     }
 
     function overlayToggle(): void {
@@ -412,6 +428,10 @@ IpcHandler {
 
     function setDnd(on: bool): void {
         Store.dnd = on
+    }
+
+    function meetingJoin(url: string): bool {
+        return Meeting.joinCall(url)
     }
 
     function meetingNow(on: bool): void {
@@ -437,6 +457,39 @@ IpcHandler {
     function brightnessOsd(value: int): void {
         Island.flash("osd", { icon: "󰃟", label: value + "%", value: value / 100 }, 1600)
         Store.sound("tick")
+    }
+
+    function calmForce(on: bool): void {
+        Calm.forced = on
+    }
+
+    function calmState(): string {
+        return (Calm.active ? "on" : "off") + ":" + Calm.mode + ":" + (Calm.onBattery ? "battery" : "ac")
+    }
+
+    function batteryMode(mode: string): void {
+        Calm.setMode(mode)
+    }
+
+    function feelSet(key: string, json: string): bool {
+        try {
+            Feel.set(key, JSON.parse(json))
+            return true
+        } catch (e) {
+            return false
+        }
+    }
+
+    function feelList(key: string, items: string): void {
+        Feel.set(key, items.split(" ").filter(x => x !== ""))
+    }
+
+    function feelReset(): void {
+        Feel.reset()
+    }
+
+    function feelState(): string {
+        return JSON.stringify({ durMed: Theme.durMed, fsMd: Theme.fsMd, rPanel: Theme.rPanel, glass: Theme.glass, stayPut: Store.stayPut.indexOf("network") >= 0, music: Feel.islandOn("music"), notify: Feel.soundOn("notify") })
     }
 
     function stayAwake(on: bool): void {

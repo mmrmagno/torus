@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import qs
@@ -17,7 +18,7 @@ PanelWindow {
     anchors.top: true
     margins.top: Store.barGap
     implicitWidth: Math.min(900, (screen ? screen.width : 900) - 40)
-    implicitHeight: Math.floor((screen ? screen.height : 1000) - Store.barGap - 16)
+    implicitHeight: Store.panelRoom(screen, 16)
     mask: Region { item: dashFrame }
     exclusiveZone: 0
     color: "transparent"
@@ -29,6 +30,12 @@ PanelWindow {
         if (!Weather.ok)
             Weather.refresh()
         Displays.refresh()
+    }
+
+    HyprlandFocusGrab {
+        active: Store.isOpen("dashboard") && root.backingWindowVisible
+        windows: [root]
+        onCleared: Store.setOpen("dashboard", false)
     }
 
     SystemClock { id: clock; precision: SystemClock.Seconds }

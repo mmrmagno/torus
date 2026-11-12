@@ -116,7 +116,7 @@ PanelWindow {
                             else if (event.key === Qt.Key_Backspace && search.text === "" && Commands.mode !== "all")
                                 Commands.setScope("all")
                             else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
-                                Commands.run(root.selected, ctrl ? "ctrl" : (alt ? "alt" : ""))
+                                Commands.run(root.selected, ctrl ? "ctrl" : (alt && (event.modifiers & Qt.ShiftModifier) ? "layout" : (alt ? "alt" : "")))
                             else
                                 return
                             event.accepted = true
@@ -314,7 +314,7 @@ PanelWindow {
                 spacing: Theme.sp6
 
                 Repeater {
-                    model: root.selected ? [["↵", Commands.enterLabel(root.selected)], ["Ctrl ↵", root.selected.ctrl ? root.selected.ctrl.label : ""], ["Alt ↵", root.selected.alt ? root.selected.alt.label : ""]].filter(k => k[1] !== "") : []
+                    model: root.selected ? [["↵", Commands.enterLabel(root.selected)], ["Ctrl ↵", root.selected.ctrl ? root.selected.ctrl.label : ""], ["Alt ↵", root.selected.alt ? root.selected.alt.label : ""], ["Alt Shift ↵", root.selected.layout ? root.selected.layout.label : ""]].filter(k => k[1] !== "") : []
                     Row {
                         id: keyHint
                         required property var modelData

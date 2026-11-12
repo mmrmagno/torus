@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -uo pipefail
+marker=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/torus-calm
+here=$(dirname "$(readlink -f "$0")")
+
+slow_panels() {
+  hyprctl monitors -j 2> /dev/null | jq -r '.[] | select((.name | test("^eDP")) and .refreshRate > 61) as $m
+    | ($m.availableModes | map(select(startswith("\($m.width)x\($m.height)@") and (capture("@(?<r>[0-9.]+)Hz").r | tonumber) < 61 and (capture("@(?<r>[0-9.]+)Hz").r | tonumber) > 47)) | first) as $mode
+    | select($mode != null)
+    | "hl.monitor({ output = \"\($m.name)\", mode = \"\($mode | sub("Hz$"; ""))\", position = \"\($m.x)x\($m.y)\", scale = \($m.scale), transform = \($m.transform) })"'
+}
+
+case ${1:-status} in
+  on)
+    : > "$marker"
+    hyprctl eval 'torus_calm_apply()' > /dev/null 2>&1
+    while read -r m; do [[ -n $m ]] && hyprctl eval "$m" > /dev/null; done < <(slow_panels)
+    echo on
+    ;;
+  off)
+    [[ -e $marker ]] || { echo off; exit 0; }
+    rm -f "$marker"
+    "$here/torus-reload" || true
+    echo off
+    ;;
+  status) [[ -e $marker ]] && echo on || echo off ;;
+  *) echo "usage: torus-calm on | off | status" >&2; exit 2 ;;
+esac

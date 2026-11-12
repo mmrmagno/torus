@@ -41,7 +41,8 @@ PanelWindow {
         right: 10
     }
     implicitWidth: 440
-    implicitHeight: Math.min(720, body.implicitHeight + 32)
+    implicitHeight: Math.floor(Math.min(720, Store.panelRoom(screen, 16)))
+    mask: Region { item: sessFrame }
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -49,20 +50,26 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("session") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     HyprlandFocusGrab {
-        active: Store.isOpen("session")
+        active: Store.isOpen("session") && root.backingWindowVisible
         windows: [root]
         onCleared: Store.setOpen("session", false)
     }
 
     Rectangle {
+        id: sessFrame
         focus: true
         Keys.onEscapePressed: Store.setOpen("session", false)
         PanelMotion {
             id: motion
-            target: parent
+            target: sessFrame
             shown: Store.isOpen("session") && !Store.moving
         }
-        anchors.fill: parent
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.min(body.implicitHeight + 32, root.implicitHeight)
+        Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.TopRight
         radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1

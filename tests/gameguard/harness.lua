@@ -11,7 +11,7 @@ local monitors, handlers, timers, active
 local execs, configs = {}, 0
 local function ran(cmd)
 	for _, c in ipairs(execs) do
-		if c == cmd then
+		if c == cmd or c:sub(1, #cmd + 1) == cmd .. " " then
 			return true
 		end
 	end
@@ -92,6 +92,7 @@ active = game
 fire("window.active", game)
 check(mon("DP-2").x >= 50000, "focusing a fullscreen game moves the other screen away")
 check(ran("torus-gamemode auto-on"), "a fullscreen game turns game mode on by itself")
+check(ran("torus-gamemode auto-on " .. game.class), "auto game mode names the game's class for torus-play")
 local function setmode(v)
 	local f = io.open(os.getenv("XDG_STATE_HOME") .. "/torus/gamemode", "w")
 	f:write(v .. "\n")

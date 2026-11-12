@@ -1,0 +1,9 @@
+[Unit]
+Description=torus: boot the dev VM, run parity, shut it down
+ConditionPathExists=%h/vms/torus/dev.qcow2
+
+[Service]
+Type=oneshot
+Nice=10
+TimeoutStartSec=2h
+ExecStart=%h/.local/bin/torus-nightly

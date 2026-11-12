@@ -7,7 +7,9 @@ import qs
 Singleton {
     id: root
 
-    readonly property string url: "http://127.0.0.1:11434"
+    property string url: "http://127.0.0.1:11434"
+    property bool remote: false
+    property bool chosen: false
     property string status: "unknown"
     property var models: []
     property string model: ""
@@ -23,6 +25,7 @@ Singleton {
 
     function pick(name) {
         model = name
+        chosen = true
         modelFile.setText(name + "\n")
     }
 
@@ -39,16 +42,53 @@ Singleton {
         error = ""
     }
 
+    function explain() {
+        if (!grab.running)
+            grab.running = true
+    }
+
+    function summarize(lines) {
+        if (lines.length === 0)
+            return
+        Store.setOpen("ai", true)
+        ask("Summarize these notifications in at most four short bullets, most important first. Say who wants something from me.\n\n" + lines.join("\n"))
+    }
+
+    Process {
+        id: grab
+        command: ["sh", "-c", "t=$(timeout 2 wl-paste -p -n 2>/dev/null | head -c 6000); if [ -n \"$(printf %s \"$t\" | tr -d '[:space:]')\" ]; then printf 'sel\\n%s' \"$t\"; else f=${XDG_RUNTIME_DIR:-/tmp}/torus-last-error; [ -s \"$f\" ] && printf 'cmd\\n' && head -c 2000 \"$f\"; fi"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const kind = text.slice(0, 4)
+                const body = text.slice(4).trim()
+                if (body.trim() === "") {
+                    root.error = "select some text first (or run a failing command in a terminal)"
+                    Store.setOpen("ai", true)
+                    return
+                }
+                Store.setOpen("ai", true)
+                root.ask(kind === "sel\n"
+                    ? "Explain this briefly. If it is an error, say what causes it and how to fix it.\n\n" + body
+                    : "This shell command just failed. Explain briefly why it might fail and how to fix it.\n\n" + body)
+            }
+        }
+    }
+
     function ask(text) {
         if (busy || text.trim() === "" || model === "")
             return
         error = ""
         messages = messages.concat([{ role: "user", content: text }, { role: "assistant", content: "" }])
         busy = true
-        if (chat.running || stopping)
+        if (chat.running && !stopping) {
             pending = true
-        else
+            stopping = true
+            chat.running = false
+        } else if (stopping) {
+            pending = true
+        } else {
             chat.running = true
+        }
     }
 
     function stop() {
@@ -68,14 +108,19 @@ Singleton {
 
     Process {
         id: tags
-        command: ["curl", "-sf", "--max-time", "2", root.url + "/api/tags"]
+        command: ["torus-ai-host"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    const names = JSON.parse(text).models.map(m => m.name)
+                    const j = JSON.parse(text)
+                    if (j.status !== "online")
+                        throw new Error("offline")
+                    const names = j.models
+                    root.url = j.url
+                    root.remote = j.remote === true
                     root.models = names
-                    if (names.indexOf(root.model) < 0)
-                        root.model = names.length > 0 ? names[0] : ""
+                    if (!root.chosen || names.indexOf(root.model) < 0)
+                        root.model = j.pick || (names.length > 0 ? names[0] : "")
                     root.status = "online"
                 } catch (e) {
                     root.models = []
@@ -138,6 +183,9 @@ Singleton {
         path: Store.stateDir + "/ai-model"
         blockLoading: true
         printErrors: false
-        onLoaded: root.model = text().trim()
+        onLoaded: {
+            root.model = text().trim()
+            root.chosen = root.model !== ""
+        }
     }
 }

@@ -94,7 +94,7 @@ Singleton {
     FileView { id: hotFile; path: root.gpuHwmon ? root.gpuHwmon + "/temp2_input" : ""; printErrors: false }
 
     Timer {
-        interval: 2000
+        interval: Calm.active ? 5000 : 2000
         running: true
         repeat: true
         triggeredOnStart: true

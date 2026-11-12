@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# .torus-layout lines: nvim | term | lazygit | repo | url https://...  (nothing else runs, a cloned repo stays harmless)
+set -uo pipefail
+dir=$(cd "${1:?usage: torus-layout DIR}" 2> /dev/null && pwd) || exit 1
+url=$(torus-projects 2> /dev/null | awk -F'\t' -v d="$dir" '$1 == d { print $4 }')
+plan=()
+if [[ -f $dir/.torus-layout ]]; then
+  while read -r verb arg; do
+    case $verb in
+      nvim | term | lazygit | repo) plan+=("$verb") ;;
+      url) [[ $arg =~ ^https?://[^[:space:]\"\']+$ ]] && plan+=("url $arg") ;;
+    esac
+  done < "$dir/.torus-layout"
+fi
+((${#plan[@]})) || plan=(nvim term repo)
+[[ ${TORUS_LAYOUT_DRY:-} ]] || hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' > /dev/null
+for step in "${plan[@]}"; do
+  case $step in
+    nvim) cmd=(kitty --directory "$dir" nvim .) ;;
+    term) cmd=(kitty --directory "$dir") ;;
+    lazygit) cmd=(kitty --directory "$dir" lazygit) ;;
+    repo) [[ -n $url ]] || continue; cmd=(xdg-open "$url") ;;
+    url*) cmd=(xdg-open "${step#url }") ;;
+  esac
+  if [[ ${TORUS_LAYOUT_DRY:-} ]]; then echo "${cmd[*]}"; else setsid -f "${cmd[@]}" > /dev/null 2>&1; sleep 0.4; fi
+done

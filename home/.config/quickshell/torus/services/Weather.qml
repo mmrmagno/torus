@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs
 
 Singleton {
     id: root
@@ -35,6 +36,11 @@ Singleton {
         if (c >= 386) return "󰖓"
         if ([179, 227, 230, 323, 326, 329, 332, 335, 338, 368, 371].includes(c)) return "󰖘"
         return "󰖗"
+    }
+
+    function checkRain() {
+        if (!rain.running)
+            rain.running = true
     }
 
     function refresh() {
@@ -79,5 +85,27 @@ Singleton {
         repeat: true
         triggeredOnStart: true
         onTriggered: root.refresh()
+    }
+
+    Process {
+        id: rain
+        command: ["torus-rain"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const d = JSON.parse(text)
+                    if (d.due)
+                        Quickshell.execDetached(["notify-send", "-a", "Weather", "-i", "weather-showers", d.title, d.body])
+                } catch (e) {}
+            }
+        }
+    }
+
+    Timer {
+        interval: 600000
+        running: Net.online && !Store.lockSecure
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.checkRain()
     }
 }

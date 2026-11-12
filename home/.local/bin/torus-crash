@@ -14,6 +14,12 @@ case ${1:-list} in
     f=$dir/$(date +%Y%m%d-%H%M%S).log
     {
       echo "result: ${SERVICE_RESULT:-?} ${EXIT_CODE:-} ${EXIT_STATUS:-}"
+      echo "== QML warnings in this run"
+      if [[ -n ${INVOCATION_ID:-} ]]; then
+        journalctl --user -u torus-shell.service "_SYSTEMD_INVOCATION_ID=$INVOCATION_ID" --no-pager -o cat
+      else
+        journalctl --user -u torus-shell.service -n 400 --no-pager -o cat
+      fi | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'WARN|ERROR|TypeError|ReferenceError|[Bb]inding loop|Unable to assign|is not a function|Cannot read property' | grep -vE 'dmabuf|quickshell\.dbus' | tail -n 30
       echo "== shell"
       journalctl --user -u torus-shell.service -n 80 --no-pager -o short-iso
       echo "== session"
@@ -31,13 +37,15 @@ case ${1:-list} in
     setsid -f sh -c '
       sleep "${TORUS_CRASH_DELAY:-6}"
       a=$(notify-send -a torus -i dialog-warning -w -A open="Open log" "The shell restarted after a crash" "It stopped with: $1. The log is in $2")
-      [ "$a" = open ] && exec kitty --title torus-crash less +G "$2"
+      [ "$a" = open ] && exec kitty --title torus-crash nvim -R "+/== QML warnings" "$2"
     ' sh "$why" "$f" > /dev/null 2>&1
     ;;
   list) ls -1t "$dir"/*.log 2> /dev/null ;;
   last)
     f=$(newest)
-    [[ -n $f ]] && cat "$f"
+    [[ -n $f ]] || { echo "no crash logs" >&2; exit 1; }
+    if [[ -t 1 && -z ${TORUS_CRASH_CAT:-} ]] && command -v nvim > /dev/null; then exec nvim -R "+/== QML warnings" "$f"; fi
+    cat "$f"
     ;;
   *) echo "usage: torus-crash save|notify|list|last" >&2; exit 2 ;;
 esac

@@ -35,11 +35,11 @@ Singleton {
     readonly property string state: flashKind !== "" ? flashKind : (recording ? "recording" : (player ? "media" : "idle"))
 
     function flash(kind, data, ms) {
-        if (!armed)
+        if (!armed || (data && data.cat && !Feel.islandOn(data.cat)))
             return
         flashKind = kind
         flashData = data
-        hide.interval = ms || 1600
+        hide.interval = Math.round((ms || 1600) * Feel.islandSeconds / 1.6)
         hide.restart()
     }
 
@@ -68,17 +68,17 @@ Singleton {
         const name = p.identity || "player"
         if (p.volumeSupported) {
             p.volume = Math.max(0, Math.min(1, p.volume + delta))
-            flash("osd", { icon: "󰎆", label: name + "  " + Math.round(p.volume * 100) + "%", value: p.volume })
+            flash("osd", { icon: "󰎆", label: name + "  " + Math.round(p.volume * 100) + "%", value: p.volume, cat: "volume" })
             return
         }
         const key = (p.desktopEntry || p.identity || "").toLowerCase()
         const node = Pipewire.nodes.values.find(n => n.isStream && n.audio && key !== "" && [n.properties["application.name"], n.properties["application.process.binary"], n.name].some(v => v && String(v).toLowerCase().includes(key)))
         if (!node) {
-            flash("osd", { icon: "󰎆", label: name + ": no volume control", value: -1 })
+            flash("osd", { icon: "󰎆", label: name + ": no volume control", value: -1, cat: "volume" })
             return
         }
         node.audio.volume = Math.max(0, Math.min(1, node.audio.volume + delta))
-        flash("osd", { icon: "󰎆", label: name + "  " + Math.round(node.audio.volume * 100) + "%", value: node.audio.volume })
+        flash("osd", { icon: "󰎆", label: name + "  " + Math.round(node.audio.volume * 100) + "%", value: node.audio.volume, cat: "volume" })
     }
 
     readonly property bool watchingDevices: DeviceWatch.startedAt > 0
@@ -98,7 +98,7 @@ Singleton {
         for (const level of [5, 15]) {
             if (pct <= level && warnedAt > level) {
                 warnedAt = level
-                flash("osd", { icon: level === 5 ? "󰂃" : "󰁺", label: "Battery " + pct + "%" + (level === 5 ? ", plug in now" : ", running low"), value: battery.percentage }, 6000)
+                flash("osd", { icon: level === 5 ? "󰂃" : "󰁺", label: "Battery " + pct + "%" + (level === 5 ? ", plug in now" : ", running low"), value: battery.percentage, cat: "battery" }, 6000)
                 if (level === 5)
                     Quickshell.execDetached(["notify-send", "-u", "critical", "-a", "torus", "-i", "battery-caution", "Battery at " + pct + "%", "Plug in the charger, the laptop will sleep soon"])
                 return
@@ -109,7 +109,7 @@ Singleton {
     onChargingChanged: {
         if (!hasBattery || !armed)
             return
-        flash("osd", { icon: charging ? "󰂄" : "󰁹", label: (charging ? "Charging " : "On battery ") + Math.round(battery.percentage * 100) + "%", value: battery.percentage }, 2200)
+        flash("osd", { icon: charging ? "󰂄" : "󰁹", label: (charging ? "Charging " : "On battery ") + Math.round(battery.percentage * 100) + "%", value: battery.percentage, cat: "battery" }, 2200)
         Store.sound(charging ? "plug" : "unplug")
         batteryCheck()
     }
@@ -149,7 +149,7 @@ Singleton {
     }
 
     function notify(n) {
-        flash("notification", { summary: n.summary, body: n.body, app: n.appName, icon: n.appIcon, image: n.image }, 4000)
+        flash("notification", { summary: n.summary, body: n.body, app: n.appName, icon: n.appIcon, image: n.image, cat: "notifications" }, 4000)
     }
 
     Binding {
@@ -175,13 +175,13 @@ Singleton {
         target: Pipewire.defaultAudioSink ? Pipewire.defaultAudioSink.audio : null
         function onVolumeChanged() {
             const a = Pipewire.defaultAudioSink.audio
-            root.flash("osd", { icon: a.muted ? "󰝟" : "󰕾", label: Math.round(a.volume * 100) + "%", value: a.muted ? 0 : a.volume })
+            root.flash("osd", { icon: a.muted ? "󰝟" : "󰕾", label: Math.round(a.volume * 100) + "%", value: a.muted ? 0 : a.volume, cat: "volume" })
             if (root.armed)
                 Store.sound("tick")
         }
         function onMutedChanged() {
             const a = Pipewire.defaultAudioSink.audio
-            root.flash("osd", { icon: a.muted ? "󰝟" : "󰕾", label: a.muted ? "muted" : Math.round(a.volume * 100) + "%", value: a.muted ? 0 : a.volume })
+            root.flash("osd", { icon: a.muted ? "󰝟" : "󰕾", label: a.muted ? "muted" : Math.round(a.volume * 100) + "%", value: a.muted ? 0 : a.volume, cat: "volume" })
             if (root.armed && !a.muted)
                 Store.sound("tick")
         }
@@ -191,7 +191,7 @@ Singleton {
         target: Pipewire.defaultAudioSource ? Pipewire.defaultAudioSource.audio : null
         function onMutedChanged() {
             const a = Pipewire.defaultAudioSource.audio
-            root.flash("osd", { icon: a.muted ? "󰍭" : "󰍬", label: a.muted ? "mic muted" : "mic on", value: -1 })
+            root.flash("osd", { icon: a.muted ? "󰍭" : "󰍬", label: a.muted ? "mic muted" : "mic on", value: -1, cat: "volume" })
             if (root.armed)
                 Store.sound("tick")
         }
@@ -241,7 +241,7 @@ Singleton {
                 const d = modelData
                 const icon = (d.icon || "").includes("headset") || (d.icon || "").includes("audio") ? "󰋋" : ((d.icon || "").includes("phone") ? "󰏲" : "󰂯")
                 const bat = d.connected && d.batteryAvailable ? "  ·  " + Math.round(d.battery * 100) + "%" : ""
-                root.flash("osd", { icon: d.connected ? icon : "󰂲", label: d.name + (d.connected ? bat : "  disconnected"), value: d.connected && d.batteryAvailable ? d.battery : -1 }, 2600)
+                root.flash("osd", { icon: d.connected ? icon : "󰂲", label: d.name + (d.connected ? bat : "  disconnected"), value: d.connected && d.batteryAvailable ? d.battery : -1, cat: "devices" }, 2600)
             }
         }
     }

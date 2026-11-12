@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import qs
 import qs.components
 import qs.services
@@ -27,6 +28,12 @@ PanelWindow {
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: Store.isOpen("center") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+
+    HyprlandFocusGrab {
+        active: Store.isOpen("center") && root.backingWindowVisible
+        windows: [root]
+        onCleared: Store.setOpen("center", false)
+    }
 
     property bool clearing: false
 

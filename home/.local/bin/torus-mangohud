@@ -7,7 +7,13 @@ out=$STATE/mangohud.conf
 on() { [[ $(cat "$flag" 2> /dev/null) == on ]]; }
 apply() {
   [[ -f $STATE/theme/mangohud.conf ]] || return 0
-  { cat "$STATE/theme/mangohud.conf"; on || echo no_display; } > "$out.new"
+  {
+    cat "$STATE/theme/mangohud.conf"
+    on || echo no_display
+    if [[ -s $STATE/mangohud-log ]]; then
+      printf 'output_folder=%s\nautostart_log=1\nlog_interval=100\n' "$(cat "$STATE/mangohud-log")"
+    fi
+  } > "$out.new"
   cat "$out.new" > "$out"
   rm -f "$out.new"
 }

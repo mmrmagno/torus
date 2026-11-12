@@ -12,9 +12,10 @@ Item {
     property int tried: 0
 
     readonly property bool mine: app.toLowerCase() === "torus"
+    readonly property string glyph: ({ commute: "󰔬", "night light": "󰖔", focus: "󰔛", timer: "󰔛" })[app.toLowerCase()] || "󰂚"
     readonly property var candidates: {
         const out = []
-        const file = p => p.startsWith("/") ? "file://" + p : (p.startsWith("image://icon//") ? "file://" + p.slice(13) : p)
+        const file = p => p.startsWith("/") ? "file://" + p : (p.startsWith("image://icon//") ? "file://" + p.slice(13) : (p.startsWith("image://icon/") ? Quickshell.iconPath(p.slice(13), true) : p))
         const isPath = p => p.startsWith("/") || p.startsWith("file:") || p.startsWith("image:")
         if (image)
             out.push(file(image))
@@ -59,7 +60,7 @@ Item {
     Text {
         anchors.centerIn: parent
         visible: !root.mine && !img.visible
-        text: "󰂚"
+        text: root.glyph
         color: Theme.accent
         font.family: Theme.fontMono
         font.pixelSize: root.size * 0.7

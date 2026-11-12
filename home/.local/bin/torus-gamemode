@@ -46,8 +46,14 @@ case ${1:-toggle} in
       notify-send -a torus -u low "Game mode" "off"
     fi
     ;;
-  auto-on) [[ $current == off ]] && on auto ;;
-  auto-off) [[ $current == auto ]] && off ;;
+  auto-on)
+    [[ $current == off ]] && on auto
+    [[ -n ${2:-} ]] && "$(dirname "$(readlink -f "$0")")"/torus-play start "$2" > /dev/null 2>&1 &
+    ;;
+  auto-off)
+    [[ $current == auto ]] && off
+    "$(dirname "$(readlink -f "$0")")"/torus-play end > /dev/null 2>&1 &
+    ;;
   status) echo "$current" ;;
   *) echo "usage: torus-gamemode [toggle|auto-on|auto-off|status]" >&2; exit 2 ;;
 esac

@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+import glob
+import json
+import os
+from urllib.request import urlopen
+
+CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "torus", "ai.json")
+LOCAL = os.environ.get("TORUS_AI_LOCAL", "http://127.0.0.1:11434")
+
+
+def tags(url, timeout):
+    try:
+        with urlopen(url.rstrip("/") + "/api/tags", timeout=timeout) as r:
+            return json.load(r).get("models") or []
+    except Exception:
+        return None
+
+
+def memory():
+    ram = 0
+    try:
+        for line in open(os.environ.get("TORUS_AI_MEMINFO", "/proc/meminfo")):
+            if line.startswith("MemTotal:"):
+                ram = int(line.split()[1]) * 1024
+    except OSError:
+        pass
+    vram = 0
+    for f in glob.glob(os.environ.get("TORUS_AI_VRAM", "/sys/class/drm/card*/device/mem_info_vram_total")):
+        try:
+            vram = max(vram, int(open(f).read().strip()))
+        except (OSError, ValueError):
+            pass
+    return ram, vram
+
+
+def pick(models, ram, vram, remote_gb=None):
+    budget = vram * 0.85 if vram >= 4 << 30 else ram * 0.3
+    if remote_gb is not None:
+        budget = remote_gb * 2**30
+    fits = [m for m in models if (m.get("size") or 0) <= budget]
+    pool = fits or sorted(models, key=lambda m: m.get("size") or 0)[:1]
+    return max(pool, key=lambda m: m.get("size") or 0)["name"] if pool else ""
+
+
+def main():
+    try:
+        conf = json.load(open(CONF))
+    except (OSError, ValueError):
+        conf = {}
+    ram, vram = memory()
+    url, models, remote = LOCAL, tags(LOCAL, 2), False
+    if models is None and conf.get("remote"):
+        url, models, remote = conf["remote"], tags(conf["remote"], 3), True
+    if models is None:
+        print(json.dumps({"status": "offline", "url": LOCAL, "models": [], "pick": ""}))
+        return
+    print(json.dumps({"status": "online", "url": url, "remote": remote, "models": [m["name"] for m in models],
+                      "pick": pick(models, ram, vram, float(conf.get("remote_budget_gb", 12)) if remote else None), "ram_gb": round(ram / 2**30), "vram_gb": round(vram / 2**30)}))
+
+
+if __name__ == "__main__":
+    main()

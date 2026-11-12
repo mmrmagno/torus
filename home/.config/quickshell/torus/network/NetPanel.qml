@@ -47,7 +47,8 @@ PanelWindow {
         right: 10
     }
     implicitWidth: 380
-    implicitHeight: Math.min(720, body.implicitHeight + 32)
+    implicitHeight: Math.floor(Math.min(720, Store.panelRoom(screen, 16)))
+    mask: Region { item: netFrame }
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
@@ -104,20 +105,26 @@ PanelWindow {
     }
 
     HyprlandFocusGrab {
-        active: Store.isOpen("network")
+        active: Store.isOpen("network") && root.backingWindowVisible
         windows: [root]
         onCleared: Store.setOpen("network", false)
     }
 
     Rectangle {
+        id: netFrame
         focus: true
         Keys.onEscapePressed: Store.setOpen("network", false)
         PanelMotion {
             id: motion
-            target: parent
+            target: netFrame
             shown: Store.isOpen("network") && !Store.moving
         }
-        anchors.fill: parent
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.min(body.implicitHeight + 32, root.implicitHeight)
+        Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
+        transformOrigin: Item.TopRight
         radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1
