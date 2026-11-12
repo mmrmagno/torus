@@ -103,6 +103,33 @@ def monitor_of(cls):
     return next((m["name"] for m in mons if m.get("id") == mid), mons[0]["name"] if mons else "")
 
 
+def window_capture():
+    conf = os.path.join(os.environ.get("XDG_CONFIG_HOME", HOME + "/.config"), "hypr", "xdph.conf")
+    return "torus-share-picker" in load_text(conf) and shutil.which("torus-share-picker") is not None
+
+
+def start_replay(cls, mon, audio, secs):
+    base = ["-f", "60", "-a", audio, "-c", "mp4", "-r", str(secs), "-sc", os.path.abspath(sys.argv[0]) + "-saved", "-o", VIDEOS]
+    if window_capture():
+        os.makedirs(STATE, exist_ok=True)
+        with open(os.path.join(STATE, "share-target"), "w") as f:
+            f.write(cls + "\n")
+        p = subprocess.Popen(["gpu-screen-recorder", "-w", "portal", "-restore-portal-session", "no"] + base,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        for _ in range(25):
+            if p.poll() is not None:
+                break
+            time.sleep(0.2)
+        if p.poll() is None:
+            return "window"
+        try:
+            os.remove(os.path.join(STATE, "share-target"))
+        except OSError:
+            pass
+    subprocess.Popen(["setsid", "-f", "gpu-screen-recorder", "-w", mon] + base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "monitor"
+
+
 def replay_running():
     return run("pgrep", "-f", "gpu-screen-recorder .*-r ").strip() != ""
 
@@ -114,6 +141,7 @@ def cmd_start(cls):
     s = settings(appid)
     name = game_name(appid)
     sess = {"appid": appid, "class": cls, "name": name, "start": time.time(), "clips": 0, "replay": False, "overlay_before": "", "hold": s["hold"]}
+    save(SESSION, sess)
     if s["overlay"] in ("on", "off"):
         sess["overlay_before"] = run("torus-mangohud", "status").strip()
         run("torus-mangohud", s["overlay"])
@@ -127,11 +155,9 @@ def cmd_start(cls):
             if mic:
                 audio += "|" + mic
             os.makedirs(VIDEOS, exist_ok=True)
-            subprocess.Popen(["setsid", "-f", "gpu-screen-recorder", "-w", mon, "-f", "60", "-a", audio, "-c", "mp4",
-                              "-r", str(int(s["replay_secs"])), "-sc", os.path.abspath(sys.argv[0]) + "-saved", "-o", VIDEOS],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            sess["replay"] = True
-            sess["replay_secs"] = int(s["replay_secs"])
+            sess.update({"capture": start_replay(cls, mon, audio, int(s["replay_secs"])), "replay": True, "replay_secs": int(s["replay_secs"])})
+    cur = load(SESSION, {})
+    sess["clips"] = max(sess["clips"], cur.get("clips", 0))
     save(SESSION, sess)
 
 

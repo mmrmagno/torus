@@ -37,6 +37,31 @@ grep -q -- "gpu-screen-recorder -w DP-1 -f 60 -a default_output -c mp4 -r 120 -s
 assert_eq "Counter-Strike 2:true:off" "$("$P" status | jq -r '"\(.name):\(.replay):\(.hold)"')" "session recorded"
 [[ -e $F/state/torus/mangohud-log ]] && fail "no MangoHud logging (its log dot sits on top of the game)"
 
+assert_eq monitor "$("$P" status | jq -r .capture)" "no portal picker configured: whole monitor"
+rm "$F/state/torus/play-session.json"; : > "$LOG"
+mkdir -p "$F/config/hypr"; echo 'screencopy { custom_picker_binary = torus-share-picker }' > "$F/config/hypr/xdph.conf"
+printf '#!/bin/sh\nexit 0\n' > "$F/bin/torus-share-picker"; chmod +x "$F/bin/torus-share-picker"
+printf '#!/usr/bin/env bash\necho "gpu-screen-recorder $*" >> "$LOG"\nexec sleep 30\n' > "$F/bin/gpu-screen-recorder"; chmod +x "$F/bin/gpu-screen-recorder"
+"$P" set 730 overlay on
+stub torus-mangohud 'echo off'
+"$P" start steam_app_730 &
+for _ in $(seq 20); do [[ -s $F/state/torus/play-session.json ]] && break; sleep 0.1; done
+"$P" start steam_app_730
+mkdir -p "$F/Videos"; ffmpeg -v error -f lavfi -i color=c=blue:s=64x48:d=1 -c:v libx264 "$F/Videos/early.mp4"
+"$P" saved "$F/Videos/early.mp4" > /dev/null
+wait
+assert_eq "1:off" "$("$P" status | jq -r '"\(.clips):\(.overlay_before)"')" "a second start while the recorder starts changes nothing, an early clip and the overlay state survive"
+"$P" set 730 overlay keep
+rm -rf "$F/Videos/Clips"
+grep -q -- "^gpu-screen-recorder -w portal -restore-portal-session no -f 60 .* -r 120 " "$LOG" || fail "window capture through the portal: $(cat "$LOG")"
+assert_eq "steam_app_730" "$(cat "$F/state/torus/share-target")" "the picker is told which window"
+assert_eq window "$("$P" status | jq -r .capture)" "session says window"
+pkill -f "^sleep 30$" || true
+rm "$F/state/torus/play-session.json" "$F/state/torus/share-target"; : > "$LOG"
+printf '#!/usr/bin/env bash\necho "gpu-screen-recorder $*" >> "$LOG"\nexit 1\n' > "$F/bin/gpu-screen-recorder"; chmod +x "$F/bin/gpu-screen-recorder"
+"$P" start steam_app_730
+grep -q -- "setsid -f gpu-screen-recorder -w DP-1 " "$LOG" || fail "falls back to the monitor when the portal fails: $(cat "$LOG")"
+[[ -e $F/state/torus/share-target ]] && fail "a failed portal start leaves no stale target"
 mkdir -p "$F/Videos"
 ffmpeg -v error -f lavfi -i color=c=red:s=64x48:d=2 -c:v libx264 "$F/Videos/Replay_x.mp4"
 dest=$("$P" saved "$F/Videos/Replay_x.mp4")
