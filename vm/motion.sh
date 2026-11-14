@@ -27,8 +27,10 @@ size=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | "\(.width) \(.heigh
 read -r mw mh mt mx my <<<"$size"
 ((mt % 2 == 1)) && { t=$mw; mw=$mh; mh=$t; }
 "${QS[@]}" donutPaused true > /dev/null 2>&1
+"${QS[@]}" widgetsQuiet true > /dev/null 2>&1
+sleep 0.2
 rec="" poll=""
-trap '"${QS[@]}" donutPaused false > /dev/null 2>&1; [[ -n $poll ]] && kill "$poll" 2> /dev/null; [[ -n $rec ]] && kill -INT "$rec" 2> /dev/null' EXIT
+trap '"${QS[@]}" donutPaused false > /dev/null 2>&1; "${QS[@]}" widgetsQuiet false > /dev/null 2>&1; [[ -n $poll ]] && kill "$poll" 2> /dev/null; [[ -n $rec ]] && kill -INT "$rec" 2> /dev/null' EXIT
 
 hyprctl layers -j | jq -r '.[].levels[][] | .address' > "$out/before"
 rm -f "$out/rec.mkv" "$out/layers"

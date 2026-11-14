@@ -187,7 +187,7 @@ reload_shell() {
   t=$(date +%s)
   ipc reload > /dev/null || true
   sleep "${TORUS_RELOAD_WAIT:-3}"
-  if journalctl --user -u torus-shell --since "@$t" --no-pager -o cat 2> /dev/null | grep -q 'Failed to load configuration'; then
+  if [[ ${1:-} == --restart ]] || journalctl --user -u torus-shell --since "@$t" --no-pager -o cat 2> /dev/null | grep -qE 'Failed to load configuration|is not defined|unresolvable import'; then
     systemctl --user restart torus-shell.service
     echo restarted
   else
@@ -224,6 +224,50 @@ check_journal() {
     note journal "$n warnings since the shell last loaded its config (journalctl --user -u torus-shell _PID=$pid)"
   else
     ok journal "no warnings since the shell last loaded its config"
+  fi
+}
+
+check_psr() {
+  local ps=${TORUS_POWER_SUPPLY:-/sys/class/power_supply} cmd drm=${TORUS_DRM:-/sys/class/drm} drv="" d n mask param fix
+  ls -d "$ps"/BAT* > /dev/null 2>&1 || return
+  cmd=$(cat "${TORUS_CMDLINE:-/proc/cmdline}" 2> /dev/null)
+  for d in "$drm"/card*/device/driver; do
+    [[ -e $d ]] || continue
+    drv=$(basename "$(readlink -f "$d")")
+    [[ $drv == amdgpu || $drv == i915 || $drv == xe ]] && break
+  done
+  case $drv in
+    amdgpu)
+      mask=$(grep -oE 'amdgpu\.dcdebugmask=0x[0-9a-fA-F]+' <<< "$cmd" | cut -d= -f2)
+      if [[ -n $mask ]] && (( mask & 0x10 )); then ok psr "panel self refresh is off (amdgpu.dcdebugmask=$mask)"; return; fi
+      param="amdgpu.dcdebugmask=0x10" ;;
+    i915 | xe)
+      grep -qE "(^| )$drv\.enable_psr=0( |$)" <<< "$cmd" && { ok psr "panel self refresh is off ($drv.enable_psr=0)"; return; }
+      param="$drv.enable_psr=0" ;;
+    *) return ;;
+  esac
+  n=$(journalctl -k -b --no-pager -o cat 2> /dev/null | grep -ciE 'psr|flip_done timed out|pageflip timed out|dmub.*(timeout|timed out|error)')
+  fix="add $param to GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub, then sudo grub-mkconfig -o /boot/grub/grub.cfg and reboot"
+  if ((n > 0)); then
+    bad psr "$n panel self refresh warnings this boot (screen freezes); fix: $fix"
+  else
+    ok psr "no panel self refresh warnings this boot"
+  fi
+}
+
+check_gpu() {
+  local log resets enc mods=${TORUS_MODULES:-/usr/lib/modules} rel
+  rel=$(uname -r)
+  [[ -d $mods/$rel ]] || bad kernel "running $rel but its modules are gone (the kernel was updated since boot): reboot"
+  log=$(journalctl -k -b --no-pager -o cat 2> /dev/null) || return
+  resets=$(grep -c 'GPU reset begin' <<< "$log")
+  enc=$(grep -cE 'ring vcn_unified_[0-9]+ timeout' <<< "$log")
+  if ((enc > 0)); then
+    bad gpu "the video encoder hung $enc time$( ((enc == 1)) || echo s) this boot ($resets GPU reset$( ((resets == 1)) || echo s)), each one can take the session down: reboot; the replay buffer stays off until then"
+  elif ((resets > 0)); then
+    bad gpu "$resets GPU reset$( ((resets == 1)) || echo s) this boot: a reboot gives a clean GPU"
+  else
+    ok gpu "no GPU resets this boot"
   fi
 }
 
@@ -271,12 +315,14 @@ run_checks() {
   check_fresh
   check_journal
   check_crashes
+  check_psr
+  check_gpu
   check_nightly
 }
 
 case ${1:-} in
   --snapshot) snapshot; exit 0 ;;
-  --reload-shell) reload_shell; exit 0 ;;
+  --reload-shell) reload_shell "${2:-}"; exit 0 ;;
   --parity) exec "$(dirname "$SELF")/torus-parity" ;;
   --fix) fix=1 ;;
   "") ;;

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import qs
 import qs.components
@@ -32,6 +33,8 @@ Row {
             implicitSize: 14
             anchors.verticalCenter: parent.verticalCenter
             source: modelData.icon
+            layer.enabled: !Theme.dark
+            layer.effect: MultiEffect { brightness: -0.55 }
             scale: hover.hovered ? 1.15 : 1
             Behavior on scale { NumberAnimation { duration: Theme.durFast } }
 

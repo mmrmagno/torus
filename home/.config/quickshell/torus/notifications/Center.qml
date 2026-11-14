@@ -53,7 +53,9 @@ PanelWindow {
         }
     }
 
-    onVisibleChanged: if (!visible) {
+    onVisibleChanged: if (visible) {
+        search.forceActiveFocus()
+    } else {
         search.text = ""
         Notifs.filter = ""
     }
@@ -273,6 +275,11 @@ PanelWindow {
                     font.family: Theme.fontMono
                     font.pixelSize: Theme.fsLg
                 }
+            }
+
+            KeyHints {
+                Layout.fillWidth: true
+                hints: [["type", "search"], ["󰂚", "mute app"], ["󰎟", "clear app"], ["Esc", "close"]]
             }
         }
     }

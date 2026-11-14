@@ -14,7 +14,7 @@ Chip {
     iconColor: ready && sink.audio.muted ? Theme.red : Theme.accent
     label: ready ? Math.round(sink.audio.volume * 100) : "--"
     onClicked: if (ready) sink.audio.muted = !sink.audio.muted
-    onRightClicked: Quickshell.execDetached(["pavucontrol"])
+    onRightClicked: Quickshell.execDetached(["torus-launch", "pavucontrol"])
     onScrolled: delta => {
         if (ready)
             sink.audio.volume = Math.max(0, Math.min(1.5, sink.audio.volume + delta * 0.05))

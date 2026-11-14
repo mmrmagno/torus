@@ -2,12 +2,13 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Widgets
 import Quickshell.Services.Mpris
 import qs
 import qs.components
 import qs.services
 
-Rectangle {
+ClippingRectangle {
     id: root
 
     readonly property var player: Mpris.players.values.length > 0 ? (Mpris.players.values.find(p => p.isPlaying) || Mpris.players.values[0]) : null
@@ -18,7 +19,6 @@ Rectangle {
     implicitHeight: 132
     radius: Theme.radius
     color: Theme.surface0
-    clip: true
 
     ColorQuantizer {
         id: quant
@@ -64,12 +64,11 @@ Rectangle {
         anchors.margins: 14
         spacing: 14
 
-        Rectangle {
+        ClippingRectangle {
             Layout.preferredWidth: 96
             Layout.preferredHeight: 96
             radius: Theme.radius
             color: Theme.mantle
-            clip: true
             Image {
                 anchors.fill: parent
                 source: root.art

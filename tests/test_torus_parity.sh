@@ -35,6 +35,7 @@ printf '#!/bin/sh\necho inv\n' > "$F/bin/systemctl"
 chmod +x "$F"/bin/*
 R=$F/repo; mkdir -p "$R/home/.local/bin" "$R/tests"
 cp "$REPO/home/.local/bin/torus-parity" "$R/home/.local/bin/"
+mkdir -p "$R/home/.local/share/torus"; cp "$REPO/home/.local/share/torus/checks.sh" "$R/home/.local/share/torus/"
 echo "SUPER+D" > "$R/tests/binds.expected"
 P=$R/home/.local/bin/torus-parity
 out=$("$P") || fail "healthy machine fails: $out"

@@ -13,8 +13,8 @@ PanelWindow {
 
     readonly property bool narrow: screen ? screen.width < 1400 : false
     readonly property bool focused: Store.focusedScreen === screen
-    readonly property bool flashing: Island.state === "osd" || Island.state === "notification" || Island.state === "shot"
-    readonly property string resting: Island.recording ? "recording" : Island.sharing ? "sharing" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player && Feel.islandOn("music") ? "media" : "idle"))))
+    readonly property bool flashing: Island.state === "osd" || Island.state === "notification" || Island.state === "shot" || Island.state === "trash"
+    readonly property string resting: Island.recording ? "recording" : Island.sharing ? "sharing" : (SteamLog.top || BrowserDownloads.top ? "progress" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player && Feel.islandOn("music") ? "media" : "idle")))))
     readonly property bool faceOn: FaceScan.state !== "idle"
     readonly property string mode: faceOn && focused ? "face" : (flashing && focused ? Island.state : resting)
     readonly property bool lyricRow: mode === "media" && Lyrics.line !== ""
@@ -24,8 +24,10 @@ PanelWindow {
         case "osd": return 300
         case "notification": return 440
         case "shot": return 460
+        case "trash": return 400
         case "recording": return Math.max(170, recText.implicitWidth + 56)
         case "sharing": return Math.max(190, shareText.implicitWidth + 56)
+        case "progress": return Math.max(220, progText.implicitWidth + 60)
         case "focus": return 150
         case "timer": return Math.max(150, timerText.implicitWidth + 56)
         case "media": return lyricRow ? 440 : 380
@@ -41,6 +43,8 @@ PanelWindow {
     Binding { target: root; property: "osdData"; value: Island.flashData; when: root.mode === "osd"; restoreMode: Binding.RestoreNone }
     Binding { target: root; property: "noteData"; value: Island.flashData; when: root.mode === "notification"; restoreMode: Binding.RestoreNone }
     Binding { target: root; property: "shotData"; value: Island.flashData; when: root.mode === "shot"; restoreMode: Binding.RestoreNone }
+    property var trashData: ({})
+    Binding { target: root; property: "trashData"; value: Island.flashData; when: root.mode === "trash"; restoreMode: Binding.RestoreNone }
 
     onModeChanged: Island.report(screen.name, mode === "" ? "hidden" : mode)
     Component.onCompleted: Island.report(screen.name, mode === "" ? "hidden" : mode)
@@ -378,28 +382,24 @@ PanelWindow {
                                 Text { id: shotLabel; text: shotBtn.modelData[1]; color: shotHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
                             }
                             HoverHandler { id: shotHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler {
-                                onTapped: {
-                                    const p = root.shotData.path || ""
-                                    if (!p)
-                                        return
-                                    const what = shotBtn.modelData[1]
-                                    if (what === "Edit")
-                                        Quickshell.execDetached(["satty", "--filename", p, "--output-filename", p, "--early-exit", "--copy-command", "wl-copy"])
-                                    else if (what === "Text")
-                                        Quickshell.execDetached(["torus-ocr", p])
-                                    else if (what === "Folder")
-                                        Quickshell.execDetached(["torus-launch", "xdg-open", p.substring(0, p.lastIndexOf("/"))])
-                                    else if (what === "Delete")
-                                        Quickshell.execDetached(["rm", "-f", "--", p])
-                                        Store.sound("delete")
-                                    Island.dismiss()
-                                }
-                            }
+                            TapHandler { onTapped: Island.shotAct(shotBtn.modelData[1]) }
                         }
                     }
                 }
             }
+        }
+
+        TrashFace {
+            opacity: root.mode === "trash" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "trash" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "trash" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 8
+            info: root.trashData
+            onUndo: Island.trashUndo()
+            HoverHandler { onHoveredChanged: Island.hold(hovered) }
         }
 
         RowLayout {
@@ -490,6 +490,38 @@ PanelWindow {
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fontSize
                 text: "Sharing · " + Island.shareApps.join(", ")
+            }
+        }
+
+        RowLayout {
+            opacity: root.mode === "progress" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "progress" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "progress" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
+            anchors.centerIn: parent
+            spacing: Theme.sp4
+            ProgressRing {
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                readonly property var job: SteamLog.top || BrowserDownloads.top
+                value: job ? (job.pct < 0 ? -1 : job.pct / 100) : 0
+                tint: job && job.kind !== "shader" ? Theme.sapphire : Theme.accent
+            }
+            Text {
+                id: progText
+                color: Theme.text
+                font.family: Theme.fontUi
+                font.pixelSize: Theme.fontSize
+                text: {
+                    const j = SteamLog.top || BrowserDownloads.top
+                    if (!j)
+                        return ""
+                    if (j.kind === "browser")
+                        return j.name + "  ·  " + j.size + (j.speed ? "  ·  " + j.speed : "")
+                    const what = j.kind === "download" ? (j.speed || "downloading") : "shaders"
+                    const left = SteamLog.left(j.left)
+                    return j.name + "  ·  " + what + " " + j.pct + "%" + (left ? "  ·  " + left : "")
+                }
             }
         }
 

@@ -8,6 +8,13 @@ import qs
 Singleton {
     id: root
 
+    PersistentProperties {
+        id: kept
+        reloadableId: "torus-notifs-quiet"
+        property bool quietActive: false
+        property bool dndBeforeQuiet: false
+    }
+
     property var popups: []
     property var deadlines: ({})
     property var repeats: ({})
@@ -15,8 +22,8 @@ Singleton {
     property var lastFlash: ({})
     property int quietFrom: 0
     property int quietTo: 6
-    property bool quietActive: false
-    property bool dndBeforeQuiet: false
+    property alias quietActive: kept.quietActive
+    property alias dndBeforeQuiet: kept.dndBeforeQuiet
     property var arrived: ({})
     property var muted: ({})
     property string filter: ""

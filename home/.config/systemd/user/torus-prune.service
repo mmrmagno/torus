@@ -1,0 +1,7 @@
+[Unit]
+Description=torus: drop cached previews whose source is gone
+
+[Service]
+Type=oneshot
+Nice=19
+ExecStart=%h/.local/bin/torus-prune

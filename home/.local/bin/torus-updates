@@ -37,19 +37,36 @@ case ${1:-list} in
     done
     ;;
   torus)
-    repo=${TORUS_REPO:-$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd)}
-    git -C "$repo" rev-parse --abbrev-ref '@{u}' > /dev/null 2>&1 || exit 0
-    head=$repo/.git/FETCH_HEAD
-    [[ -f $repo/.git ]] && head=$(git -C "$repo" rev-parse --git-path FETCH_HEAD)
-    age=$(($(date +%s) - $(stat -c %Y "$head" 2> /dev/null || echo 0)))
-    if ((age >= ${TORUS_FETCH_TTL:-3600})); then
-      GIT_TERMINAL_PROMPT=0 timeout 20 git -C "$repo" fetch -q --no-tags 2> /dev/null || touch "$head" 2> /dev/null
+    "$(dirname "$(readlink -f "$0")")/torus-update" --list | head -n "$((${2:-20} + 1))"
+    ;;
+  upgrade)
+    island() { qs -c torus ipc call torus islandFlash notification "$1" > /dev/null 2>&1 || notify-send -a torus "Update" "$1"; }
+    mapfile -t fresh < <("$0" news 10 | awk -F'\t' '$1 == "new"')
+    if ((${#fresh[@]})); then
+      echo "Arch posted news since your last full upgrade:"
+      for l in "${fresh[@]}"; do IFS=$'\t' read -r _ day title link <<< "$l"; printf '  %s  %s\n      %s\n' "$day" "$title" "$link"; done
+      while :; do
+        read -r -p "Read it first? o opens them in the browser, y updates anyway, anything else stops: " a || a=n
+        case $a in
+          o | O) for l in "${fresh[@]}"; do IFS=$'\t' read -r _ _ _ link <<< "$l"; torus-launch xdg-open "$link" > /dev/null 2>&1; done ;;
+          y | Y) break ;;
+          *) echo "stopped, nothing changed"; island "Update stopped: read the Arch news first"; exit 3 ;;
+        esac
+      done
     fi
-    printf 'installed\t%s\t%s\t%s\n' "$(git -C "$repo" log -1 --format='%h%x09%s%x09%cs')" | cut -f1-4
-    git -C "$repo" log --format='new%x09%h%x09%s%x09%cs' -n "${2:-20}" 'HEAD..@{u}'
+    if ! yay -Syu; then
+      island "Update failed, see the terminal"
+      exit 1
+    fi
+    echo
+    echo "torus doctor:"
+    torus-doctor
+    fails=$?
+    if ((fails == 0)); then island "Update done · torus doctor: all green"; else island "Update done · torus doctor found $fails problem$( ((fails == 1)) || echo s), run torus doctor"; fi
+    exit "$fails"
     ;;
   *)
-    echo "usage: torus-updates list | news [N] | torus [N]" >&2
+    echo "usage: torus-updates list | news [N] | torus [N] | upgrade" >&2
     exit 2
     ;;
 esac

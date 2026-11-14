@@ -12,6 +12,25 @@ PanelWindow {
     id: root
 
     property var games: []
+    property bool loaded: false
+    property string cutting: ""
+    property string view: "games"
+    property bool setting: false
+    property bool clipSetting: false
+
+    function setView(v) {
+        view = v
+        if (v === "clips")
+            library.reload()
+    }
+
+    function openSettings(g) {
+        if (!g)
+            return
+        settings.open(g)
+        setting = true
+    }
+    property bool failed: false
     property string filter: ""
     readonly property var shown: games.filter(g => filter === "" || g.name.toLowerCase().includes(filter.toLowerCase()))
     readonly property var selected: shown[grid.currentIndex] || null
@@ -45,7 +64,11 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("games") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     onVisibleChanged: if (visible) {
-        dock.mode = "grid"
+        cutting = Store.pendingCut
+        Store.pendingCut = ""
+        setting = false
+        clipSetting = false
+        setView(cutting !== "" ? "clips" : "games")
         search.text = ""
         grid.currentIndex = 0
         if (!loader.running)
@@ -56,11 +79,15 @@ PanelWindow {
     Process {
         id: loader
         command: ["torus-games"]
+        onExited: code => root.failed = code !== 0 && root.games.length === 0
         stdout: StdioCollector {
-            onStreamFinished: root.games = text.split("\n").filter(l => l).map(l => {
-                const f = l.split("\t")
-                return { id: f[0], name: f[1], last: Number(f[2]) || 0, mins: Number(f[3]) || 0, art: f[4] || "" }
-            })
+            onStreamFinished: {
+                root.games = text.split("\n").filter(l => l).map(l => {
+                    const f = l.split("\t")
+                    return { id: f[0], name: f[1], last: Number(f[2]) || 0, mins: Number(f[3]) || 0, art: f[4] || "" }
+                })
+                root.loaded = true
+            }
         }
     }
 
@@ -103,32 +130,37 @@ PanelWindow {
                         grid.currentIndex = 0
                     }
                     Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Tab) {
-                            dock.mode = dock.mode === "grid" ? (Play.clips.length > 0 ? "clips" : "settings") : (dock.mode === "clips" ? "settings" : "grid")
+                        const ctrl = event.modifiers & Qt.ControlModifier
+                        if (root.setting) {
+                            settings.key(event)
                             event.accepted = true
                             return
                         }
-                        if (dock.mode !== "grid" && event.key !== Qt.Key_Escape) {
-                            const ctrl = event.modifiers & Qt.ControlModifier
-                            if (dock.mode === "clips" && (event.key === Qt.Key_Left || event.key === Qt.Key_Right))
-                                dock.step(event.key === Qt.Key_Right ? 1 : -1)
-                            else if (dock.mode === "clips" && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter))
-                                dock.play()
-                            else if (dock.mode === "clips" && event.key === Qt.Key_Delete)
-                                dock.remove()
-                            else if (dock.mode === "clips" && ctrl && event.key === Qt.Key_C)
-                                dock.copy()
-                            else if (dock.mode === "settings" && (event.key === Qt.Key_Up || event.key === Qt.Key_Down))
-                                dock.step(event.key === Qt.Key_Down ? 1 : -1)
-                            else if (dock.mode === "settings" && (event.key === Qt.Key_Left || event.key === Qt.Key_Right))
-                                dock.cycle(event.key === Qt.Key_Right ? 1 : -1)
-                            else
+                        if (root.clipSetting) {
+                            clipSheet.key(event)
+                            event.accepted = true
+                            return
+                        }
+                        if (root.view === "clips" && ctrl && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !library.busy) {
+                            root.clipSetting = true
+                            event.accepted = true
+                            return
+                        }
+                        if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) && !(root.view === "clips" && library.renaming)) {
+                            root.setView(root.view === "games" ? "clips" : "games")
+                            event.accepted = true
+                            return
+                        }
+                        if (root.view === "clips") {
+                            if (event.key === Qt.Key_Escape && !library.busy)
+                                root.setView("games")
+                            else if (!library.key(event))
                                 return
                             event.accepted = true
                             return
                         }
                         if (event.key === Qt.Key_Escape)
-                            dock.mode === "grid" ? Store.setOpen("games", false) : dock.mode = "grid"
+                            Store.setOpen("games", false)
                         else if (event.key === Qt.Key_Right)
                             grid.moveCurrentIndexRight()
                         else if (event.key === Qt.Key_Left)
@@ -137,6 +169,8 @@ PanelWindow {
                             grid.moveCurrentIndexDown()
                         else if (event.key === Qt.Key_Up)
                             grid.moveCurrentIndexUp()
+                        else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && ctrl)
+                            root.openSettings(root.selected)
                         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                             root.launch(root.selected)
                         else
@@ -146,13 +180,30 @@ PanelWindow {
                     Text {
                         visible: search.text === ""
                         anchors.verticalCenter: parent.verticalCenter
-                        text: root.games.length + " games, last played first"
+                        text: root.view === "clips" ? "type to find a clip" : root.games.length + " games, last played first"
                         color: Theme.overlay
                         font: search.font
                     }
                 }
+                Segmented {
+                    options: ["games", "clips"]
+                    labels: ["Games", "Clips"]
+                    current: root.view
+                    activeFocusOnTab: false
+                    onPicked: value => {
+                        root.setView(value)
+                        search.forceActiveFocus()
+                    }
+                }
+                PanelButton {
+                    visible: root.view === "clips"
+                    icon: "󰒓"
+                    implicitHeight: 28
+                    activeFocusOnTab: false
+                    onClicked: root.clipSetting = true
+                }
                 Text {
-                    visible: !!root.selected
+                    visible: !!root.selected && root.view === "games"
                     text: root.selected ? root.hours(root.selected.mins) + "  ·  " + root.ago(root.selected.last) : ""
                     color: Theme.subtext
                     font.family: Theme.fontUi
@@ -160,8 +211,18 @@ PanelWindow {
                 }
             }
 
+            ClipLibrary {
+                id: library
+                visible: root.view === "clips"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                filter: root.filter
+                onCutRequested: path => root.cutting = path
+            }
+
             GridView {
                 id: grid
+                visible: root.view === "games"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
@@ -187,14 +248,41 @@ PanelWindow {
                         height: Math.floor(width * 1.5)
                         radius: Theme.rCard
                         color: Theme.surface0
-                        border.width: cell.current ? 2 : 0
-                        border.color: Theme.accent
                         scale: cell.current ? 1.03 : (tileHover.hovered ? 1.015 : 1)
                         Behavior on scale { NumberAnimation { duration: 120 } }
 
+                        Rectangle {
+                            id: jobBar
+                            readonly property var job: SteamLog.jobFor(cell.modelData.id, "shader") || SteamLog.jobFor(cell.modelData.id, "download")
+                            visible: !!job
+                            z: 5
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            height: 30
+                            color: Qt.alpha(Theme.crust, 0.85)
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: Theme.sp3
+                                ProgressRing {
+                                    width: 14
+                                    height: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    value: jobBar.job ? jobBar.job.pct / 100 : 0
+                                    tint: jobBar.job && jobBar.job.kind === "download" ? Theme.sapphire : Theme.accent
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: jobBar.job ? (jobBar.job.kind === "download" ? "update " : "shaders ") + jobBar.job.pct + "%" : ""
+                                    color: Theme.text
+                                    font.family: Theme.fontUi
+                                    font.pixelSize: Theme.fsXs
+                                }
+                            }
+                        }
+
                         Image {
                             anchors.fill: parent
-                            anchors.margins: cell.current ? 2 : 0
                             source: cell.modelData.art ? "file://" + cell.modelData.art : ""
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
@@ -213,9 +301,44 @@ PanelWindow {
                             font.pixelSize: Theme.fsBase
                         }
                         HoverHandler { id: tileHover; cursorShape: Qt.PointingHandCursor }
+                        Rectangle {
+                            anchors.fill: parent
+                            z: 7
+                            radius: Theme.rCard
+                            color: "transparent"
+                            border.width: cell.current ? 3 : (tileHover.hovered ? 1 : 0)
+                            border.color: cell.current ? Theme.accent : Qt.alpha(Theme.accent, 0.5)
+                        }
+                        Rectangle {
+                            id: cog
+                            visible: tileHover.hovered || cell.current
+                            z: 6
+                            x: card.width - width - 8
+                            y: 8
+                            width: 28
+                            height: 28
+                            radius: 14
+                            color: cogHover.hovered ? Theme.accent : Qt.alpha(Theme.crust, 0.8)
+                            Behavior on color { ColorAnimation { duration: Theme.durFast } }
+                            Text { anchors.centerIn: cog; text: "󰒓"; color: cogHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd }
+                            HoverHandler { id: cogHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler {
+                                onTapped: {
+                                    grid.currentIndex = cell.index
+                                    root.openSettings(cell.modelData)
+                                }
+                            }
+                        }
                         TapHandler {
-                            onTapped: grid.currentIndex === cell.index ? root.launch(cell.modelData) : grid.currentIndex = cell.index
-                            onDoubleTapped: root.launch(cell.modelData)
+                            onTapped: (point, button) => {
+                                if (cog.visible && cog.contains(cog.mapFromItem(card, point.position)))
+                                    return
+                                grid.currentIndex === cell.index ? root.launch(cell.modelData) : grid.currentIndex = cell.index
+                            }
+                            onDoubleTapped: (point, button) => {
+                                if (!(cog.visible && cog.contains(cog.mapFromItem(card, point.position))))
+                                    root.launch(cell.modelData)
+                            }
                         }
                     }
                     Text {
@@ -232,25 +355,71 @@ PanelWindow {
                     }
                 }
 
-                Text {
-                    anchors.centerIn: parent
-                    visible: grid.count === 0
-                    text: root.games.length === 0 ? "No Steam games found" : "nothing matches"
-                    color: Theme.overlay
-                    font.family: Theme.fontUi
-                    font.pixelSize: Theme.fsBase
+                CardState {
+                    anchors.fill: parent
+                    status: grid.count > 0 ? "ready" : (root.failed ? "error" : (!root.loaded ? "loading" : "empty"))
+                    text: status === "error" ? "torus-games failed, Steam library not readable" : (root.games.length === 0 ? "No Steam games found" : "nothing matches")
+                    onRetry: { root.failed = false; loader.running = true }
                 }
             }
 
-            GameDock {
-                id: dock
-                game: root.selected
-            }
-
-            RowLayout {
+            KeyHints {
                 Layout.fillWidth: true
-                spacing: Theme.sp6
-                Text { text: "↵ play  ·  arrows move  ·  type to filter  ·  Tab clips and settings  ·  Esc closes"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+                visible: root.view === "games"
+                hints: [["↵", "play"], ["Ctrl ↵", "settings"], ["← / →", "move"], ["type", "filter"], ["Tab", "clips"], ["Esc", "close"]]
+            }
+        }
+
+        SettingsSheet {
+            id: clipSheet
+            anchors.fill: parent
+            z: 9
+            visible: root.clipSetting
+            title: "Clip settings"
+            note: (library.total / 1073741824).toFixed(1) + " GB of clips in ~/Videos/Clips"
+            rows: [{ key: "budget", label: "Auto cleanup", note: library.budget > 0 ? "over " + library.budget + " GB the oldest clips go to the trash, favorites never" : "off: nothing is ever removed", values: ["0", "25", "50", "100"], labels: ["Off", "25 GB", "50 GB", "100 GB"] }]
+            values: ({ budget: String(library.budget) })
+            onPicked: (key, value) => library.setBudget(Number(value))
+            moreHints: clipTrash.count > 0 ? [["Del", clipTrash.armed ? "again: empty for good" : "empty trash"]] : []
+            onDeletePressed: clipTrash.empty()
+            TrashMeter { id: clipTrash; Layout.fillWidth: true }
+            onClosed: {
+                root.clipSetting = false
+                search.forceActiveFocus()
+            }
+        }
+
+        GameSettings {
+            id: settings
+            anchors.fill: parent
+            z: 9
+            visible: root.setting
+            onClosed: {
+                root.setting = false
+                search.forceActiveFocus()
+            }
+        }
+
+        Loader {
+            id: cutter
+            anchors.fill: parent
+            z: 10
+            active: root.cutting !== ""
+            sourceComponent: cutterView
+            onLoaded: item.open(root.cutting)
+        }
+
+        Component {
+            id: cutterView
+            ClipCutter {
+                onClosed: {
+                    root.cutting = ""
+                    search.forceActiveFocus()
+                }
+                onSaved: p => {
+                    Play.load(Play.shownId)
+                    library.reload()
+                }
             }
         }
     }

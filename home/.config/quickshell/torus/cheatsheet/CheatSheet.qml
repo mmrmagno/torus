@@ -4,36 +4,21 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs
 import qs.components
+import "keys.mjs" as K
 
 PanelWindow {
     id: root
 
     property var all: []
+    readonly property var panelKeys: ({ name: "In panels", items: [
+        { keys: ["Tab", "Shift Tab"], what: "move between buttons, switches and sliders", hay: "in panels tab shift move between buttons switches sliders" },
+        { keys: ["↵", "Space"], what: "press the focused button or flip the switch", hay: "in panels enter space press button flip switch" },
+        { keys: ["←", "→"], what: "move a slider or a segmented choice", hay: "in panels left right slider segmented" },
+        { keys: ["↑", "↓"], what: "move through lists (palette, clipboard, games)", hay: "in panels up down lists palette clipboard games" },
+        { keys: ["Esc"], what: "close the panel", hay: "in panels esc escape close" }
+    ] })
     property string query: ""
-    readonly property var groups: {
-        const words = query.toLowerCase().split(/\s+/).filter(w => w)
-        if (!words.length)
-            return all
-        const out = []
-        for (const g of all) {
-            const items = g.items.filter(i => {
-                const hay = (g.name + " " + i.keys + " " + i.what).toLowerCase()
-                return words.every(w => hay.includes(w))
-            })
-            if (items.length)
-                out.push({ name: g.name, items: items })
-        }
-        return out
-    }
-
-    function mods(m) {
-        const out = []
-        if (m & 64) out.push("SUPER")
-        if (m & 4) out.push("CTRL")
-        if (m & 8) out.push("ALT")
-        if (m & 1) out.push("SHIFT")
-        return out
-    }
+    readonly property var groups: K.filter(all, query)
 
     screen: Store.screenFor("cheatsheet")
     visible: Store.isOpen("cheatsheet") || motion.leaving
@@ -62,16 +47,11 @@ PanelWindow {
         command: ["hyprctl", "binds", "-j"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const by = {}
-                for (const b of JSON.parse(text)) {
-                    const m = (b.description || "").match(/^\[([^\]|]+)/)
-                    if (!m || /workspace [0-9]/.test(b.description))
-                        continue
-                    const g = m[1]
-                    const keys = root.mods(b.modmask).concat([b.key]).join(" + ")
-                    ;(by[g] = by[g] || []).push({ keys: keys, what: b.description.replace(/^\[[^\]]*\]\s*/, "") })
+                try {
+                    root.all = K.groups(JSON.parse(text), [root.panelKeys])
+                } catch (e) {
+                    root.all = [root.panelKeys]
                 }
-                root.all = Object.keys(by).map(g => ({ name: g, items: by[g] }))
             }
         }
     }
@@ -161,7 +141,7 @@ PanelWindow {
                     Column {
                         required property var modelData
                         width: 380
-                        spacing: Theme.sp2
+                        spacing: Theme.sp3
                         Text {
                             text: modelData.name
                             color: Theme.accent
@@ -173,15 +153,41 @@ PanelWindow {
                         Repeater {
                             model: modelData.items
                             Row {
+                                id: bindRow
                                 required property var modelData
                                 spacing: Theme.sp5
-                                Text { text: modelData.keys; width: 180; color: Theme.lavender; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm; elide: Text.ElideRight }
-                                Text { text: modelData.what; width: 190; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; elide: Text.ElideRight }
+                                Flow {
+                                    width: 176
+                                    spacing: Theme.sp1
+                                    Repeater {
+                                        model: bindRow.modelData.keys
+                                        Keycap {
+                                            required property string modelData
+                                            text: modelData
+                                        }
+                                    }
+                                }
+                                Text {
+                                    text: bindRow.modelData.what
+                                    width: 190
+                                    color: Theme.text
+                                    font.family: Theme.fontUi
+                                    font.pixelSize: Theme.fsSm
+                                    wrapMode: Text.WordWrap
+                                    topPadding: 2
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+
+        HintPill {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 6
+            hints: [["type", "search"], ["Esc", "close"]]
         }
     }
 }

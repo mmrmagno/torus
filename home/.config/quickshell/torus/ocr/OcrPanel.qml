@@ -13,6 +13,8 @@ PanelWindow {
     readonly property string file: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/torus-ocr.txt"
     property string copied: ""
     readonly property var lines: source.text().split("\n")
+    readonly property bool empty: source.text().trim() === ""
+    Binding { target: Store; property: "ocrEmpty"; value: root.empty; when: root.visible }
 
     function copy(text, what) {
         Quickshell.execDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "sh", text])
@@ -78,15 +80,17 @@ PanelWindow {
                     Text {
                         Layout.fillWidth: true
                         elide: Text.ElideRight
-                        text: root.copied === "all" ? "All of it is on the clipboard. Click a line to copy only that one."
+                        text: root.empty ? "No text found in that picture."
+                            : root.copied === "all" ? "All of it is on the clipboard. Click a line to copy only that one."
                             : root.copied === "line" ? "That line is on the clipboard." : "Click a line to copy it."
-                        color: root.copied ? Theme.green : Theme.overlay
+                        color: root.copied && !root.empty ? Theme.green : Theme.overlay
                         font.family: Theme.fontUi
                         font.pixelSize: Theme.fsSm
                     }
                 }
-                PanelButton { label: "Copy all"; icon: "󰆏"; implicitHeight: 30; onClicked: root.copy(source.text().trim(), "all") }
+                PanelButton { visible: !root.empty; label: "Copy all"; icon: "󰆏"; implicitHeight: 30; onClicked: root.copy(source.text().trim(), "all") }
                 PanelButton {
+                    visible: !root.empty
                     label: "Edit"
                     icon: "󰏫"
                     implicitHeight: 30
@@ -99,7 +103,8 @@ PanelWindow {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: flick.height + 16
+visible: !root.empty
+                                Layout.preferredHeight: flick.height + 16
                 radius: Theme.rCard
                 color: Qt.alpha(Theme.surface0, 0.55)
                 border.width: 1
@@ -150,6 +155,11 @@ PanelWindow {
                         }
                     }
                 }
+            }
+
+            KeyHints {
+                Layout.fillWidth: true
+                hints: root.empty ? [["Esc", "close"]] : [["↵", "copy all"], ["Tab", "move"], ["Esc", "close"]]
             }
         }
     }

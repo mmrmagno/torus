@@ -9,6 +9,11 @@ Rectangle {
     property bool active: false
     signal clicked
 
+    activeFocusOnTab: visible
+    onActiveFocusChanged: if (activeFocus) Store.focusLabel = label || icon
+    Keys.onReturnPressed: root.clicked()
+    Keys.onEnterPressed: root.clicked()
+    Keys.onSpacePressed: root.clicked()
     implicitWidth: row.implicitWidth + 24
     implicitHeight: 34
     radius: Theme.radius
@@ -37,6 +42,7 @@ Rectangle {
         }
     }
 
+    FocusRing { on: root.activeFocus; baseRadius: root.radius }
     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
     TapHandler { id: tap; onTapped: root.clicked() }
     scale: tap.pressed ? 0.95 : 1

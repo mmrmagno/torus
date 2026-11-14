@@ -10,7 +10,7 @@ Item {
     property bool throttle: false
     property bool living: false
     readonly property real load: Math.max(0, Math.min(1, SysStats.cpu / 100))
-    property real spin: living ? 0.6 + 1.6 * load : 1
+    property real spin: living && live ? 0.6 + 1.6 * load : 1
     Behavior on spin { NumberAnimation { duration: 1500; easing.type: Easing.InOutSine } }
     property real kick: 0
     property real peakKick: 0

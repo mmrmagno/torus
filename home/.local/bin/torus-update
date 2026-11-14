@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF=$(readlink -f "$0")
+REPO=$(cd "$(dirname "$SELF")/../../.." && pwd)
+DEV=$REPO-dev
+say() { echo "torus update: $*"; }
+die() { echo "torus update: $*" >&2; exit 1; }
+g() { git -C "$REPO" "$@"; }
+
+g rev-parse --git-dir > /dev/null 2>&1 || die "$REPO is not a git checkout"
+
+fetch_target() {
+  if git -C "$DEV" rev-parse --git-dir > /dev/null 2>&1; then
+    from="$(basename "$DEV") ($(git -C "$DEV" rev-parse --abbrev-ref HEAD))"
+    g fetch -q --no-tags "$DEV" HEAD 2> /dev/null || die "cannot read $DEV"
+    target=$(g rev-parse FETCH_HEAD)
+  elif g rev-parse --abbrev-ref '@{u}' > /dev/null 2>&1; then
+    from=$(g rev-parse --abbrev-ref '@{u}')
+    local head age
+    head=$(g rev-parse --git-path FETCH_HEAD)
+    [[ $head == /* ]] || head=$REPO/$head
+    age=$(($(date +%s) - $(stat -c %Y "$head" 2> /dev/null || echo 0)))
+    if ((age >= ttl)); then
+      GIT_TERMINAL_PROMPT=0 timeout 30 git -C "$REPO" fetch -q --no-tags 2> /dev/null || { ((ttl == 0)) && die "cannot reach $from"; touch "$head" 2> /dev/null || true; }
+    fi
+    target=$(g rev-parse '@{u}')
+  else
+    from="" target=""
+  fi
+}
+
+signer() {
+  g log -1 --format='%G?%x09%GP%x09%GF' "$1" | awk -F'\t' '$1 == "G" { print ($2 != "" ? $2 : $3) }'
+}
+
+incoming() {
+  g merge-base --is-ancestor HEAD "$target" 2> /dev/null || return 0
+  local trusted
+  trusted=$(signer HEAD)
+  g log --format='%G?%x09%GP%x09%GF%x09%h%x09%s%x09%cs' "HEAD..$target" | awk -F'\t' -v k="$trusted" 'BEGIN { OFS = "\t" } {
+    key = ($2 != "" ? $2 : $3)
+    print (k != "" && $1 == "G" && key == k ? "ok" : "bad"), $4, $5, $6
+  }'
+}
+
+case ${1:-} in
+  --list)
+    ttl=3600
+    fetch_target
+    [[ -n $target ]] || exit 0
+    printf 'installed\t%s\n' "$(g log -1 --format='%h%x09%s%x09%cs')"
+    incoming | while IFS=$'\t' read -r sig rest; do
+      [[ $sig == ok ]] && printf 'new\t%s\n' "$rest" || printf 'unsigned\t%s\n' "$rest"
+    done
+    exit 0
+    ;;
+  "") ;;
+  *) echo "usage: torus update [--list]" >&2; exit 2 ;;
+esac
+
+ttl=0
+fetch_target
+[[ -n $target ]] || die "nothing to update from: no $(basename "$DEV") next to $REPO and no upstream branch"
+old=$(g rev-parse HEAD)
+if [[ $old == "$target" ]]; then
+  say "already up to date at $(g rev-parse --short HEAD)"
+  exit 0
+fi
+g merge-base --is-ancestor "$target" HEAD && { say "already ahead of $from, nothing to do"; exit 0; }
+g merge-base --is-ancestor HEAD "$target" || die "refused: $from is not a fast-forward of what is installed ($(g rev-parse --short HEAD))"
+[[ -n $(signer HEAD) ]] || die "refused: the installed commit $(g rev-parse --short HEAD) has no good signature, so there is no key to trust; install by hand once (git merge --ff-only, ./install.sh)"
+bad=$(incoming | awk -F'\t' '$1 != "ok" {print $2 " " $3}')
+if [[ -n $bad ]]; then
+  echo "torus update: refused, these commits from $from are not signed by the key that signed the installed commit:" >&2
+  sed 's/^/  /' <<< "$bad" >&2
+  exit 1
+fi
+count=$(incoming | wc -l)
+added=$(g diff --diff-filter=A --name-only "$old" "$target" -- home/.config/quickshell | wc -l)
+t0=$(date +%s)
+g merge -q --ff-only "$target" || die "refused: the merge did not go through, local changes are in the way"
+say "$count new commit$( ((count == 1)) || echo s) from $from"
+g log --format='  %h %s' "$old..$target"
+"$REPO/install.sh" --no-packages || die "install.sh failed, the checkout is at $(g rev-parse --short HEAD)"
+if ((added > 0)); then
+  started=$(date -d "$(systemctl --user show -p ActiveEnterTimestamp --value torus-shell.service 2> /dev/null)" +%s 2> /dev/null || echo 0)
+  if ((started < t0)); then
+    systemctl --user restart torus-shell.service 2> /dev/null || true
+    say "shell restarted, $added new shell file$( ((added == 1)) || echo s)"
+  else
+    say "$added new shell file$( ((added == 1)) || echo s), the install already restarted the shell"
+  fi
+fi
+say "done, now at $(g rev-parse --short HEAD)"

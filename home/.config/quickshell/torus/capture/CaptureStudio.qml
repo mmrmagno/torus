@@ -31,6 +31,97 @@ PanelWindow {
             lister.running = true
     }
 
+    property int sel: -1
+    property bool setting: false
+    property string look: ""
+    onShownItemsChanged: if (sel >= shownItems.length) sel = shownItems.length - 1
+    onSelChanged: {
+        Store.captureSel = sel >= 0 && sel < shownItems.length ? shownItems[sel].path : ""
+        const t = sel >= 0 ? tiles.itemAt(sel) : null
+        if (!t)
+            return
+        const y = t.mapToItem(body, 0, 0).y
+        if (y < flick.contentY)
+            flick.contentY = Math.max(0, y - 8)
+        else if (y + t.height > flick.contentY + flick.height)
+            flick.contentY = y + t.height - flick.height + 16
+    }
+
+    function move(dx, dy) {
+        const n = shownItems.length
+        if (n === 0)
+            return false
+        if (sel < 0) {
+            if (dy > 0 || dx > 0) {
+                sel = 0
+                capFrame.forceActiveFocus()
+                return true
+            }
+            return false
+        }
+        const next = sel + dx + dy * 4
+        if (next < 0)
+            sel = dy < 0 ? -1 : 0
+        else
+            sel = Math.min(n - 1, next)
+        return true
+    }
+
+    property var healed: ({})
+
+    function thumbLost(path) {
+        if (healed[path])
+            return
+        const h = Object.assign({}, healed)
+        h[path] = true
+        healed = h
+        refresh()
+    }
+
+    function tileAct(item, what) {
+        const p = item.path
+        if (what === "disarm") {
+            if (armed === p)
+                armed = ""
+        } else if (what === "open") {
+            Store.setOpen("capture", false)
+            Quickshell.execDetached(["torus-launch", "xdg-open", p])
+        } else if (what === "copy") {
+            Quickshell.execDetached(item.kind === "image" ? ["sh", "-c", "wl-copy < \"$1\"", "sh", p] : ["sh", "-c", "printf 'file://%s\\n' \"$1\" | wl-copy -t text/uri-list", "sh", p])
+            Quickshell.execDetached(["notify-send", "-a", "torus", "-u", "low", "Copied", p.split("/").pop()])
+        } else if (what === "cut") {
+            Store.pendingCut = p
+            Store.setOpen("capture", false)
+            Store.setOpen("games", true)
+        } else if (what === "edit") {
+            act("satty --filename '" + p.replace(/'/g, "'\\''") + "' --early-exit --copy-command wl-copy")
+        } else if (what === "text") {
+            Quickshell.execDetached(["torus-ocr", p])
+        } else if (what === "folder") {
+            Quickshell.execDetached(["torus-launch", "xdg-open", p.substring(0, p.lastIndexOf("/"))])
+        } else if (what === "delete") {
+            if (item.fav) {
+                Store.sound("error")
+                return
+            }
+            if (armed !== p) {
+                armed = p
+                return
+            }
+            armed = ""
+            Store.trash(p)
+            items = items.filter(i => i.path !== p)
+        }
+    }
+
+    Connections {
+        target: Store
+        function onRestored() {
+            if (root.visible)
+                root.refresh()
+        }
+    }
+
     function act(cmd) {
         Store.setOpen("capture", false)
         Quickshell.execDetached(["torus-launch", "sh", "-c", "sleep 0.35; " + cmd])
@@ -108,25 +199,88 @@ PanelWindow {
 
     Process {
         id: lister
-        command: ["torus-captures", "24"]
+        command: ["torus-captures", "40"]
         stdout: StdioCollector {
             onStreamFinished: root.items = text.split("\n").filter(l => l).map(l => {
                 const f = l.split("\t")
-                return { kind: f[0], time: Number(f[1]), size: Number(f[2]), path: f[3], thumb: f[4] }
+                return { kind: f[0], time: Number(f[1]), size: Number(f[2]), path: f[3], thumb: f[4], fav: f[5] === "1" }
             })
         }
     }
 
     Rectangle {
         id: capFrame
+        Connections {
+            target: root
+            function onVisibleChanged() {
+                if (root.visible) {
+                    root.setting = false
+                    root.look = ""
+                    root.sel = -1
+                    capFrame.forceActiveFocus()
+                }
+            }
+        }
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 40, root.implicitHeight)
+        height: Math.min(body.implicitHeight + 40 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.Top
         focus: true
-        Keys.onEscapePressed: Store.setOpen("capture", false)
+        Keys.onEscapePressed: root.look !== "" ? root.look = "" : (root.setting ? root.setting = false : Store.setOpen("capture", false))
+        Keys.onPressed: event => {
+            const cur = root.sel >= 0 ? root.shownItems[root.sel] : null
+            const ctrl = event.modifiers & Qt.ControlModifier
+            if (root.setting) {
+                capSheet.key(event)
+                event.accepted = true
+                return
+            }
+            if (root.look !== "") {
+                if (event.key === Qt.Key_Left || event.key === Qt.Key_Up)
+                    root.move(-1, 0)
+                else if (event.key === Qt.Key_Right || event.key === Qt.Key_Down)
+                    root.move(1, 0)
+                const now = root.sel >= 0 ? root.shownItems[root.sel] : null
+                root.look = (event.key === Qt.Key_Space || event.key === Qt.Key_Escape || !now) ? "" : now.path
+                event.accepted = true
+                return
+            }
+            if (cur && event.key === Qt.Key_Space) {
+                root.look = cur.path
+                event.accepted = true
+                return
+            }
+            if (ctrl && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                root.setting = true
+                event.accepted = true
+                return
+            }
+            if (event.key === Qt.Key_Left)
+                event.accepted = root.move(-1, 0)
+            else if (event.key === Qt.Key_Right)
+                event.accepted = root.move(1, 0)
+            else if (event.key === Qt.Key_Up)
+                event.accepted = root.move(0, -1)
+            else if (event.key === Qt.Key_Down)
+                event.accepted = root.move(0, 1)
+            else if (ctrl && event.key === Qt.Key_Z)
+                Island.trashUndo()
+            else if (!cur)
+                return
+            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                root.tileAct(cur, "open")
+            else if (ctrl && event.key === Qt.Key_C)
+                root.tileAct(cur, "copy")
+            else if (ctrl && event.key === Qt.Key_E)
+                root.tileAct(cur, cur.kind === "image" ? "edit" : "cut")
+            else if (event.key === Qt.Key_Delete)
+                root.tileAct(cur, "delete")
+            else
+                return
+            event.accepted = true
+        }
         PanelMotion {
             id: motion
             target: capFrame
@@ -139,15 +293,19 @@ PanelWindow {
         clip: true
 
         Flickable {
+            id: flick
             anchors.fill: parent
-            anchors.margins: 20
-            contentHeight: body.implicitHeight
+            anchors.margins: 15
+            anchors.bottomMargin: 15 + hintBar.height + Theme.sp5
+            contentHeight: body.implicitHeight + 10
             clip: true
             boundsBehavior: Flickable.StopAtBounds
 
             ColumnLayout {
                 id: body
-                width: parent.width
+                x: 5
+                y: 5
+                width: parent.width - 10
                 spacing: Theme.sp6
 
                 RowLayout {
@@ -157,9 +315,11 @@ PanelWindow {
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
-                        Text { text: "Capture"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
+                        Text { Layout.fillWidth: true; text: "Capture"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
                         Text {
-                            text: Island.recording ? "Recording now, stop it here or with SUPER+SHIFT+R" : "Screenshots go to ~/Pictures/Screenshots, recordings to ~/Videos"
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                            text: Island.recording ? "Recording now, stop it here or with SUPER+SHIFT+R" : "Screenshots go to ~/Pictures/Screenshots, recordings to ~/Videos, game clips to ~/Videos/Clips"
                             color: Island.recording ? Theme.red : Theme.overlay
                             font.family: Theme.fontUi
                             font.pixelSize: Theme.fsSm
@@ -175,44 +335,11 @@ PanelWindow {
                             root.replayOn = false
                         }
                     }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    visible: root.mics.length > 0
-                    spacing: Theme.sp4
-                    Text {
-                        text: "󰍬  Mic in instant replay"
-                        color: Theme.subtext
-                        font.family: Theme.fontUi
-                        font.pixelSize: Theme.fsSm
-                    }
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: Theme.sp3
-                        Repeater {
-                            model: [{ name: "", label: "Off" }].concat(root.mics)
-                            Rectangle {
-                                id: micChip
-                                required property var modelData
-                                readonly property bool on: root.mic === modelData.name
-                                width: micText.implicitWidth + 20
-                                height: 26
-                                radius: 13
-                                color: on ? Theme.accent : (micHover.hovered ? Theme.surface1 : Theme.surface0)
-                                Behavior on color { ColorAnimation { duration: Theme.durFast } }
-                                Text {
-                                    id: micText
-                                    anchors.centerIn: parent
-                                    text: micChip.modelData.label
-                                    color: micChip.on ? Theme.crust : Theme.text
-                                    font.family: Theme.fontUi
-                                    font.pixelSize: Theme.fsSm
-                                }
-                                HoverHandler { id: micHover; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: root.pickMic(micChip.modelData.name) }
-                            }
-                        }
+                    PanelButton {
+                        icon: "󰒓"
+                        label: ""
+                        implicitHeight: 30
+                        onClicked: root.setting = true
                     }
                 }
 
@@ -302,8 +429,8 @@ PanelWindow {
                     Text { text: "Recent"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
                     Item { Layout.fillWidth: true }
                     Segmented {
-                        options: ["all", "image", "video"]
-                        labels: ["All", "Screenshots", "Recordings"]
+                        options: ["all", "image", "video", "clip"]
+                        labels: ["All", "Screenshots", "Recordings", "Game clips"]
                         current: root.tab
                         onPicked: value => root.tab = value
                     }
@@ -321,51 +448,70 @@ PanelWindow {
                     Layout.fillWidth: true
                     spacing: Theme.sp4
                     Repeater {
+                        id: tiles
                         model: root.shownItems
                         CaptureTile {
                             id: shot
                             required property var modelData
+                            required property int index
+                            selected: root.sel === index
                             readonly property real w: (body.width - 3 * Theme.sp4) / 4
                             width: w
                             height: w * 0.62 + 34
                             path: shot.modelData.path
-                            kind: shot.modelData.kind
+                            kind: shot.modelData.kind === "image" ? "image" : "video"
+                            cuttable: shot.modelData.kind !== "image"
+                            starred: shot.modelData.fav
+                            caption: shot.modelData.kind === "clip" ? shot.modelData.path.split("/").slice(-2, -1)[0] : ""
                             thumb: shot.modelData.thumb || ""
                             time: shot.modelData.time
                             bytes: shot.modelData.size
                             armed: root.armed === shot.modelData.path
-                            onOpened: {
-                                Store.setOpen("capture", false)
-                                Quickshell.execDetached(["torus-launch", "xdg-open", shot.modelData.path])
-                            }
-                            onAct: what => {
-                                const p = shot.modelData.path
-                                if (what === "disarm") {
-                                    if (root.armed === p)
-                                        root.armed = ""
-                                } else if (what === "copy") {
-                                    Quickshell.execDetached(shot.modelData.kind === "image" ? ["sh", "-c", "wl-copy < \"$1\"", "sh", p] : ["sh", "-c", "printf 'file://%s\\n' \"$1\" | wl-copy -t text/uri-list", "sh", p])
-                                    Quickshell.execDetached(["notify-send", "-a", "torus", "-u", "low", "Copied", p.split("/").pop()])
-                                } else if (what === "edit") {
-                                    root.act("satty --filename '" + p.replace(/'/g, "'\\''") + "' --early-exit --copy-command wl-copy")
-                                } else if (what === "text") {
-                                    Quickshell.execDetached(["torus-ocr", p])
-                                } else if (what === "folder") {
-                                    Quickshell.execDetached(["torus-launch", "xdg-open", p.substring(0, p.lastIndexOf("/"))])
-                                } else if (what === "delete") {
-                                    if (root.armed !== p) {
-                                        root.armed = p
-                                        return
-                                    }
-                                    root.armed = ""
-                                    Quickshell.execDetached(["rm", "-f", "--", p])
-                                    Store.sound("delete")
-                                    root.items = root.items.filter(i => i.path !== p)
-                                }
-                            }
+                            onOpened: root.tileAct(shot.modelData, "open")
+                            onThumbLost: root.thumbLost(shot.modelData.path)
+                            onAct: what => root.tileAct(shot.modelData, what)
                         }
                     }
                 }
+            }
+        }
+
+        ScrollFade { flick: flick }
+
+        KeyHints {
+            id: hintBar
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 15
+            hints: root.sel >= 0 ? [["← / → / ↑ / ↓", "pick"], ["Space", "look"], ["↵", "open"], ["Ctrl C", "copy"], ["Ctrl E", "edit"], ["Del", "trash"], ["Esc", "close"]]
+                : [["↓", "captures"], ["Ctrl ↵", "settings"], ["Tab", "buttons"], ["↵", "press"], ["Esc", "close"]]
+        }
+
+        QuickLook {
+            anchors.fill: parent
+            z: 58
+            path: root.look
+            kind: root.sel >= 0 && root.shownItems[root.sel] && root.shownItems[root.sel].kind !== "image" ? "video" : "image"
+            onClosed: root.look = ""
+        }
+
+        SettingsSheet {
+            id: capSheet
+            anchors.fill: parent
+            z: 60
+            visible: root.setting
+            title: "Capture settings"
+            note: "Screenshots go to ~/Pictures/Screenshots, recordings to ~/Videos, game clips to ~/Videos/Clips"
+            rows: [{ key: "mic", label: "Mic in instant replay", note: root.mics.length > 0 ? "your voice in the clips the replay buffer saves" : "no microphone found", values: [""].concat(root.mics.map(m => m.name)), labels: ["Off"].concat(root.mics.map(m => m.label)) }]
+            values: ({ mic: root.mic })
+            onPicked: (key, value) => root.pickMic(value)
+            moreHints: capTrash.count > 0 ? [["Del", capTrash.armed ? "again: empty for good" : "empty trash"]] : []
+            onDeletePressed: capTrash.empty()
+            TrashMeter { id: capTrash; Layout.fillWidth: true }
+            onClosed: {
+                root.setting = false
+                capFrame.forceActiveFocus()
             }
         }
     }

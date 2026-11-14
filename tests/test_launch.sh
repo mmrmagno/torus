@@ -3,7 +3,7 @@ set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
 Q=$REPO/home/.config/quickshell/torus
-bare=$(grep -rn --include='*.qml' -E 'execDetached\(\["(kitty|xdg-open|firefox|steam|torus-layout|nvim)"|\.execute\(\)|execDetached\(\["sh", "-c", "(command -v firefox|sleep 0\.35)' "$Q" || true)
+bare=$(grep -rn --include='*.qml' -E 'execDetached\(\["(kitty|xdg-open|firefox|steam|torus-layout|nvim|satty|pavucontrol|nm-connection-editor|dolphin|mpv)"|\.execute\(\)|openUrlExternally|execDetached\(\["sh", "-c", "[^"]*(xdg-open|command -v firefox|sleep 0\.35)' "$Q" || true)
 [[ -z $bare ]] || fail "apps started from the shell must go through torus-launch, or a shell restart kills them:
 $bare"
 

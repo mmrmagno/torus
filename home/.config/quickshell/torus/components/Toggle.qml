@@ -7,6 +7,12 @@ Rectangle {
     property bool checked: false
     signal toggled(bool value)
 
+    property string label: ""
+    activeFocusOnTab: visible
+    onActiveFocusChanged: if (activeFocus) Store.focusLabel = label || "toggle"
+    Keys.onReturnPressed: root.toggled(!root.checked)
+    Keys.onEnterPressed: root.toggled(!root.checked)
+    Keys.onSpacePressed: root.toggled(!root.checked)
     implicitWidth: 40
     implicitHeight: 22
     radius: height / 2
@@ -26,6 +32,7 @@ Rectangle {
         Behavior on color { ColorAnimation { duration: Theme.durFast } }
     }
 
+    FocusRing { on: root.activeFocus; baseRadius: root.radius }
     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
     TapHandler { onTapped: root.toggled(!root.checked) }
 }

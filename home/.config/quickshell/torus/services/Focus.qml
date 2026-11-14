@@ -6,11 +6,20 @@ import qs
 Singleton {
     id: root
 
-    property bool running: false
-    property real endsAt: 0
-    property int total: 0
+    PersistentProperties {
+        id: kept
+        reloadableId: "torus-focus"
+        property bool running: false
+        property real endsAt: 0
+        property int total: 0
+        property bool dndBefore: false
+    }
+
+    property alias running: kept.running
+    property alias endsAt: kept.endsAt
+    property alias total: kept.total
     property int left: 0
-    property bool dndBefore: false
+    property alias dndBefore: kept.dndBefore
     readonly property real progress: total > 0 ? 1 - left / total : 0
 
     function start(minutes) {
@@ -33,7 +42,7 @@ Singleton {
 
     function finish() {
         stop()
-        Quickshell.execDetached(["sh", "-c", "pw-play /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || true"])
+        Quickshell.execDetached(["sh", "-c", "pw-play --media-role Event /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || true"])
         Quickshell.execDetached(["notify-send", "-a", "torus", "Focus done", "Take a break"])
     }
 

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Widgets
 import qs
 
 Rectangle {
@@ -12,10 +13,18 @@ Rectangle {
     property real bytes: 0
     property bool selected: false
     property bool armed: false
-    readonly property var actions: kind === "image" ? [["󰆏", "copy"], ["󰏫", "edit"], ["󰊄", "text"], ["󰉋", "folder"], ["󰆴", "delete"]] : [["󰆏", "copy"], ["󰉋", "folder"], ["󰆴", "delete"]]
+    property string badge: ""
+    property bool starred: false
+    property bool starrable: false
+    property string caption: ""
+    property bool cuttable: false
+    property bool renamable: false
+    property bool marked: false
+    readonly property var actions: kind === "image" ? [["󰆏", "copy"], ["󰏫", "edit"], ["󰊄", "text"], ["󰉋", "folder"], ["󰆴", "delete"]] : (cuttable ? [["󰏫", "cut"]] : []).concat(renamable ? [["󰑕", "rename"]] : []).concat(starrable ? [[starred ? "󰓎" : "󰓒", "star"]] : []).concat([["󰆏", "copy"], ["󰉋", "folder"]]).concat(starred ? [] : [["󰆴", "delete"]])
     readonly property real picHeight: Math.max(0, height - 34)
 
     signal opened()
+    signal thumbLost()
     signal act(string what)
 
     function ago(t) {
@@ -35,25 +44,80 @@ Rectangle {
 
     radius: Theme.rCard
     color: Theme.mantle
-    border.width: tile.selected ? 2 : 1
-    border.color: tileHover.hovered || tile.selected ? Theme.accent : Qt.alpha(Theme.surface1, 0.6)
+    border.width: tile.selected || tile.marked ? 2 : 1
+    border.color: tile.marked ? Theme.green : (tileHover.hovered || tile.selected ? Theme.accent : Qt.alpha(Theme.surface1, 0.6))
     clip: true
 
-    Image {
-        id: pic
+    ClippingRectangle {
+        id: picFrame
         x: 4
         y: 4
         width: tile.width - 8
         height: tile.picHeight - 4
-        source: tile.thumb ? "file://" + tile.thumb : ""
-        sourceSize.width: 400
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: false
+        radius: Math.max(0, Theme.rCard - 4)
+        color: Theme.crust
+        Image {
+            id: pic
+            anchors.fill: parent
+            source: tile.thumb ? "file://" + tile.thumb : ""
+            sourceSize.width: 400
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            onStatusChanged: if (status === Image.Error) tile.thumbLost()
+        }
     }
+    Rectangle {
+        visible: tile.badge !== ""
+        x: picFrame.x + 6
+        y: picFrame.y + 6
+        z: 2
+        width: badgeText.implicitWidth + 12
+        height: 18
+        radius: 9
+        color: Qt.alpha(Theme.crust, 0.82)
+        border.width: 1
+        border.color: Qt.alpha(Theme.peach, 0.6)
+        Text {
+            id: badgeText
+            anchors.centerIn: parent
+            text: "AUTO · " + tile.badge.toUpperCase()
+            color: Theme.peach
+            font.family: Theme.fontUi
+            font.pixelSize: Theme.fsXs
+            font.weight: Font.DemiBold
+            font.letterSpacing: 0.6
+        }
+    }
+
+    Rectangle {
+        visible: tile.starred && !tileHover.hovered && !tile.selected
+        anchors.right: picFrame.right
+        anchors.top: picFrame.top
+        anchors.margins: 6
+        z: 2
+        width: 22
+        height: 22
+        radius: 11
+        color: Qt.alpha(Theme.crust, 0.82)
+        Text { anchors.centerIn: parent; text: "󰓎"; color: Theme.yellow; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd }
+    }
+
+    Rectangle {
+        visible: tile.marked
+        anchors.left: picFrame.left
+        anchors.bottom: picFrame.bottom
+        anchors.margins: 6
+        z: 2
+        width: 22
+        height: 22
+        radius: 11
+        color: Theme.green
+        Text { anchors.centerIn: parent; text: "󰄬"; color: Theme.crust; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd }
+    }
+
     Text {
         visible: pic.status !== Image.Ready
-        anchors.centerIn: pic
+        anchors.centerIn: picFrame
         text: tile.kind === "video" ? "󰕧" : "󰋩"
         color: Theme.overlay
         font.family: Theme.fontMono
@@ -61,7 +125,7 @@ Rectangle {
     }
     Rectangle {
         visible: tile.kind === "video"
-        anchors.centerIn: pic
+        anchors.centerIn: picFrame
         width: 34
         height: 34
         radius: 17
@@ -74,7 +138,7 @@ Rectangle {
         anchors.bottom: tile.bottom
         anchors.margins: 8
         spacing: Theme.sp2
-        Text { Layout.fillWidth: true; text: tile.ago(tile.time); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsXs; elide: Text.ElideRight }
+        Text { Layout.fillWidth: true; text: (tile.caption !== "" ? tile.caption + "  ·  " : "") + tile.ago(tile.time); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsXs; elide: Text.ElideRight }
         Text { visible: tile.bytes > 0; text: tile.size(tile.bytes); color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
     }
 
@@ -89,7 +153,7 @@ Rectangle {
     }
 
     Row {
-        visible: tileHover.hovered
+        visible: tileHover.hovered || tile.selected
         anchors.right: tile.right
         anchors.top: tile.top
         anchors.margins: 8

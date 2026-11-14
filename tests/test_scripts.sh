@@ -64,13 +64,9 @@ grep -q 'qs -c torus ipc call torus gamemode false' "$STUB_LOG" || fail "gamemod
 : > "$STUB_LOG"; "$B/torus-wmute"
 grep -q '^wpctl set-mute 77 toggle' "$STUB_LOG" || fail "wmute: stream of focused window"
 
-printf '"AppState"\n{\n\t"appid"\t\t"213670"\n\t"name"\t\t"South Park™: The Stick of Truth™"\n}\n' > "$HOME/.local/share/Steam/steamapps/appmanifest_213670.acf"
-: > "$STUB_LOG"; STUB_ROFI_PICK="South Park™: The Stick of Truth™" "$B/torus-menu" games
-assert_contains "$STUB_LOG.rofi-in" "South Park"
-wait_for "$STUB_LOG" '^steam steam://rungameid/213670' || fail "games: launch by appid"
-
-: > "$STUB_LOG"; STUB_ROFI_PICK=blue "$B/torus-menu" accent || true
-grep -q '^rofi' "$STUB_LOG" || fail "accent menu: rofi"
+for gone in games style wallpaper accent animations; do
+  "$B/torus-menu" "$gone" > /dev/null 2>&1 && fail "rofi menu $gone is retired (game hub and theme studio do it)"
+done
 
 printf '#!/usr/bin/env bash\necho "gpu-screen-recorder $*" >> "$STUB_LOG"\nsleep 1\n' > "$F/bin/gpu-screen-recorder"
 : > "$STUB_LOG"; "$B/torus-record" toggle
@@ -101,15 +97,19 @@ grep -q -- '-a default_output|alsa_input.usb-mic -c mp4' "$STUB_LOG" || fail "re
 "$B/torus-record" replay-mic off
 assert_eq "" "$("$B/torus-record" replay-mic)" "replay mic off"
 
+mkdir -p "$HOME/.config/hypr/hyprlock"; : > "$HOME/.config/hypr/hyprlock/sf_marc.conf"
 : > "$STUB_LOG"; STUB_ROFI_PICK=sf_marc "$B/torus-menu" hyprlock
 assert_link "$XDG_STATE_HOME/torus/hyprlock-layout.conf" "$HOME/.config/hypr/hyprlock/sf_marc.conf"
 assert_eq hyprlock "$(cat "$XDG_STATE_HOME/torus/lock")" "hyprlock layout pick selects hyprlock"
+assert_eq sf_marc "$("$B/torus-lockstyle" get)" "lockstyle reads the pick back"
 : > "$STUB_LOG"; "$B/torus-lock" || true
 grep -q '^hyprlock' "$STUB_LOG" || fail "lock: hyprlock mode runs hyprlock"
 grep -q 'call torus lock' "$STUB_LOG" && fail "lock: hyprlock mode must not ask the shell"
 
 : > "$STUB_LOG"; STUB_ROFI_PICK=torus "$B/torus-menu" hyprlock
 assert_eq shell "$(cat "$XDG_STATE_HOME/torus/lock")" "torus pick selects shell lock"
+assert_eq torus "$("$B/torus-lockstyle" get)" "lockstyle: torus"
+"$B/torus-lockstyle" nope 2> /dev/null && fail "lockstyle refuses unknown layouts"
 : > "$STUB_LOG"; "$B/torus-lock" || true
 grep -q '^grim -l 0 -o DP-1 ' "$STUB_LOG" || fail "lock: screenshot per monitor"
 grep -q 'qs -c torus ipc call torus lock' "$STUB_LOG" || fail "lock: asks the shell"

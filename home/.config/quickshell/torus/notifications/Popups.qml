@@ -21,7 +21,7 @@ PanelWindow {
     mask: Region { regions: cardRegions.instances }
     exclusiveZone: 0
     color: "transparent"
-    visible: Notifs.popups.length > 0 && !Store.isOpen("center")
+    visible: Notifs.popups.length > 0 && !Store.popupsRest
     WlrLayershell.namespace: "torus-notifications"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None

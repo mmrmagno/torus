@@ -96,6 +96,7 @@ import Quickshell
 Singleton {
  property int cardsMade: 0
  property string lastOpen: ""
+ property string focusLabel: ""
  function setOpen(name, value) { if (value) lastOpen = name }
 }
 '''
@@ -121,7 +122,7 @@ OTPOF
 
 with tempfile.TemporaryDirectory(prefix="torus-notification-test-") as directory:
     root = Path(directory)
-    for rel in ("Theme.qml", "Feel.qml", "components/PanelButton.qml", "components/NotifIcon.qml", "notifications/NotifCard.qml"):
+    for rel in ("Theme.qml", "Feel.qml", "components/PanelButton.qml", "components/FocusRing.qml", "components/NotifIcon.qml", "notifications/NotifCard.qml"):
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / rel, root / rel)
     (root / "services").mkdir()

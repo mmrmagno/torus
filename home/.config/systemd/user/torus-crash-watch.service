@@ -1,0 +1,6 @@
+[Unit]
+Description=torus: record a shell crash that Quickshell restarted in place
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/torus-crash qs

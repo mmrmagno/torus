@@ -11,12 +11,13 @@ Singleton {
 
     property string query: ""
     property string tabScope: "all"
+    property string pendingScope: ""
     signal fill(string text)
     property var frec: ({})
     readonly property string home: Quickshell.env("HOME")
     readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/torus"
 
-    readonly property var providers: [appsP, windowsP, actionsP, projectsP, recentP, sshP, githubP, containersP, displaysP, calcP, filesP, webP, colorsP, emojiP, timerP, notifsP, otpP, kbP, aiP, passP]
+    readonly property var providers: [appsP, windowsP, actionsP, projectsP, recentP, sshP, githubP, containersP, displaysP, calcP, filesP, webP, colorsP, emojiP, glyphP, timerP, notifsP, otpP, kbP, aiP, passP]
     readonly property var win: windowsP
     readonly property var prefixed: providers.filter(p => p.prefix !== "").sort((a, b) => b.prefix.length - a.prefix.length)
     readonly property var parsed: R.parse(query, prefixed, tabScope)
@@ -59,7 +60,7 @@ Singleton {
         return top.concat(R.arrange(groups, 4)).slice(0, 40)
     }
 
-    readonly property var scopeOrder: ["all", "apps", "files", "projects", "pass", "ssh", "github", "containers", "windows", "actions", "recent", "calc", "colors", "emoji", "timer", "notifs", "kb", "ai"]
+    readonly property var scopeOrder: ["all", "apps", "files", "projects", "pass", "ssh", "github", "containers", "windows", "actions", "recent", "calc", "web", "colors", "emoji", "glyphs", "timer", "notifs", "kb", "ai"]
     readonly property var scopes: scopeOrder.map(k => k === "all" ? { key: "all", name: "All", glyph: "󰍉", prefix: "" } : byKey(k)).filter(p => p && (p.key === "all" || p.scoped)).map(p => ({ key: p.key, name: p.name, glyph: p.glyph, prefix: p.prefix }))
     readonly property string glyph: current ? current.glyph : "󰍉"
     readonly property bool help: mode === "kb" && term === ""
@@ -104,7 +105,7 @@ Singleton {
     }
 
     function enterLabel(item) {
-        return item.enter || ({ app: "launch", window: "focus", action: "run", calc: "copy", file: "open", folder: "open", emoji: "copy", color: "copy", notification: "copy" })[item.kind] || (item.kind === "hint" ? "" : "select")
+        return item.enter || ({ app: "launch", window: "focus", action: "run", calc: "copy", file: "open", folder: "open", emoji: "copy", glyph: "copy", color: "copy", notification: "copy" })[item.kind] || (item.kind === "hint" ? "" : "select")
     }
 
     function remembered(item) {
@@ -181,6 +182,7 @@ Singleton {
     WebProvider { id: webP }
     ColorsProvider { id: colorsP }
     EmojiProvider { id: emojiP }
+    GlyphProvider { id: glyphP }
     TimerProvider { id: timerP }
     NotifsProvider { id: notifsP }
     OtpProvider { id: otpP }

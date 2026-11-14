@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+mon=$(hyprctl monitors -j 2> /dev/null | jq -r '.[] | select(.focused) | .name' 2> /dev/null || true)
+[[ -n ${XDG_RUNTIME_DIR:-} && -d $XDG_RUNTIME_DIR ]] || { echo "torus-ruler: XDG_RUNTIME_DIR is not set" >&2; exit 1; }
+rm -f "$XDG_RUNTIME_DIR"/torus-ruler-*.png
+shot=$XDG_RUNTIME_DIR/torus-ruler-$(date +%s%N).png
+if [[ -n $mon ]] && grim -o "$mon" "$shot" 2> /dev/null && [[ $(qs -c torus ipc call torus rulerShow "$shot" 2> /dev/null; echo $?) == 0 ]]; then
+  exit 0
+fi
 box=$(slurp -d -b 00000040 -c "${TORUS_RULER_COLOR:-b4befe}ff" -f '%w %h %x %y' 2> /dev/null) || exit 0
 read -r w h x y <<< "$box"
 size="${w}x${h}"

@@ -16,9 +16,10 @@ stub pkill 'exit 0'
 stub powerprofilesctl 'exit 0'
 stub gpu-screen-recorder 'exit 0'
 stub setsid 'echo "setsid $*" >> "$LOG"'
+stub journalctl '[[ -n ${STUB_VCN:-} ]] && echo "amdgpu 0000:03:00.0: ring vcn_unified_1 timeout, signaled seq=1, emitted seq=2"; exit 0'
 P=$REPO/home/.local/bin/torus-play
 
-assert_eq '{"overlay": "keep", "power": "performance", "replay": "on", "replay_secs": 60, "hold": "on", "gamescope": "off"}' "$("$P" settings 730)" "defaults"
+assert_eq '{"overlay": "keep", "power": "performance", "replay": "on", "replay_secs": 60, "hold": "on", "gamescope": "off", "highlights": "on", "hl_3k": "on", "hl_4k": "on", "hl_ace": "on", "hl_clutch": "on", "clip_audio": "everything"}' "$("$P" settings 730)" "defaults"
 "$P" set 730 replay_secs 120
 "$P" set 730 hold off
 assert_fails "$P" set 730 replay_secs 45
@@ -27,7 +28,10 @@ assert_eq '120:off' "$("$P" settings 730 | jq -r '"\(.replay_secs):\(.hold)"')" 
 
 mkdir -p "$F/proc/4242"; printf 'HOME=/x\0SteamAppId=730\0' > "$F/proc/4242/environ"
 stub hyprctl '[[ $1 == clients ]] && echo "[{\"class\":\"cs2\",\"pid\":4242,\"monitor\":1}]"; [[ $1 == monitors ]] && echo "[{\"id\":0,\"name\":\"DP-2\"},{\"id\":1,\"name\":\"DP-1\"}]"; exit 0'
+echo '{"class": "steam_app_999", "name": "Old", "start": 1, "clips": 4, "replay": true}' > "$F/state/torus/play-session.json"
 TORUS_PROC=$F/proc "$P" start cs2
+grep -q '"steam_app_999"' "$F/state/torus/play-session.json" && fail "a session whose game window is gone (killed game) is replaced"
+grep -q 'pkill -INT -f gpu-screen-recorder' "$LOG" || fail "the stale session's recorder is stopped, or it keeps recording across games"
 assert_eq "730:Counter-Strike 2" "$("$P" status | jq -r '"\(.appid):\(.name)"')" "a native game's app id comes from its process (cs2 has no steam_app_ class)"
 grep -q -- "gpu-screen-recorder -w DP-1 .* -r 120 " "$LOG" || fail "its own settings apply: $(cat "$LOG")"
 rm "$F/state/torus/play-session.json"; : > "$LOG"
@@ -82,4 +86,19 @@ assert_eq "105:198:50:78:1" "$(jq -r '"\(.minutes):\(.fps_avg):\(.fps_low1):\(.g
 assert_eq "Counter-Strike 2: played 1 h 45 · average 198 FPS · 1 % low 50 · GPU max 78 °C · 1 clip saved" "$(jq -r .text <<< "$r")" "recap text"
 grep -q "pkill -INT -f gpu-screen-recorder .*-r " "$LOG" || fail "the buffer stops with the game"
 [[ ! -e $F/state/torus/play-session.json && ! -e $F/state/torus/mangohud-log ]] || fail "session cleaned up"
+printf 'cs2\n' > "$F/proc/4242/comm"
+stub hyprctl '[[ $1 == clients ]] && echo "[{\"class\":\"cs2\",\"pid\":4242,\"monitor\":1}]"; [[ $1 == monitors ]] && echo "[{\"id\":0,\"name\":\"DP-2\"},{\"id\":1,\"name\":\"DP-1\"}]"; exit 0'
+for mode in "game:-a app:cs2 " "game + mic:-a app:cs2|default_input " "everything:-a default_output "; do
+  "$P" set 730 clip_audio "${mode%%:*}"
+  : > "$LOG"
+  rm -f "$F/state/torus/play-session.json"
+  TORUS_PROC=$F/proc "$P" start cs2
+  grep -qF -- "${mode#*:}" "$LOG" || fail "clip audio ${mode%%:*}: $(grep gpu-screen "$LOG")"
+done
+rm -f "$F/state/torus/play-session.json"; : > "$LOG"
+stub hyprctl '[[ $1 == clients ]] && echo "[{\"class\":\"steam_app_730\",\"monitor\":1}]"; [[ $1 == monitors ]] && echo "[{\"id\":0,\"name\":\"DP-2\"},{\"id\":1,\"name\":\"DP-1\"}]"; exit 0'
+STUB_VCN=1 "$P" start steam_app_730
+grep -qE '^(setsid -f )?gpu-screen-recorder' "$LOG" && fail "after an encoder hang this boot the replay buffer must not start: $(cat "$LOG")"
+grep -q 'islandFlash notification Replay buffer off until a reboot' "$LOG" || fail "and the island says why: $(cat "$LOG")"
+assert_eq "false" "$("$P" status | jq -r .replay)" "session recorded without a replay buffer"
 echo "play: ok"

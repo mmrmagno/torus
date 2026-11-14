@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Polkit
 import qs
+import qs.components
 
 Scope {
     id: root
@@ -174,8 +175,12 @@ Scope {
                         }
 
                         RowLayout {
-                            Layout.alignment: Qt.AlignRight
+                            Layout.fillWidth: true
                             spacing: Theme.sp4
+                            KeyHints {
+                                Layout.fillWidth: true
+                                hints: [["↵", "ok"], ["Esc", "cancel"]]
+                            }
                             Rectangle {
                                 implicitWidth: 92
                                 implicitHeight: 34

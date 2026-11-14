@@ -5,14 +5,25 @@ shots=${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots
 videos=${XDG_VIDEOS_DIR:-$HOME/Videos}
 thumbs=${XDG_CACHE_HOME:-$HOME/.cache}/torus/thumbs
 limit=${1:-24}
+favfile=${XDG_STATE_HOME:-$HOME/.local/state}/torus/clip-favorites.json
 mkdir -p "$thumbs"
+declare -A fav=()
+if [[ -s $favfile ]] && command -v jq > /dev/null; then
+  while IFS= read -r p; do [[ -n $p ]] && fav[$p]=1; done < <(jq -r '.[]?' "$favfile" 2> /dev/null)
+fi
 
 {
   find "$shots" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) -printf 'image\t%T@\t%s\t%p\n' 2> /dev/null
   find "$videos" -maxdepth 1 -type f \( -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.webm' \) -printf 'video\t%T@\t%s\t%p\n' 2> /dev/null
+  find "$videos/Clips" -mindepth 1 -type f \( -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.webm' \) -printf 'clip\t%T@\t%s\t%p\n' 2> /dev/null || true
 } | sort -t $'\t' -k2,2nr | head -n "$limit" | while IFS=$'\t' read -r kind mtime size path; do
   thumb=$path
-  if [[ $kind == video ]]; then
+  if [[ $kind == image ]]; then
+    small=$thumbs/$(printf '%s:%s' "$path" "$mtime" | md5sum | cut -d' ' -f1).png
+    if [[ -s $small ]] || { command -v ffmpeg > /dev/null && ffmpeg -v error -y -i "$path" -frames:v 1 -vf 'scale=480:-2' "$small" < /dev/null 2> /dev/null && [[ -s $small ]]; }; then
+      thumb=$small
+    fi
+  else
     thumb=$thumbs/$(printf '%s' "$path" | md5sum | cut -d' ' -f1).jpg
     if [[ ! -s $thumb ]] && command -v ffmpeg > /dev/null; then
       ffmpeg -v error -y -ss 1 -i "$path" -frames:v 1 -vf scale=320:-2 "$thumb" < /dev/null 2> /dev/null ||
@@ -20,5 +31,5 @@ mkdir -p "$thumbs"
     fi
     [[ -s $thumb ]] || thumb=""
   fi
-  printf '%s\t%s\t%s\t%s\t%s\n' "$kind" "${mtime%.*}" "$size" "$path" "$thumb"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" "${mtime%.*}" "$size" "$path" "$thumb" "${fav[$path]:-0}"
 done

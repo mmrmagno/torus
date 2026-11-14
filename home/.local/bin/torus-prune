@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+import hashlib, os, shutil, subprocess, sys, time
+
+HOME = os.path.expanduser("~")
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", HOME + "/.cache"), "torus")
+SHOTS = os.path.join(os.environ.get("XDG_PICTURES_DIR", HOME + "/Pictures"), "Screenshots")
+VIDEOS = os.environ.get("XDG_VIDEOS_DIR", HOME + "/Videos")
+FRESH = 3600
+dry = "--dry-run" in sys.argv[1:]
+if any(a not in ("--dry-run",) for a in sys.argv[1:]):
+    sys.exit("usage: torus-prune [--dry-run]")
+
+
+def md5(b):
+    return hashlib.md5(b).hexdigest()
+
+
+def find(root, depth, names):
+    cmd = ["find", root] + depth + ["-type", "f", "("]
+    for i, n in enumerate(names):
+        cmd += (["-o"] if i else []) + ["-iname", n]
+    cmd += [")", "-printf", "%T@\\t%p\\0"]
+    out = subprocess.run(cmd, capture_output=True).stdout
+    return [r.split(b"\t", 1) for r in out.split(b"\0") if b"\t" in r]
+
+
+def sources():
+    thumbs, strips = set(), set()
+    for mtime, path in find(SHOTS, ["-maxdepth", "1"], ["*.png", "*.jpg", "*.jpeg", "*.webp"]):
+        thumbs.add(md5(path + b":" + mtime) + ".png")
+    vids = find(VIDEOS, ["-maxdepth", "1"], ["*.mp4", "*.mkv", "*.webm"]) + find(os.path.join(VIDEOS, "Clips"), ["-mindepth", "1"], ["*.mp4", "*.mkv", "*.webm"])
+    for _, path in vids:
+        thumbs.add(md5(path) + ".jpg")
+        p = os.fsdecode(path)
+        try:
+            strips.add(md5((os.path.abspath(p) + str(os.path.getmtime(p))).encode())[:16])
+        except OSError:
+            pass
+    return thumbs, strips
+
+
+def clip_keys():
+    try:
+        r = subprocess.run(["cliphist", "list"], capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    return {md5(line) + ".img" for line in r.stdout.split(b"\n") if line}
+
+
+def stale(folder, keep, dirs=False):
+    out = []
+    now = time.time()
+    try:
+        entries = list(os.scandir(folder))
+    except OSError:
+        return out
+    for e in entries:
+        if e.is_symlink() or e.name in keep:
+            continue
+        if dirs != e.is_dir(follow_symlinks=False):
+            continue
+        if not dirs and not e.name.endswith((".png", ".jpg", ".img")):
+            continue
+        try:
+            st = e.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        if now - st.st_mtime < FRESH:
+            continue
+        out.append(e.path)
+    return out
+
+
+def size(path):
+    if os.path.isdir(path):
+        return sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(path) for f in fs if not os.path.islink(os.path.join(d, f)))
+    return os.path.getsize(path)
+
+
+thumbs, strips = sources()
+gone = stale(os.path.join(CACHE, "thumbs"), thumbs) + stale(os.path.join(CACHE, "clip-strip"), strips, dirs=True)
+clips = clip_keys()
+if clips is not None:
+    gone += stale(os.path.join(CACHE, "clip"), clips)
+total = 0
+for p in gone:
+    if os.path.dirname(os.path.realpath(os.path.dirname(p))) != os.path.realpath(CACHE):
+        continue
+    try:
+        total += size(p)
+        if dry:
+            print(p)
+        elif os.path.isdir(p):
+            shutil.rmtree(p)
+        else:
+            os.remove(p)
+    except OSError:
+        pass
+print(f"torus-prune: {'would remove' if dry else 'removed'} {len(gone)} cached file{'' if len(gone) == 1 else 's'} ({total / 1048576:.1f} MB) whose source is gone")

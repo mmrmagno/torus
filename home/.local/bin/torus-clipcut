@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+
+HOME = os.path.expanduser("~")
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", HOME + "/.cache"), "torus", "clip-strip")
+FAVS = os.path.join(os.environ.get("XDG_STATE_HOME", HOME + "/.local/state"), "torus", "clip-favorites.json")
+FRAMES = 12
+
+
+def run(*cmd, timeout=60):
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
+def probe(path):
+    r = run("ffprobe", "-v", "error", "-show_entries", "format=duration:stream=index,codec_type", "-of", "json", path)
+    j = json.loads(r.stdout or "{}")
+    dur = float((j.get("format") or {}).get("duration") or 0)
+    streams = j.get("streams") or []
+    return dur, sum(1 for s in streams if s.get("codec_type") == "audio"), sum(1 for s in streams if s.get("codec_type") == "video")
+
+
+def keyframes(path):
+    r = run("ffprobe", "-v", "error", "-select_streams", "v:0", "-skip_frame", "nokey", "-show_entries", "frame=pts_time,best_effort_timestamp_time",
+            "-of", "csv=p=0", path, timeout=120)
+    out = []
+    for line in r.stdout.splitlines():
+        for v in line.split(","):
+            try:
+                out.append(round(float(v), 3))
+                break
+            except ValueError:
+                continue
+    return sorted(set(out))
+
+
+def strip(path, dur):
+    key = hashlib.md5((os.path.abspath(path) + str(os.path.getmtime(path))).encode()).hexdigest()[:16]
+    d = os.path.join(CACHE, key)
+    want = [os.path.join(d, f"{i:02d}.jpg") for i in range(FRAMES)]
+    if not all(os.path.exists(p) for p in want) and dur > 0:
+        os.makedirs(d, exist_ok=True)
+        for i, p in enumerate(want):
+            t = dur * (i + 0.5) / FRAMES
+            run("ffmpeg", "-v", "error", "-y", "-ss", f"{t:.3f}", "-i", path, "-frames:v", "1", "-vf", "scale=160:-2", p)
+    return [p for p in want if os.path.exists(p)]
+
+
+def cmd_info(path):
+    dur, audio, video = probe(path)
+    print(json.dumps({"path": path, "duration": dur, "audio": audio, "video": video, "keyframes": keyframes(path), "strip": strip(path, dur)}))
+
+
+def snap_in(t, keys):
+    best = 0.0
+    for k in keys:
+        if k <= t + 0.001:
+            best = k
+    return best
+
+
+def next_name(path):
+    base, ext = os.path.splitext(path)
+    base = re.sub(r"-cut-\d+$", "", base)
+    n = 1
+    while os.path.exists(f"{base}-cut-{n}{ext}"):
+        n += 1
+    return f"{base}-cut-{n}{ext}"
+
+
+def starred(path):
+    try:
+        with open(FAVS) as f:
+            favs = json.load(f)
+    except (OSError, ValueError):
+        return False
+    real = os.path.realpath(path)
+    return any(isinstance(p, str) and os.path.realpath(p) == real for p in favs)
+
+
+def cmd_cut(path, start, end, keep_only):
+    if keep_only and starred(path):
+        sys.exit("torus-clipcut: this clip is a favorite, so its original is never trashed; save a copy instead")
+    dur, audio, video = probe(path)
+    if dur <= 0 or video == 0:
+        sys.exit("torus-clipcut: not a video: " + path)
+    start, end = max(0.0, float(start)), min(dur, float(end))
+    if end - start < 0.5:
+        sys.exit("torus-clipcut: the selection is shorter than half a second")
+    s = snap_in(start, keyframes(path))
+    dest = next_name(path)
+    tmp = dest + ".part.mp4"
+    r = run("ffmpeg", "-v", "error", "-y", "-ss", f"{s:.3f}", "-to", f"{end:.3f}", "-i", path, "-map", "0", "-c", "copy",
+            "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", tmp, timeout=300)
+    ndur, naudio, nvideo = probe(tmp) if os.path.exists(tmp) else (0, 0, 0)
+    if r.returncode != 0 or ndur <= 0 or nvideo == 0 or naudio != audio:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        sys.exit("torus-clipcut: ffmpeg could not cut it: " + (r.stderr.strip().splitlines() or ["no output"])[-1])
+    if keep_only:
+        trash = run("torus-trash", "put", path)
+        if trash.returncode != 0:
+            os.replace(tmp, dest)
+            print(json.dumps({"path": dest, "start": s, "end": end, "duration": ndur, "replaced": False}))
+            return
+        os.replace(tmp, path)
+        dest = path
+    else:
+        os.replace(tmp, dest)
+    print(json.dumps({"path": dest, "start": s, "end": end, "duration": round(ndur, 3), "replaced": keep_only}))
+
+
+def main():
+    a = sys.argv[1:]
+    if len(a) == 2 and a[0] == "info":
+        cmd_info(a[1])
+    elif len(a) >= 4 and a[0] == "cut":
+        cmd_cut(a[1], a[2], a[3], "--keep-only" in a[4:])
+    else:
+        sys.exit("usage: torus-clipcut info CLIP | cut CLIP IN OUT [--keep-only]")
+
+
+if __name__ == "__main__":
+    main()

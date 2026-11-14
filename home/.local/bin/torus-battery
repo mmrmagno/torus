@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -uo pipefail
+ps=${TORUS_POWER_SUPPLY:-/sys/class/power_supply}
+ideapad=${TORUS_IDEAPAD:-/sys/bus/platform/drivers/ideapad_acpi}
+
+bat() { local d; for d in "$ps"/BAT*; do [[ -d $d ]] && { echo "$d"; return; }; done; }
+num() { cat "$1" 2> /dev/null || echo 0; }
+
+method() {
+  local b=$1 c
+  if [[ -e $b/charge_control_end_threshold ]]; then echo "threshold $b/charge_control_end_threshold"; return; fi
+  if [[ -e $b/charge_types ]] && grep -q 'Long_Life' "$b/charge_types"; then echo "types $b/charge_types"; return; fi
+  for c in "$ideapad"/*/conservation_mode; do [[ -e $c ]] && { echo "conservation $c"; return; }; done
+  echo "none -"
+}
+
+limit_on() {
+  case $1 in
+    threshold) (($(num "$2") <= 80)) ;;
+    types) grep -q '\[Long_Life\]' "$2" ;;
+    conservation) [[ $(num "$2") == 1 ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+status() {
+  local b full design m path health=-1 cycles
+  b=$(bat)
+  [[ -n $b ]] || { echo '{"present":false}'; return; }
+  full=$(num "$b/energy_full"); design=$(num "$b/energy_full_design")
+  ((full == 0)) && { full=$(num "$b/charge_full"); design=$(num "$b/charge_full_design"); }
+  ((design > 0)) && health=$((full * 100 / design))
+  cycles=$(num "$b/cycle_count")
+  read -r m path < <(method "$b")
+  jq -nc --argjson h "$health" --argjson c "$cycles" --arg m "$m" --arg p "$path" \
+    --argjson on "$(limit_on "$m" "$path" && echo true || echo false)" --argjson w "$([[ -w $path ]] && echo true || echo false)" \
+    '{ present: true, health: $h, cycles: $c, limit: $m, on: $on, writable: $w }'
+}
+
+set_limit() {
+  local b m path
+  b=$(bat); [[ -n $b ]] || { echo "torus-battery: no battery" >&2; exit 3; }
+  read -r m path < <(method "$b")
+  [[ $m != none ]] || { echo "torus-battery: this firmware has no charge limit" >&2; exit 3; }
+  [[ -w $path ]] || { echo "torus-battery: run sudo ./install.sh --system once and log in again to allow the charge limit" >&2; exit 4; }
+  case $m in
+    threshold) echo "$([[ $1 == on ]] && echo 80 || echo 100)" > "$path" ;;
+    types) echo "$([[ $1 == on ]] && echo Long_Life || echo Standard)" > "$path" ;;
+    conservation) echo "$([[ $1 == on ]] && echo 1 || echo 0)" > "$path" ;;
+  esac
+  status
+}
+
+case ${1:-status} in
+  status) status ;;
+  limit) [[ ${2:-} == on || ${2:-} == off ]] || { echo "usage: torus-battery limit on|off" >&2; exit 2; }; set_limit "$2" ;;
+  *) echo "usage: torus-battery status | limit on|off" >&2; exit 2 ;;
+esac

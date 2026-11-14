@@ -11,6 +11,7 @@ Singleton {
     property var news: []
     property var torus: []
     property var torusInstalled: null
+    property int torusUnsigned: 0
     property bool checking: false
     readonly property int unread: news.filter(n => n.state === "new").length
 
@@ -27,11 +28,11 @@ Singleton {
     }
 
     function updateTorus() {
-        Quickshell.execDetached(["torus-launch", "kitty", "--title", "torus-update", "-e", "sh", "-c", "cd \"$(dirname \"$(readlink -f \"$(command -v torus)\")\")/../../..\" && git pull --ff-only && ./install.sh --no-packages; echo; read -n1 -p 'done, press a key'"])
+        Quickshell.execDetached(["torus-launch", "kitty", "--title", "torus-update", "-e", "sh", "-c", "torus update; echo; read -n1 -p 'done, press a key'"])
     }
 
     function update() {
-        Quickshell.execDetached(["torus-launch", "kitty", "--title", "torus-update", "-e", "sh", "-c", "yay -Syu; echo; read -n1 -p 'done, press a key'"])
+        Quickshell.execDetached(["torus-launch", "kitty", "--title", "torus-update", "-e", "sh", "-c", "torus-updates upgrade; echo; read -n1 -p 'done, press a key'"])
     }
 
     Process {
@@ -70,7 +71,8 @@ Singleton {
                     return { kind: f[0], hash: f[1], subject: f[2], date: f[3] }
                 })
                 root.torusInstalled = rows.find(r => r.kind === "installed") || null
-                root.torus = rows.filter(r => r.kind === "new")
+                root.torus = rows.filter(r => r.kind === "new" || r.kind === "unsigned")
+                root.torusUnsigned = rows.filter(r => r.kind === "unsigned").length
             }
         }
     }

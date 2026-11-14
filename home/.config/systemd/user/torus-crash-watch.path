@@ -1,0 +1,10 @@
+[Unit]
+Description=torus: notice shell crashes that Quickshell restarts by itself
+
+[Path]
+PathChanged=%h/.cache/quickshell/crashes
+MakeDirectory=yes
+Unit=torus-crash-watch.service
+
+[Install]
+WantedBy=graphical-session.target

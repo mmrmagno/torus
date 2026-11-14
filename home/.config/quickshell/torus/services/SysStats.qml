@@ -6,9 +6,17 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    property real cpu: 0
-    property real memUsed: 0
-    property real memTotal: 1
+    property alias cpu: kept.cpu
+    property alias memUsed: kept.memUsed
+    property alias memTotal: kept.memTotal
+
+    PersistentProperties {
+        id: kept
+        reloadableId: "torus-sysstats"
+        property real cpu: 0
+        property real memUsed: 0
+        property real memTotal: 1
+    }
     property int cpuTemp: -1
     property int gpuBusy: -1
     property int gpuTemp: -1

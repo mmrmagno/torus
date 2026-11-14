@@ -143,6 +143,7 @@ Row {
                             Repeater {
                                 model: ws.modelData.toplevels.values
                                 Item {
+                                    id: peekThumb
                                     required property var modelData
                                     readonly property var ipc: modelData.lastIpcObject || {}
                                     readonly property real k: peekWin.k
@@ -150,10 +151,15 @@ Row {
                                     y: ((ipc.at ? ipc.at[1] : 0) - (root.monitor ? root.monitor.y : 0)) * k
                                     width: (ipc.size ? ipc.size[0] : 100) * k
                                     height: (ipc.size ? ipc.size[1] : 100) * k
-                                    ScreencopyView {
+                                    ClippingRectangle {
                                         anchors.fill: parent
-                                        captureSource: parent.modelData.wayland
-                                        live: true
+                                        radius: 3
+                                        color: "transparent"
+                                        ScreencopyView {
+                                            anchors.fill: parent
+                                            captureSource: peekThumb.modelData.wayland
+                                            live: true
+                                        }
                                     }
                                     Rectangle { anchors.fill: parent; color: "transparent"; radius: 3; border.width: 1; border.color: Qt.alpha(Theme.accent, 0.3) }
                                 }

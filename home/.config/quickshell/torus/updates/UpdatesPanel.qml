@@ -41,6 +41,13 @@ PanelWindow {
 
     Rectangle {
         id: updFrame
+        Connections {
+            target: root
+            function onVisibleChanged() {
+                if (root.visible)
+                    updFrame.forceActiveFocus()
+            }
+        }
         focus: true
         Keys.onEscapePressed: Store.setOpen("updates", false)
         PanelMotion {
@@ -51,7 +58,7 @@ PanelWindow {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 32, root.implicitHeight)
+        height: Math.min(body.implicitHeight + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.TopRight
         radius: Theme.rPanel
@@ -61,14 +68,18 @@ PanelWindow {
         clip: true
 
         Flickable {
+            id: scroller
             anchors.fill: parent
-            anchors.margins: 16
-            contentHeight: body.implicitHeight
+            anchors.margins: 11
+            anchors.bottomMargin: 16 + hintBar.height + Theme.sp5
+            contentHeight: body.implicitHeight + 10
             clip: true
 
             ColumnLayout {
                 id: body
-                width: parent.width
+                x: 5
+                y: 5
+                width: parent.width - 10
                 spacing: Theme.sp5
 
                 RowLayout {
@@ -156,8 +167,15 @@ PanelWindow {
                         font.family: Theme.fontMono
                         font.pixelSize: Theme.fsXs
                     }
+                    Text {
+                        visible: Updates.torusUnsigned > 0
+                        text: Updates.torusUnsigned + " not signed yet"
+                        color: Theme.peach
+                        font.family: Theme.fontUi
+                        font.pixelSize: Theme.fsSm
+                    }
                     PanelButton {
-                        visible: Updates.torus.length > 0
+                        visible: Updates.torus.length > 0 && Updates.torusUnsigned === 0
                         icon: "󰚰"
                         label: "Update torus"
                         implicitHeight: 28
@@ -175,6 +193,7 @@ PanelWindow {
                         required property var modelData
                         Layout.fillWidth: true
                         spacing: Theme.sp4
+                        Text { text: crow.modelData.kind === "unsigned" ? "󰌿" : "󰌾"; color: crow.modelData.kind === "unsigned" ? Theme.peach : Theme.green; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm }
                         Text { text: crow.modelData.hash; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
                         Text { Layout.fillWidth: true; text: crow.modelData.subject; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd; elide: Text.ElideRight }
                         Text { text: crow.modelData.date; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
@@ -215,6 +234,17 @@ PanelWindow {
                     }
                 }
             }
+        }
+
+        ScrollFade { flick: scroller }
+
+        KeyHints {
+            id: hintBar
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 16
+            hints: [["Tab", "move"], ["↵", "press"], ["Esc", "close"]]
         }
     }
 }

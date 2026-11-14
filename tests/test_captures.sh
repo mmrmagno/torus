@@ -27,5 +27,15 @@ thumb=$(awk -F'\t' '$1 == "video" {print $5}' <<< "$out")
 [[ -s $thumb && $thumb == "$F/cache/torus/thumbs/"*.jpg ]] || fail "video thumbnail cached: $thumb"
 : > "$F/calls"; "$T" > /dev/null
 assert_eq "" "$(cat "$F/calls")" "thumbnail made once"
+img=$(awk -F'\t' '$4 ~ /new.png$/ {print $5}' <<< "$out")
+[[ -s $img && $img == "$F/cache/torus/thumbs/"*.png ]] || fail "screenshots get a small cached thumbnail: $img"
 assert_eq 1 "$("$T" 1 | wc -l)" "limit"
+mkdir -p "$F/vids/Clips/hades"
+printf mp4 > "$F/vids/Clips/hades/hades-1.mp4"; touch -d '2026-11-10 10:00' "$F/vids/Clips/hades/hades-1.mp4"
+out=$("$T")
+assert_eq "clip hades-1.mp4" "$(head -1 <<< "$out" | awk -F'\t' '{print $1}') $(head -1 <<< "$out" | cut -f4 | xargs basename)" "game clips listed from Clips subfolders"
+[[ -s $(head -1 <<< "$out" | cut -f5) ]] || fail "game clip thumbnail"
+mkdir -p "$F/state/torus"
+printf '["%s"]\n' "$F/vids/Clips/hades/hades-1.mp4" > "$F/state/torus/clip-favorites.json"
+assert_eq "1 0" "$(XDG_STATE_HOME=$F/state "$T" | awk -F'\t' 'NR<=2 {print $6}' | paste -sd' ')" "favorites are marked so the studio never deletes them"
 true

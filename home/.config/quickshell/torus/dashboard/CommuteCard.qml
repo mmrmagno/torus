@@ -301,7 +301,7 @@ Card {
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fsSm
                 HoverHandler { id: sbbHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: Qt.openUrlExternally(Commute.result.sbb) }
+                TapHandler { onTapped: Quickshell.execDetached(["torus-launch", "xdg-open", Commute.result.sbb]) }
             }
         }
     }
@@ -391,6 +391,12 @@ Card {
         property bool active: false
         property bool spinning: false
         signal clicked
+        activeFocusOnTab: visible
+        onActiveFocusChanged: if (activeFocus) Store.focusLabel = glyph
+        Keys.onReturnPressed: ib.clicked()
+        Keys.onEnterPressed: ib.clicked()
+        Keys.onSpacePressed: ib.clicked()
+        FocusRing { on: ib.activeFocus; baseRadius: ib.radius }
         implicitWidth: 28
         implicitHeight: 28
         radius: 14

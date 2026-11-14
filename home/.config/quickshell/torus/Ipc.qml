@@ -181,6 +181,34 @@ IpcHandler {
         return Notifs.popups.length
     }
 
+    function clipsState(): string {
+        return Store.clipsInfo
+    }
+
+    function gpuWatch(): string {
+        return JSON.stringify(GpuWatch.last)
+    }
+
+    function polishState(): string {
+        return JSON.stringify({ ocrEmpty: Store.ocrEmpty, fsMd: Theme.fsMd, dark: Theme.dark })
+    }
+
+    function settingsSheet(): string {
+        return Store.sheetTitle
+    }
+
+    function quickLook(): string {
+        return Store.look
+    }
+
+    function captureSelected(): string {
+        return Store.captureSel
+    }
+
+    function popupsResting(): bool {
+        return Store.popupsRest
+    }
+
     function osdVisible(): bool {
         return Store.osdVisible
     }
@@ -306,6 +334,18 @@ IpcHandler {
 
     function paletteToggle(): void {
         Store.toggle("palette")
+    }
+
+    function paletteOpen(scope: string): void {
+        if (Store.isOpen("palette")) {
+            if (Commands.mode === scope)
+                Store.setOpen("palette", false)
+            else
+                Commands.setScope(scope)
+            return
+        }
+        Commands.pendingScope = scope
+        Store.setOpen("palette", true)
     }
 
     function paletteQuery(text: string): string {
@@ -536,6 +576,10 @@ IpcHandler {
         return Updates.count + ":" + Updates.news.length + ":" + Updates.unread
     }
 
+    function torusState(): string {
+        return (Updates.torusInstalled ? Updates.torusInstalled.hash : "") + ":" + Updates.torus.length + ":" + Updates.torusUnsigned
+    }
+
     function networkState(): string {
         return (Wifi.wired || "-") + ":" + Wifi.enabled + ":" + Wifi.networks.length
     }
@@ -548,8 +592,22 @@ IpcHandler {
         Island.flash("shot", { path: path }, 6000)
     }
 
+    function screenshotAct(what: string): bool {
+        return Island.shotAct(what)
+    }
+
+    function trashUndo(): void {
+        Island.trashUndo()
+    }
+
+    function soundTake(): string {
+        const ev = Store.soundAsked
+        Store.soundAsked = ""
+        return ev
+    }
+
     function mixerStreams(): string {
-        return Pipewire.nodes.values.filter(n => n.audio && n.isStream && n.isSink).map(n => ((n.properties || {})["application.name"] || n.name) + "=" + Math.round(n.audio.volume * 100)).join("|")
+        return Store.mixerShown
     }
 
     function focusToggle(): void {
@@ -630,5 +688,140 @@ IpcHandler {
 
     function isOpen(name: string): bool {
         return Store.isOpen(name)
+    }
+
+    function focusLabel(): string {
+        return Store.focusLabel
+    }
+
+    function setFocusLabel(text: string): void {
+        Store.focusLabel = text
+    }
+
+    function closeAll(): void {
+        Store.closeAll("")
+    }
+
+    function barHeight(): int {
+        return Store.barHeight
+    }
+
+    function clipManage(): void {
+        if (Store.isOpen("clip") && Clip.manage) {
+            Store.setOpen("clip", false)
+            return
+        }
+        if (!Store.isOpen("clip"))
+            Store.setOpen("clip", true)
+        Clip.manage = true
+    }
+
+    function clipStats(): string {
+        return JSON.stringify({ openMs: Clip.openMs, filterMs: Clip.filterMs, filterMax: Clip.filterMax, applyMs: Clip.applyMs, matches: Clip.matches, rows: Clip.rows.count, armed: Clip.armed, manage: Clip.manage, marked: Clip.markedCount })
+    }
+
+    function clipThumbs(): string {
+        return JSON.stringify({ ready: Object.keys(Clip.thumbReady).length, queued: Clip.queue.length, decoding: Clip.decoderKey, images: Clip.entries.filter(e => e.image).length })
+    }
+
+    function clipText(index: int): string {
+        const e = Clip.entryAt(index)
+        return e ? e.text : ""
+    }
+
+    function clipReload(): void {
+        Clip.reload()
+    }
+
+    function clipOrder(): string {
+        const r = []
+        for (let i = 0; i < Clip.rows.count; i++)
+            r.push(Clip.rows.get(i).group + ":" + Clip.rows.get(i).text.slice(0, 14))
+        return JSON.stringify({ rows: r, shown: Clip.shown.map(e => e.group + ":" + e.text.slice(0, 14)) })
+    }
+
+    function homelabKvm(): string {
+        Spire.kvm()
+        return "started"
+    }
+
+    function steamJobs(): string {
+        return JSON.stringify(SteamLog.list.map(j => ({ kind: j.kind, appid: j.appid, name: j.name, pct: j.pct, left: j.left })))
+    }
+
+    function brightnessStep(dir: string): string {
+        return Displays.step(dir) ? "ok" : "no"
+    }
+
+    function displaysState(): string {
+        return JSON.stringify({ levels: Displays.levels, writes: Displays.writes, linked: Displays.linked, pending: Object.keys(Displays.pending).length, writing: Displays.writing })
+    }
+
+    function displaysSet(monitor: string, value: int): void {
+        Displays.set(monitor, value)
+    }
+
+    function displaysSlide(monitor: string, from: int, to: int): void {
+        for (let v = from; v <= to; v++)
+            Displays.set(monitor, v)
+    }
+
+    function displaysRefresh(): void {
+        Displays.refresh()
+    }
+
+    function deviceBatteryFeed(key: string, model: string, kind: string, pct: int): string {
+        DeviceBattery.observe(key, model, kind, pct)
+        return DeviceBattery.last
+    }
+
+    function deviceBatteryLast(): string {
+        return DeviceBattery.last
+    }
+
+    function browserDownloads(): string {
+        return JSON.stringify({ jobs: BrowserDownloads.list.map(j => j.name + ":" + j.size), last: BrowserDownloads.last })
+    }
+
+    function rulerShow(path: string): void {
+        Store.rulerShot = path
+        Store.setOpen("ruler", true)
+    }
+
+    function rulerMeasure(x1: int, y1: int, x2: int, y2: int, line: bool): string {
+        const r = Store.rulerView
+        if (!r || !Store.isOpen("ruler"))
+            return "closed"
+        r.lineMode = line
+        r.a = Qt.point(x1, y1)
+        r.b = Qt.point(x2, y2)
+        r.finish()
+        return Store.rulerLast
+    }
+
+    function rulerStraight(x1: int, y1: int, x2: int, y2: int): string {
+        const r = Store.rulerView
+        if (!r || !Store.isOpen("ruler"))
+            return "closed"
+        r.lineMode = true
+        r.straight = true
+        r.a = Qt.point(x1, y1)
+        r.raw = Qt.point(x2, y2)
+        r.track()
+        r.straight = false
+        r.finish()
+        return Store.rulerLast + "@" + r.b.x + "," + r.b.y
+    }
+
+    function rulerColorAt(x: int, y: int): string {
+        const r = Store.rulerView
+        if (!r || !Store.isOpen("ruler"))
+            return "closed"
+        r.sample(x, y)
+        return r.hex
+    }
+
+    function widgetsQuiet(on: bool): void {
+        Store.widgetsQuiet = on
     }
 }

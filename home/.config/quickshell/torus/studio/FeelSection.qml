@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs
 import qs.components
 import qs.services
@@ -33,7 +34,16 @@ ColumnLayout {
         }
 
         Text { text: "Text size"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
-        ValueSlider { from: 0.85; to: 1.3; step: 0.05; value: Feel.textScale; suffix: "×"; onMoved: v => Feel.set("textScale", v) }
+        RowLayout {
+            spacing: Theme.sp5
+            Segmented {
+                options: ["0.9", "1", "1.15"]
+                labels: ["Compact", "Normal", "Large"]
+                current: String(Math.round(Feel.textScale * 100) / 100)
+                onPicked: value => Feel.set("textScale", Number(value))
+            }
+            ValueSlider { Layout.fillWidth: true; from: 0.85; to: 1.3; step: 0.05; value: Feel.textScale; suffix: "×"; onMoved: v => Feel.set("textScale", v) }
+        }
 
         Text { text: "Corner radius"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
         ValueSlider { from: 0; to: 1.6; step: 0.1; value: Feel.radius; suffix: "×"; onMoved: v => Feel.set("radius", v) }
@@ -46,6 +56,28 @@ ColumnLayout {
             spacing: Theme.sp4
             Segmented { options: ["calm", "full"]; labels: ["Calm", "Full"]; current: Calm.mode; onPicked: value => Calm.setMode(value) }
             Text { text: Calm.onBattery ? (Calm.active ? "calm now: wallpaper resting, 60 Hz, lighter blur" : "full power on battery") : "on AC, nothing changes"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+        }
+
+        Text { text: "Lock screen"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
+        RowLayout {
+            spacing: Theme.sp4
+            Segmented {
+                id: lockPick
+                property string style: "torus"
+                options: ["torus", "marc-os", "sf_marc"]
+                labels: ["torus", "marc-os", "sf_marc"]
+                current: lockPick.style
+                onPicked: value => {
+                    lockPick.style = value
+                    Quickshell.execDetached(["torus-lockstyle", value])
+                }
+                Process {
+                    running: Store.isOpen("theme")
+                    command: ["torus-lockstyle", "get"]
+                    stdout: StdioCollector { onStreamFinished: if (text.trim() !== "") lockPick.style = text.trim() }
+                }
+            }
+            Text { text: lockPick.style === "torus" ? "the shell's own lock, with face scan" : "hyprlock layout"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
         }
     }
 

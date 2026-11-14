@@ -55,6 +55,51 @@ Singleton {
         flashKind = ""
     }
 
+    Connections {
+        target: Store
+        function onTrashed(name, count) {
+            root.flash("trash", { name: name, count: count }, 7000)
+        }
+    }
+
+    Process {
+        id: undoProc
+        command: ["torus-trash", "undo"]
+        onExited: code => {
+            root.flash("osd", { icon: code === 0 ? "󰕌" : "󰩹", label: code === 0 ? "Back from the trash" : "Nothing to undo", value: -1 }, 1800)
+            if (code === 0)
+                Store.restored()
+        }
+    }
+
+    function trashUndo() {
+        if (flashKind === "trash")
+            dismiss()
+        if (!undoProc.running)
+            undoProc.running = true
+    }
+
+    function shotAct(what) {
+        const p = flashKind === "shot" ? (flashData.path || "") : ""
+        if (!p)
+            return false
+        if (what === "Edit") {
+            Quickshell.execDetached(["torus-launch", "satty", "--filename", p, "--output-filename", p, "--early-exit", "--copy-command", "wl-copy"])
+        } else if (what === "Text") {
+            Quickshell.execDetached(["torus-ocr", p])
+        } else if (what === "Folder") {
+            Quickshell.execDetached(["torus-launch", "xdg-open", p.substring(0, p.lastIndexOf("/"))])
+        } else if (what === "Delete") {
+            dismiss()
+            Store.trash(p)
+            return true
+        } else {
+            return false
+        }
+        dismiss()
+        return true
+    }
+
     function report(screenName, mode) {
         const m = Object.assign({}, modes)
         m[screenName] = mode
@@ -206,11 +251,19 @@ Singleton {
         }
     }
 
+    property string lastLayout: ""
+
     Connections {
         target: Hyprland
         function onRawEvent(event) {
-            if (event.name === "activelayout")
-                root.flash("osd", { icon: "󰌌", label: event.data.split(",").slice(1).join(","), value: -1 })
+            if (event.name !== "activelayout")
+                return
+            const kb = event.data.split(",")[0]
+            const layout = event.data.split(",").slice(1).join(",")
+            if (/virtual|wtype|ydotool/i.test(kb) || layout === "error" || layout === root.lastLayout)
+                return
+            root.lastLayout = layout
+            root.flash("osd", { icon: "󰌌", label: layout, value: -1 })
         }
     }
 

@@ -11,7 +11,64 @@ ColumnLayout {
     readonly property var nodes: Pipewire.nodes.values.filter(n => n.audio)
     readonly property var outputs: nodes.filter(n => n.isSink && !n.isStream)
     readonly property var inputs: nodes.filter(n => !n.isSink && !n.isStream && !(n.name || "").endsWith(".monitor"))
-    readonly property var streams: nodes.filter(n => n.isStream && n.isSink)
+    readonly property var streams: nodes.filter(n => n.isStream && n.isSink && !quiet(n))
+    property var firstSeen: ({})
+    readonly property int settleMs: 1000
+
+    function quiet(n) {
+        const p = n.properties || {}
+        const role = (p["media.role"] || "").toLowerCase()
+        const app = (p["application.name"] || "").toLowerCase()
+        const bin = (p["application.process.binary"] || "").toLowerCase()
+        return role === "event" || role === "notification" || /^pw-(play|cat)$/.test(app) || /^pw-(play|cat)$/.test(bin)
+    }
+
+    function nodeOf(id) {
+        return streams.find(n => n.id === id) || null
+    }
+
+    function sync() {
+        const t = Date.now()
+        const seen = {}
+        let pending = false
+        for (const n of streams) {
+            seen[n.id] = firstSeen[n.id] || t
+            if (t - seen[n.id] < settleMs)
+                pending = true
+        }
+        firstSeen = seen
+        const want = streams.filter(n => t - seen[n.id] >= settleMs).map(n => n.id)
+        for (let i = rows.count - 1; i >= 0; i--)
+            if (want.indexOf(rows.get(i).nid) < 0)
+                rows.remove(i)
+        for (const id of want) {
+            let has = false
+            for (let i = 0; i < rows.count && !has; i++)
+                has = rows.get(i).nid === id
+            if (!has)
+                rows.append({ nid: id })
+        }
+        settle.running = pending
+        const names = []
+        for (let i = 0; i < rows.count; i++) {
+            const n = nodeOf(rows.get(i).nid)
+            if (n)
+                names.push(label(n) + "=" + (n.audio ? Math.round(n.audio.volume * 100) : 0))
+        }
+        Store.mixerShown = names.join("|")
+    }
+
+    onStreamsChanged: sync()
+    Component.onCompleted: sync()
+
+    ListModel { id: rows }
+
+    Timer {
+        id: settle
+        interval: 200
+        repeat: true
+        onTriggered: root.sync()
+    }
 
     function label(n) {
         const p = n.properties || {}
@@ -85,52 +142,81 @@ ColumnLayout {
         onPicked: node => Pipewire.preferredDefaultAudioSource = node
     }
 
-    Text {
-        visible: root.streams.length === 0
-        text: "nothing is playing"
-        color: Theme.overlay
-        font.family: Theme.fontUi
-        font.pixelSize: Theme.fsMd
-    }
+    Item {
+        Layout.fillWidth: true
+        Layout.preferredHeight: Math.max(streamList.contentHeight, rows.count === 0 ? idle.implicitHeight : 0)
+        Behavior on Layout.preferredHeight { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
 
-    Repeater {
-        model: root.streams
-        RowLayout {
-            required property var modelData
-            Layout.fillWidth: true
+        Text {
+            id: idle
+            opacity: rows.count === 0 ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Theme.durMed } }
+            text: "nothing is playing"
+            color: Theme.overlay
+            font.family: Theme.fontUi
+            font.pixelSize: Theme.fsMd
+        }
+
+        ListView {
+            id: streamList
+            anchors.fill: parent
+            interactive: false
             spacing: Theme.sp5
-            IconImage {
-                implicitSize: 20
-                source: root.iconOf(parent.modelData)
+            model: rows
+            add: Transition {
+                ParallelAnimation {
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durMed; easing.type: Easing.OutCubic }
+                    NumberAnimation { property: "x"; from: -18; to: 0; duration: Theme.durMed; easing.type: Easing.OutCubic }
+                }
             }
-            Text {
-                Layout.preferredWidth: 120
-                text: root.label(parent.modelData)
-                color: Theme.text
-                font.family: Theme.fontUi
-                font.pixelSize: Theme.fsMd
-                elide: Text.ElideRight
+            remove: Transition {
+                ParallelAnimation {
+                    NumberAnimation { property: "opacity"; to: 0; duration: Theme.durFast; easing.type: Easing.InCubic }
+                    NumberAnimation { property: "x"; to: 18; duration: Theme.durFast; easing.type: Easing.InCubic }
+                }
             }
-            VolumeSlider {
-                Layout.fillWidth: true
-                audio: parent.modelData.audio
+            displaced: Transition {
+                NumberAnimation { property: "y"; duration: Theme.durMed; easing.type: Easing.OutCubic }
             }
-            Text {
-                Layout.preferredWidth: 34
-                horizontalAlignment: Text.AlignRight
-                text: parent.modelData.audio ? Math.round(parent.modelData.audio.volume * 100) + "%" : ""
-                color: Theme.subtext
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.fsSm
-            }
-            Text {
-                readonly property bool muted: parent.modelData.audio && parent.modelData.audio.muted
-                text: muted ? "󰝟" : "󰕾"
-                color: muted ? Theme.red : Theme.accent
-                font.family: Theme.fontMono
-                font.pixelSize: Theme.icon
-                TapHandler { onTapped: if (parent.parent.modelData.audio) parent.parent.modelData.audio.muted = !parent.parent.modelData.audio.muted }
-                HoverHandler { cursorShape: Qt.PointingHandCursor }
+            delegate: RowLayout {
+                id: streamRow
+                required property int nid
+                readonly property var node: root.nodeOf(nid)
+                width: streamList.width
+                spacing: Theme.sp5
+                IconImage {
+                    implicitSize: 20
+                    source: streamRow.node ? root.iconOf(streamRow.node) : ""
+                }
+                Text {
+                    Layout.preferredWidth: 120
+                    text: streamRow.node ? root.label(streamRow.node) : ""
+                    color: Theme.text
+                    font.family: Theme.fontUi
+                    font.pixelSize: Theme.fsMd
+                    elide: Text.ElideRight
+                }
+                VolumeSlider {
+                    Layout.fillWidth: true
+                    audio: streamRow.node ? streamRow.node.audio : null
+                }
+                Text {
+                    Layout.preferredWidth: 34
+                    horizontalAlignment: Text.AlignRight
+                    text: streamRow.node && streamRow.node.audio ? Math.round(streamRow.node.audio.volume * 100) + "%" : ""
+                    color: Theme.subtext
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fsSm
+                }
+                Text {
+                    readonly property bool muted: streamRow.node && streamRow.node.audio && streamRow.node.audio.muted
+                    text: muted ? "󰝟" : "󰕾"
+                    color: muted ? Theme.red : Theme.accent
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.icon
+                    TapHandler { onTapped: if (streamRow.node && streamRow.node.audio) streamRow.node.audio.muted = !streamRow.node.audio.muted }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
             }
         }
     }

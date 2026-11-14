@@ -9,6 +9,13 @@ Item {
     readonly property bool muted: audio ? audio.muted : false
 
     implicitHeight: 18
+    activeFocusOnTab: visible
+    onActiveFocusChanged: if (activeFocus) Store.focusLabel = "volume"
+    Keys.onLeftPressed: if (root.audio) root.audio.volume = Math.max(0, root.audio.volume - 0.05)
+    Keys.onRightPressed: if (root.audio) root.audio.volume = Math.min(1, root.audio.volume + 0.05)
+    Keys.onSpacePressed: if (root.audio) root.audio.muted = !root.audio.muted
+
+    FocusRing { on: root.activeFocus; baseRadius: Theme.rSm }
 
     Rectangle {
         id: track

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+case ${1:-get} in
+  get)
+    if [[ $(cat "$state/lock" 2> /dev/null || echo shell) == shell ]]; then echo torus; else cat "$state/hyprlock" 2> /dev/null || echo marc-os; fi
+    ;;
+  torus)
+    mkdir -p "$state"
+    echo shell > "$state/lock"
+    ;;
+  marc-os | sf_marc)
+    conf=$HOME/.config/hypr/hyprlock/$1.conf
+    [[ -f $conf ]] || { echo "torus-lockstyle: no $conf" >&2; exit 1; }
+    mkdir -p "$state"
+    echo hyprlock > "$state/lock"
+    echo "$1" > "$state/hyprlock"
+    ln -sfn "$conf" "$state/hyprlock-layout.conf"
+    ;;
+  *) echo "usage: torus-lockstyle get|torus|marc-os|sf_marc" >&2; exit 2 ;;
+esac

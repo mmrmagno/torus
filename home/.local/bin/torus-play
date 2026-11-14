@@ -17,9 +17,19 @@ CLIPS = os.path.join(VIDEOS, "Clips")
 LOGS = os.path.join(CACHE, "mangohud-logs")
 SESSION = os.path.join(STATE, "play-session.json")
 LAST = os.path.join(STATE, "play-last.json")
-DEFAULTS = {"overlay": "keep", "power": "performance", "replay": "on", "replay_secs": 60, "hold": "on", "gamescope": "off"}
+DEFAULTS = {"overlay": "keep", "power": "performance", "replay": "on", "replay_secs": 60, "hold": "on", "gamescope": "off",
+            "highlights": "on", "hl_3k": "on", "hl_4k": "on", "hl_ace": "on", "hl_clutch": "on", "clip_audio": "everything"}
 CHOICES = {"overlay": ["keep", "on", "off"], "power": ["performance", "balanced", "keep"], "replay": ["on", "off"],
-           "replay_secs": [30, 60, 120], "hold": ["on", "off"], "gamescope": ["on", "off"]}
+           "replay_secs": [30, 60, 120], "hold": ["on", "off"], "gamescope": ["on", "off"],
+           "highlights": ["on", "off"], "hl_3k": ["on", "off"], "hl_4k": ["on", "off"], "hl_ace": ["on", "off"], "hl_clutch": ["on", "off"],
+           "clip_audio": ["everything", "game + mic", "game"]}
+GSI_APPS = {"730"}
+GSI_MATCH = os.path.join(STATE, "gsi-match.json")
+GSI_PENDING = os.path.join(STATE, "gsi-pending")
+FAVS = os.path.join(STATE, "clip-favorites.json")
+BUDGETS = [0, 25, 50, 100]
+GB = int(os.environ.get("TORUS_CLIP_GB", str(1 << 30)))
+AUTO_RE = re.compile(r"-(ace|4k|3k|clutch)-\d{4}-\d{2}-\d{2}-\d{6}\.mp4$")
 
 
 def run(*cmd, **kw):
@@ -130,13 +140,64 @@ def start_replay(cls, mon, audio, secs):
     return "monitor"
 
 
+def game_binary(cls):
+    try:
+        clients = json.loads(run("hyprctl", "clients", "-j") or "[]")
+    except ValueError:
+        return ""
+    for c in clients:
+        if c.get("class") == cls and c.get("pid"):
+            try:
+                return open(os.path.join(PROC, str(c["pid"]), "comm")).read().strip()
+            except OSError:
+                return ""
+    return ""
+
+
+def replay_audio(cls, mode):
+    mic = load_text(os.path.join(STATE, "replay-mic"))
+    game = game_binary(cls) if mode != "everything" else ""
+    if not game:
+        return "default_output" + ("|" + mic if mic else "")
+    if mode == "game":
+        return "app:" + game
+    return "app:" + game + "|" + (mic or "default_input")
+
+
+def encoder_broken():
+    try:
+        r = subprocess.run(["journalctl", "-k", "-b", "-q", "--no-pager", "-o", "cat", "-g", "ring vcn_unified_[0-9]+ timeout", "-n", "1"],
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0 and "timeout" in r.stdout
+
+
 def replay_running():
     return run("pgrep", "-f", "gpu-screen-recorder .*-r ").strip() != ""
 
 
+def window_open(cls):
+    try:
+        return any(c.get("class") == cls for c in json.loads(run("hyprctl", "clients", "-j") or "[]"))
+    except ValueError:
+        return True
+
+
 def cmd_start(cls):
-    if os.path.exists(SESSION):
-        return
+    old = load(SESSION, None)
+    if old is not None:
+        if window_open(old.get("class", "")):
+            return
+        if old.get("replay"):
+            run("pkill", "-INT", "-f", "gpu-screen-recorder .*-r ")
+            for _ in range(30):
+                if not replay_running():
+                    break
+                time.sleep(0.1)
+        if old.get("gsi"):
+            run("pkill", "-f", "torus-gsi serve")
+        os.remove(SESSION)
     appid = appid_of(cls)
     s = settings(appid)
     name = game_name(appid)
@@ -147,15 +208,19 @@ def cmd_start(cls):
         run("torus-mangohud", s["overlay"])
     if s["power"] == "balanced":
         run("powerprofilesctl", "set", "balanced")
+    if s["replay"] == "on" and not replay_running() and shutil.which("gpu-screen-recorder") and encoder_broken():
+        s = dict(s, replay="off")
+        ipc("islandFlash", "notification", "Replay buffer off until a reboot: the video encoder hung after a GPU reset")
     if s["replay"] == "on" and not replay_running() and shutil.which("gpu-screen-recorder"):
         mon = monitor_of(cls)
         if mon:
-            audio = "default_output"
-            mic = load_text(os.path.join(STATE, "replay-mic"))
-            if mic:
-                audio += "|" + mic
+            audio = replay_audio(cls, s["clip_audio"])
             os.makedirs(VIDEOS, exist_ok=True)
             sess.update({"capture": start_replay(cls, mon, audio, int(s["replay_secs"])), "replay": True, "replay_secs": int(s["replay_secs"])})
+    if appid in GSI_APPS and shutil.which("torus-gsi"):
+        run("torus-gsi", "install", "--quiet")
+        subprocess.Popen(["setsid", "-f", "torus-gsi", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sess["gsi"] = True
     cur = load(SESSION, {})
     sess["clips"] = max(sess["clips"], cur.get("clips", 0))
     save(SESSION, sess)
@@ -199,6 +264,13 @@ def recap(sess):
         out["fps_low1"] = round(1000 / worst) if worst > 0 else round(sorted(fps)[max(0, len(fps) // 100)])
     if temp:
         out["gpu_temp_max"] = round(max(temp))
+    m = load(GSI_MATCH, None) if sess.get("gsi") else None
+    if m and m.get("start", 0) >= start - 5 and m.get("map"):
+        mine = m.get("ct" if m.get("team") == "CT" else "t", 0)
+        theirs = m.get("t" if m.get("team") == "CT" else "ct", 0)
+        out["match"] = {"map": m["map"], "score": f"{mine}:{theirs}", "kills": m.get("kills", 0), "deaths": m.get("deaths", 0),
+                        "mvps": m.get("mvps", 0), "best": m.get("best", 0), "best_round": m.get("best_round", 0)}
+        out["auto_clips"] = sess.get("auto_clips", 0)
     return out
 
 
@@ -210,8 +282,17 @@ def recap_text(r):
         parts.append(f"1 % low {r['fps_low1']}")
     if "gpu_temp_max" in r:
         parts.append(f"GPU max {r['gpu_temp_max']} °C")
+    m = r.get("match")
+    if m:
+        parts.insert(0, f"{m['map']} {m['score']}")
+        parts.insert(1, f"{m['kills']}/{m['deaths']} K/D")
+        if m["mvps"]:
+            parts.insert(2, f"{m['mvps']} MVP" + ("s" if m["mvps"] != 1 else ""))
+        if m["best"] >= 2:
+            parts.append(f"best round {'ace' if m['best'] >= 5 else str(m['best']) + 'K'} (round {m['best_round']})")
     if r["clips"]:
-        parts.append(f"{r['clips']} clip" + ("s" if r["clips"] != 1 else "") + " saved")
+        auto = r.get("auto_clips", 0)
+        parts.append(f"{r['clips']} clip" + ("s" if r["clips"] != 1 else "") + " saved" + (f" ({auto} auto)" if auto else ""))
     return r["name"] + ": " + " · ".join(parts)
 
 
@@ -221,6 +302,8 @@ def cmd_end():
         return
     if sess.get("replay"):
         run("pkill", "-INT", "-f", "gpu-screen-recorder .*-r ")
+    if sess.get("gsi"):
+        run("pkill", "-f", "torus-gsi serve")
     if sess.get("overlay_before") in ("on", "off"):
         run("torus-mangohud", sess["overlay_before"])
     try:
@@ -241,33 +324,174 @@ def cmd_saved(path):
     name = sess.get("name") or "Game"
     dest_dir = os.path.join(CLIPS, slug(name))
     os.makedirs(dest_dir, exist_ok=True)
-    dest = os.path.join(dest_dir, slug(name) + "-" + time.strftime("%Y-%m-%d-%H%M%S") + ".mp4")
+    auto = ""
+    try:
+        if time.time() - os.path.getmtime(GSI_PENDING) < 30:
+            auto = load_text(GSI_PENDING)
+        os.remove(GSI_PENDING)
+    except OSError:
+        pass
+    if auto not in ("ace", "4k", "3k", "clutch"):
+        auto = ""
+    dest = os.path.join(dest_dir, slug(name) + "-" + (auto + "-" if auto else "") + time.strftime("%Y-%m-%d-%H%M%S") + ".mp4")
     try:
         shutil.move(path, dest)
     except OSError:
         dest = path
     if sess:
         sess["clips"] = sess.get("clips", 0) + 1
+        if auto:
+            sess["auto_clips"] = sess.get("auto_clips", 0) + 1
         save(SESSION, sess)
     secs = sess.get("replay_secs", 60)
-    ipc("islandFlash", "notification", f"Clip saved · {name} · {secs} s")
+    if not auto:
+        ipc("islandFlash", "notification", f"Clip saved · {name} · {secs} s")
     print(dest)
+    if budget() > 0:
+        subprocess.Popen([os.path.abspath(sys.argv[0]), "cleanup"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def thumb_path(path):
+    return os.path.join(CACHE, "clip-thumbs", re.sub(r"[^A-Za-z0-9._-]", "_", os.path.relpath(path, CLIPS)) + ".jpg")
 
 
 def thumb(path):
     d = os.path.join(CACHE, "clip-thumbs")
     os.makedirs(d, exist_ok=True)
-    t = os.path.join(d, re.sub(r"[^A-Za-z0-9._-]", "_", os.path.relpath(path, CLIPS)) + ".jpg")
+    t = thumb_path(path)
     if not os.path.exists(t) or os.path.getmtime(t) < os.path.getmtime(path):
         run("ffmpeg", "-v", "error", "-y", "-ss", "1", "-i", path, "-frames:v", "1", "-vf", "scale=320:-2", t, timeout=20)
     return t if os.path.exists(t) else ""
 
 
 def cmd_clips(appid):
+    favs = set(favorites())
     dirs = [os.path.join(CLIPS, slug(game_name(appid)))] if appid else glob.glob(os.path.join(CLIPS, "*"))
     files = sorted((p for d in dirs for p in glob.glob(os.path.join(d, "*.mp4"))), key=os.path.getmtime, reverse=True)
     for p in files[:12]:
-        print("\t".join([p, str(int(os.path.getmtime(p))), thumb(p), str(os.path.getsize(p))]))
+        m = AUTO_RE.search(p)
+        print("\t".join([p, str(int(os.path.getmtime(p))), thumb(p), str(os.path.getsize(p)), m.group(1) if m else "", "1" if p in favs else "0"]))
+
+
+def favorites():
+    f = load(FAVS, [])
+    return [p for p in f if isinstance(p, str)]
+
+
+def cmd_fav(path, state):
+    path = os.path.abspath(path)
+    f = [p for p in favorites() if p != path]
+    if state == "on" or (state == "toggle" and path not in favorites()):
+        f.insert(0, path)
+    save(FAVS, f)
+    print("on" if path in f else "off")
+
+
+def same_file(a, b):
+    return os.path.realpath(a) == os.path.realpath(b)
+
+
+def cmd_rename(path, name):
+    path = os.path.abspath(path)
+    root = os.path.realpath(CLIPS)
+    real = os.path.realpath(path)
+    if os.path.commonpath([real, root]) != root or not os.path.isfile(real):
+        sys.exit("not a clip: " + path)
+    ext = os.path.splitext(path)[1]
+    name = name.strip()
+    if name.lower().endswith(ext.lower()):
+        name = name[:-len(ext)].strip()
+    if not name or len(name) > 120 or name.startswith(".") or re.search(r"[/\x00-\x1f]", name):
+        sys.exit("that name does not work: letters, numbers and spaces, no slash, not empty")
+    new = os.path.join(os.path.dirname(path), name + ext)
+    if new == path:
+        print(path)
+        return
+    if os.path.lexists(new):
+        sys.exit("a clip with that name is already there")
+    old_thumb = thumb_path(path)
+    f = favorites()
+    was_fav = any(same_file(p, path) for p in f)
+    os.rename(path, new)
+    if was_fav:
+        save(FAVS, [new] + [p for p in f if os.path.realpath(p) != real])
+    if os.path.exists(old_thumb):
+        os.replace(old_thumb, thumb_path(new))
+    print(new)
+
+
+def cmd_library():
+    favs = set(favorites())
+    names = {}
+    for line in run("torus-games").splitlines():
+        parts = line.split("\t")
+        if len(parts) > 1:
+            names[slug(parts[1])] = parts[1]
+    files = sorted(glob.glob(os.path.join(CLIPS, "*", "*.mp4")), key=os.path.getmtime, reverse=True)
+    for p in files:
+        game = os.path.basename(os.path.dirname(p))
+        m = AUTO_RE.search(p)
+        t = thumb_path(p)
+        print("\t".join([p, str(int(os.path.getmtime(p))), t if os.path.exists(t) else "", str(os.path.getsize(p)), m.group(1) if m else "",
+                         game, names.get(game, game.replace("-", " ").title()), "1" if p in favs else "0"]))
+
+
+def cmd_thumbs(limit=60):
+    files = sorted(glob.glob(os.path.join(CLIPS, "*", "*.mp4")), key=os.path.getmtime, reverse=True)[:limit]
+    made = 0
+    for p in files:
+        t = thumb_path(p)
+        if not os.path.exists(t) or os.path.getmtime(t) < os.path.getmtime(p):
+            thumb(p)
+            made += 1
+    print(made)
+
+
+def budget():
+    try:
+        return int(load(CONF, {}).get("_clips", {}).get("budget", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def cmd_budget(value):
+    if value is not None:
+        v = int(value)
+        if v not in BUDGETS:
+            sys.exit(f"budget takes one of {BUDGETS} (GB, 0 is off)")
+        conf = load(CONF, {})
+        conf.setdefault("_clips", {})["budget"] = v
+        save(CONF, conf)
+    print(budget())
+
+
+def cleanup():
+    b = budget()
+    if b <= 0:
+        return []
+    files = sorted(glob.glob(os.path.join(CLIPS, "*", "*.mp4")), key=os.path.getmtime)
+    total = sum(os.path.getsize(p) for p in files)
+    limit = b * GB
+    favs = {os.path.realpath(p) for p in favorites()}
+    gone = []
+    for p in files:
+        if total <= limit:
+            break
+        if os.path.realpath(p) in favs:
+            continue
+        size = os.path.getsize(p)
+        if subprocess.run(["torus-trash", "put", p], capture_output=True).returncode == 0:
+            total -= size
+            gone.append((p, size))
+    return gone
+
+
+def cmd_cleanup():
+    gone = cleanup()
+    for p, _ in gone:
+        print(p)
+    if gone:
+        ipc("islandFlash", "notification", f"Clips over {budget()} GB: {len(gone)} old clip" + ("s" if len(gone) != 1 else "") + f" to the trash ({sum(z for _, z in gone) / GB:.1f} GB)")
 
 
 def cmd_set(appid, key, value):
@@ -293,6 +517,18 @@ def main():
         print(json.dumps(settings(a[1] if len(a) > 1 else "")))
     elif a[0] == "set" and len(a) == 4:
         cmd_set(a[1], a[2], a[3])
+    elif a[0] == "budget":
+        cmd_budget(a[1] if len(a) > 1 else None)
+    elif a[0] == "cleanup":
+        cmd_cleanup()
+    elif a[0] == "library":
+        cmd_library()
+    elif a[0] == "thumbs":
+        cmd_thumbs()
+    elif a[0] == "rename" and len(a) == 3:
+        cmd_rename(a[1], a[2])
+    elif a[0] == "fav" and len(a) == 3:
+        cmd_fav(a[1], a[2])
     elif a[0] == "clips":
         cmd_clips(a[1] if len(a) > 1 else "")
     elif a[0] == "recap":
@@ -301,7 +537,7 @@ def main():
     elif a[0] == "status":
         print(json.dumps(load(SESSION, {})))
     else:
-        sys.exit("usage: torus-play start CLASS | end | saved PATH | settings [APPID] | set APPID KEY VALUE | clips [APPID] | recap | status")
+        sys.exit("usage: torus-play start CLASS | end | saved PATH | settings [APPID] | set APPID KEY VALUE | clips [APPID] | library | fav PATH on|off|toggle | budget [GB] | cleanup | recap | status")
 
 
 if __name__ == "__main__":

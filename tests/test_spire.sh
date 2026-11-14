@@ -42,4 +42,27 @@ echo '{"kubeconfig": "~/spire/kubeconfig", "talosconfig": "~/spire/talosconfig"}
 assert_eq "$HOME/spire/kubeconfig|$HOME/spire/talosconfig" "$(cat "$F/seen")" "config paths from spire.json when the environment has none"
 (export KUBECONFIG=/own/kc; PATH=$F/envbin:$PATH "$S" status > /dev/null)
 [[ $(cat "$F/seen") == /own/kc\|* ]] || fail "an existing KUBECONFIG wins: $(cat "$F/seen")"
+grep -niE 'kitty|ssh|console|terminal' "$Q"/spire/*.qml "$Q"/services/Spire.qml && fail "the hub offers no console, ssh or terminal for the Talos nodes"
+grep -q '"torus-spire", "kvm"' "$Q/services/Spire.qml" && grep -q 'Spire.kvm()' "$Q/spire/SpireHub.qml" || fail "Remote KVM button runs torus-spire kvm"
+
+port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+mkdir -p "$F/mc"
+{
+  echo '#!/bin/sh'
+  echo "echo started >> '$F/mc/starts'"
+  echo "exec python3 -c 'import socket,time; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); s.bind((\"127.0.0.1\", $port)); s.listen(); time.sleep(20)' torus-test-mc"
+} > "$F/mc/run.sh"
+chmod +x "$F/mc/run.sh"
+printf '#!/bin/sh\necho "launch $*" >> "%s/opened"\n' "$F" > "$F/bin/torus-launch"
+chmod +x "$F/bin/torus-launch"
+jq -n --arg u "http://127.0.0.1:$port/default.htm" --arg d "$F/mc" '{ meshcommander: { url: $u, dir: $d } }' > "$TORUS_SPIRE_CONF"
+XDG_RUNTIME_DIR=$F "$S" kvm || fail "kvm starts MeshCommander"
+XDG_RUNTIME_DIR=$F "$S" kvm || fail "kvm with MeshCommander already up"
+assert_eq 1 "$(wc -l < "$F/mc/starts")" "MeshCommander started once"
+assert_eq "launch xdg-open http://127.0.0.1:$port/default.htm|launch xdg-open http://127.0.0.1:$port/default.htm" "$(paste -sd'|' "$F/opened")" "opens default.htm through torus-launch"
+pkill -f torus-test-mc 2> /dev/null || true
+jq -n --arg u "http://127.0.0.1:$port/default.htm" '{ meshcommander: { url: $u, dir: "/nonexistent" } }' > "$TORUS_SPIRE_CONF"
+sleep 0.3
+XDG_RUNTIME_DIR=$F "$S" kvm 2> /dev/null && fail "kvm without MeshCommander must fail"
+assert_eq 2 "$(wc -l < "$F/opened")" "nothing opened when MeshCommander is missing"
 echo "spire: ok"

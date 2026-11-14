@@ -23,9 +23,15 @@ RowLayout {
     }
 
     Item {
+        id: knobArea
         Layout.fillWidth: true
         Layout.minimumWidth: 140
         implicitHeight: 18
+        activeFocusOnTab: root.visible
+        onActiveFocusChanged: if (activeFocus) Store.focusLabel = "slider:" + root.value
+        Keys.onLeftPressed: root.moved(Math.max(root.from, Math.round((root.value - root.step) / root.step) * root.step))
+        Keys.onRightPressed: root.moved(Math.min(root.to, Math.round((root.value + root.step) / root.step) * root.step))
+        FocusRing { on: knobArea.activeFocus; baseRadius: Theme.rSm }
 
         Rectangle {
             id: track

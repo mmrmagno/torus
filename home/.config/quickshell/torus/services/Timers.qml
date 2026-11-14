@@ -82,7 +82,7 @@ Singleton {
             if (!root.stopwatch && root.elapsed >= root.total) {
                 const what = root.label
                 root.stop()
-                Quickshell.execDetached(["sh", "-c", "pw-play /usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga 2>/dev/null || pw-play /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || true"])
+                Quickshell.execDetached(["sh", "-c", "pw-play --media-role Event /usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga 2>/dev/null || pw-play --media-role Event /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || true"])
                 Quickshell.execDetached(["notify-send", "-a", "Timer", "-i", "alarm-symbolic", what ? "Timer done: " + what : "Timer done", "time is up"])
             }
         }

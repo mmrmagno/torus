@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+import fcntl, json, os, shutil, subprocess, sys, time
+from urllib.parse import quote, unquote
+
+HOME = os.path.expanduser("~")
+TRASH = os.path.join(os.environ.get("XDG_DATA_HOME", HOME + "/.local/share"), "Trash")
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME", HOME + "/.local/state"), "torus")
+LEDGER = os.path.join(STATE, "trash.json")
+UNDO_SECS = 600
+
+
+def load():
+    try:
+        with open(LEDGER) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save(d):
+    os.makedirs(STATE, exist_ok=True)
+    tmp = LEDGER + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(d, f)
+    os.replace(tmp, LEDGER)
+
+
+def info_for(path):
+    best = None
+    want = "Path=" + quote(path)
+    try:
+        names = os.listdir(os.path.join(TRASH, "info"))
+    except OSError:
+        return None
+    for n in names:
+        if not n.endswith(".trashinfo"):
+            continue
+        p = os.path.join(TRASH, "info", n)
+        try:
+            with open(p) as f:
+                if want not in f.read().splitlines():
+                    continue
+            m = os.path.getmtime(p)
+        except OSError:
+            continue
+        if best is None or m > best[0]:
+            best = (m, n[:-len(".trashinfo")])
+    return best[1] if best else None
+
+
+def entry_size(name):
+    p = os.path.join(TRASH, "files", name)
+    if os.path.islink(p) or not os.path.exists(p):
+        return 0
+    if os.path.isdir(p):
+        return sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(p) for f in fs if not os.path.islink(os.path.join(d, f)))
+    return os.path.getsize(p)
+
+
+def ours(e):
+    name = e.get("name", "")
+    if not name or "/" in name or name in (".", ".."):
+        return False
+    if not os.path.lexists(os.path.join(TRASH, "files", name)):
+        return False
+    try:
+        with open(os.path.join(TRASH, "info", name + ".trashinfo")) as f:
+            return ("Path=" + quote(e.get("path", ""))) in f.read().splitlines()
+    except OSError:
+        return False
+
+
+def held(d):
+    return [e for e in d.get("items", []) if ours(e)]
+
+
+def locked():
+    os.makedirs(STATE, exist_ok=True)
+    f = open(LEDGER + ".lock", "w")
+    fcntl.flock(f, fcntl.LOCK_EX)
+    return f
+
+
+def cmd_put(paths):
+    d = load()
+    items = held(d)
+    batch = []
+    for raw in paths:
+        path = os.path.abspath(raw)
+        if not os.path.lexists(path):
+            continue
+        if subprocess.run(["gio", "trash", "--", path], capture_output=True).returncode != 0:
+            print("torus-trash: could not trash " + path, file=sys.stderr)
+            continue
+        name = info_for(path)
+        if name:
+            e = {"name": name, "path": path, "at": int(time.time())}
+            items.append(e)
+            batch.append(e)
+    d["items"] = items
+    if batch:
+        d["last"] = batch
+    save(d)
+    print(len(batch))
+    return 0 if len(batch) == len(paths) else 1
+
+
+def cmd_undo():
+    d = load()
+    back = 0
+    for e in d.get("last", []):
+        src = os.path.join(TRASH, "files", e["name"])
+        if time.time() - e.get("at", 0) > UNDO_SECS or not ours(e) or os.path.lexists(e["path"]):
+            continue
+        os.makedirs(os.path.dirname(e["path"]), exist_ok=True)
+        shutil.move(src, e["path"])
+        try:
+            os.remove(os.path.join(TRASH, "info", e["name"] + ".trashinfo"))
+        except OSError:
+            pass
+        back += 1
+        print(e["path"])
+    d["last"] = []
+    d["items"] = held(d)
+    save(d)
+    return 0 if back else 1
+
+
+def cmd_status():
+    d = load()
+    items = held(d)
+    last = [e for e in d.get("last", []) if time.time() - e.get("at", 0) <= UNDO_SECS and ours(e)]
+    print(json.dumps({"count": len(items), "bytes": sum(entry_size(e["name"]) for e in items), "undo": len(last),
+                      "undoName": os.path.basename(last[0]["path"]) if last else ""}))
+    return 0
+
+
+def cmd_empty():
+    d = load()
+    n = 0
+    for e in held(d):
+        name = e["name"]
+        p = os.path.join(TRASH, "files", name)
+        try:
+            if os.path.isdir(p) and not os.path.islink(p):
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
+            n += 1
+        except OSError:
+            continue
+        try:
+            os.remove(os.path.join(TRASH, "info", name + ".trashinfo"))
+        except OSError:
+            pass
+    save({"items": [], "last": []})
+    print(n)
+    return 0
+
+
+a = sys.argv[1:]
+if a and a[0] in ("put", "undo", "empty"):
+    hold = locked()
+if len(a) >= 2 and a[0] == "put":
+    sys.exit(cmd_put(a[1:]))
+elif a == ["undo"]:
+    sys.exit(cmd_undo())
+elif a == ["status"]:
+    sys.exit(cmd_status())
+elif a == ["empty"]:
+    sys.exit(cmd_empty())
+sys.exit("usage: torus-trash put FILE... | undo | status | empty")

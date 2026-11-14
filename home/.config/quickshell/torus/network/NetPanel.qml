@@ -58,7 +58,14 @@ PanelWindow {
     component Toggle: Rectangle {
         id: tg
         property bool on: false
+        property string label: "toggle"
         signal toggled
+        activeFocusOnTab: visible
+        onActiveFocusChanged: if (activeFocus) Store.focusLabel = label
+        Keys.onReturnPressed: tg.toggled()
+        Keys.onEnterPressed: tg.toggled()
+        Keys.onSpacePressed: tg.toggled()
+        FocusRing { on: tg.activeFocus; baseRadius: tg.radius }
         width: 38
         height: 22
         radius: 11
@@ -94,6 +101,12 @@ PanelWindow {
         property string label: ""
         property bool danger: false
         signal clicked
+        activeFocusOnTab: visible
+        onActiveFocusChanged: if (activeFocus) Store.focusLabel = label
+        Keys.onReturnPressed: sb.clicked()
+        Keys.onEnterPressed: sb.clicked()
+        Keys.onSpacePressed: sb.clicked()
+        FocusRing { on: sb.activeFocus; baseRadius: sb.radius }
         width: sbText.implicitWidth + 20
         height: 24
         radius: Theme.rCard
@@ -112,6 +125,13 @@ PanelWindow {
 
     Rectangle {
         id: netFrame
+        Connections {
+            target: root
+            function onVisibleChanged() {
+                if (root.visible)
+                    netFrame.forceActiveFocus()
+            }
+        }
         focus: true
         Keys.onEscapePressed: Store.setOpen("network", false)
         PanelMotion {
@@ -122,7 +142,7 @@ PanelWindow {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 32, root.implicitHeight)
+        height: Math.min(body.implicitHeight + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.TopRight
         radius: Theme.rPanel
@@ -132,14 +152,18 @@ PanelWindow {
         clip: true
 
         Flickable {
+            id: scroller
             anchors.fill: parent
-            anchors.margins: 16
-            contentHeight: body.implicitHeight
+            anchors.margins: 11
+            anchors.bottomMargin: 16 + hintBar.height + Theme.sp5
+            contentHeight: body.implicitHeight + 10
             clip: true
 
             ColumnLayout {
                 id: body
-                width: parent.width
+                x: 5
+                y: 5
+                width: parent.width - 10
                 spacing: Theme.sp5
 
                 RowLayout {
@@ -154,7 +178,7 @@ PanelWindow {
                     glyph: "󰖩"
                     title: "Wi-Fi"
                     SmallButton { label: Wifi.scanning ? "scanning…" : "rescan"; visible: Wifi.enabled; onClicked: Wifi.refresh(true) }
-                    Toggle { on: Wifi.enabled; onToggled: Wifi.setEnabled(!Wifi.enabled) }
+                    Toggle { label: "Wi-Fi"; on: Wifi.enabled; onToggled: Wifi.setEnabled(!Wifi.enabled) }
                 }
 
                 Text {
@@ -173,10 +197,26 @@ PanelWindow {
                         Layout.fillWidth: true
                         spacing: Theme.sp3
 
+                        function activate() {
+                            if (net.modelData.active)
+                                Wifi.disconnect(net.modelData.ssid)
+                            else if (net.modelData.secure && Wifi.failedSsid === net.modelData.ssid)
+                                root.asking = net.modelData.ssid
+                            else
+                                Wifi.connect(net.modelData.ssid, "")
+                        }
+
                         Rectangle {
+                            id: netRow
                             Layout.fillWidth: true
                             Layout.preferredHeight: 38
                             radius: Theme.radius
+                            activeFocusOnTab: true
+                            onActiveFocusChanged: if (activeFocus) Store.focusLabel = net.modelData.ssid
+                            Keys.onReturnPressed: net.activate()
+                            Keys.onEnterPressed: net.activate()
+                            Keys.onSpacePressed: net.activate()
+                            FocusRing { on: netRow.activeFocus; baseRadius: netRow.radius }
                             color: net.modelData.active ? Qt.alpha(Theme.accent, 0.16) : (netHover.hovered ? Theme.surface0 : "transparent")
                             RowLayout {
                                 anchors.fill: parent
@@ -194,16 +234,7 @@ PanelWindow {
                                 }
                             }
                             HoverHandler { id: netHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler {
-                                onTapped: {
-                                    if (net.modelData.active)
-                                        Wifi.disconnect(net.modelData.ssid)
-                                    else if (net.modelData.secure && Wifi.failedSsid === net.modelData.ssid)
-                                        root.asking = net.modelData.ssid
-                                    else
-                                        Wifi.connect(net.modelData.ssid, "")
-                                }
-                            }
+                            TapHandler { onTapped: net.activate() }
                         }
 
                         Rectangle {
@@ -248,7 +279,7 @@ PanelWindow {
                         label: root.adapter && root.adapter.discovering ? "stop scan" : "scan"
                         onClicked: root.adapter.discovering = !root.adapter.discovering
                     }
-                    Toggle { on: root.adapter ? root.adapter.enabled : false; onToggled: if (root.adapter) root.adapter.enabled = !root.adapter.enabled }
+                    Toggle { label: "Bluetooth"; on: root.adapter ? root.adapter.enabled : false; onToggled: if (root.adapter) root.adapter.enabled = !root.adapter.enabled }
                 }
 
                 Text {
@@ -296,6 +327,17 @@ PanelWindow {
                     }
                 }
             }
+        }
+
+        ScrollFade { flick: scroller }
+
+        KeyHints {
+            id: hintBar
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 16
+            hints: [["Tab", "move"], ["↵", "press"], ["Esc", "close"]]
         }
     }
 }

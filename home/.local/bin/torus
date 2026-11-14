@@ -278,6 +278,8 @@ cmd_setup() {
   systemctl --user daemon-reload > /dev/null 2>&1 || true
   systemctl --user enable torus-shell.service > /dev/null 2>&1 || true
   systemctl --user enable --now torus-session-save.timer > /dev/null 2>&1 || true
+  systemctl --user enable --now torus-prune.timer > /dev/null 2>&1 || true
+  systemctl --user enable --now torus-crash-watch.path > /dev/null 2>&1 || true
   systemctl --user mask dunst.service > /dev/null 2>&1 || true
   echo "torus: setup done (flavour $flavour, accent $accent)"
 }
@@ -294,13 +296,14 @@ cmd_unsafe() {
   echo "torus: full shell started"
 }
 
-(($#)) || { echo "usage: torus accent|flavour|setup|doctor|ipc|safe|unsafe" >&2; exit 1; }
+(($#)) || { echo "usage: torus accent|flavour|setup|update|doctor|ipc|safe|unsafe" >&2; exit 1; }
 cmd=$1
 shift
 case $cmd in
   accent) cmd_accent "$@" ;;
   flavour | flavor) cmd_flavour "$@" ;;
   setup) cmd_setup ;;
+  update) exec "$(dirname "$SELF")/torus-update" "$@" ;;
   doctor) exec "$(dirname "$SELF")/torus-doctor" "$@" ;;
   ipc) exec "$(dirname "$SELF")/torus-ipc" "$@" ;;
   safe) cmd_safe ;;

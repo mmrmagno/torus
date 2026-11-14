@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import select
+import subprocess
+import sys
+import time
+
+HOME = os.path.expanduser("~")
+STEAM = os.environ.get("TORUS_STEAM", os.path.join(HOME, ".local/share/Steam"))
+LOGS = os.path.join(STEAM, "logs")
+STALL = float(os.environ.get("TORUS_STEAMLOG_STALL", "45"))
+WINDOW = 60.0
+
+SHADER = re.compile(r"Still replaying (\d+) \((\d+)%, (\d+)/(\d+)\)")
+DL_START = re.compile(r"AppID (\d+) update started : download (\d+)/(\d+)")
+DL_DONE = re.compile(r"AppID (\d+) (?:finished update|scheduler finished : removed from schedule \(result No Error)")
+DL_STOP = re.compile(r"AppID (\d+) (?:update canceled|state changed : .*Update Paused)")
+ACF_DONE = re.compile(r'"BytesDownloaded"\s+"(\d+)"')
+ACF_TOTAL = re.compile(r'"BytesToDownload"\s+"(\d+)"')
+SHADER_DONE = re.compile(r"(?:Finished|Done|Completed)\b[^0-9]*?(?:replay(?:ing)?\s+)?(\d{2,})", re.I)
+
+
+def speed(bps):
+    if bps <= 0:
+        return ""
+    if bps >= 1 << 20:
+        return f"{bps / (1 << 20):.1f} MB/s"
+    return f"{bps / 1024:.0f} KB/s"
+
+
+def libraries():
+    roots = [STEAM]
+    try:
+        roots += re.findall(r'"path"\s+"([^"]+)"', open(os.path.join(STEAM, "steamapps", "libraryfolders.vdf")).read())
+    except OSError:
+        pass
+    return list(dict.fromkeys(os.path.realpath(r) for r in roots))
+
+
+def manifest(appid):
+    for lib in libraries():
+        try:
+            t = open(os.path.join(lib, "steamapps", f"appmanifest_{appid}.acf")).read()
+        except OSError:
+            continue
+        d, n = ACF_DONE.search(t), ACF_TOTAL.search(t)
+        if d and n:
+            return int(d.group(1)), int(n.group(1))
+    return None
+
+
+def names():
+    out = {}
+    try:
+        txt = subprocess.run(["torus-games"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return out
+    for line in txt.splitlines():
+        f = line.split("\t")
+        if len(f) > 1:
+            out[f[0]] = f[1]
+    return out
+
+
+class Rate:
+    def __init__(self):
+        self.samples = []
+
+    def add(self, t, v):
+        self.samples.append((t, v))
+        while len(self.samples) > 2 and t - self.samples[0][0] > WINDOW:
+            self.samples.pop(0)
+
+    def bps(self):
+        if len(self.samples) < 2:
+            return 0
+        (t0, v0), (t1, v1) = self.samples[0], self.samples[-1]
+        return (v1 - v0) / (t1 - t0) if t1 - t0 >= 3 and v1 > v0 else 0
+
+    def left(self, total):
+        if len(self.samples) < 2:
+            return -1
+        (t0, v0), (t1, v1) = self.samples[0], self.samples[-1]
+        if t1 - t0 < 3 or v1 <= v0:
+            return -1
+        return int((total - v1) / ((v1 - v0) / (t1 - t0)))
+
+
+class Follow:
+    def __init__(self, emit):
+        self.emit = emit
+        self.names = None
+        self.shader = {}
+        self.download = {}
+
+    def name(self, appid):
+        if self.names is None or appid not in self.names:
+            self.names = names()
+        return self.names.get(appid, "App " + appid)
+
+    def line(self, src, text, now):
+        if "AppID " in text:
+            m = DL_START.search(text)
+            if m:
+                appid = m.group(1)
+                self.download[appid] = {"rate": Rate(), "at": now, "done": int(m.group(2)), "total": int(m.group(3))}
+                self.dl_emit(appid)
+                return
+            m = DL_DONE.search(text)
+            if m:
+                self.dl_finish(m.group(1), "done")
+                return
+            m = DL_STOP.search(text)
+            if m:
+                self.dl_finish(m.group(1), "stopped")
+            return
+        m = SHADER.search(text)
+        if m:
+            appid, pct, done, total = m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4))
+            s = self.shader.setdefault(appid, {"rate": Rate()})
+            s["rate"].add(now, done)
+            s.update(at=now, pct=pct, done=done, total=total)
+            if total and done >= total:
+                self.finish(appid, "done")
+            else:
+                self.emit({"kind": "shader", "state": "running", "appid": appid, "name": self.name(appid), "pct": pct,
+                           "left": s["rate"].left(total)})
+            return
+        m = SHADER_DONE.search(text)
+        if m and m.group(1) in self.shader:
+            self.finish(m.group(1), "done")
+
+    def progress(self, appid, done, total, now):
+        d = self.download.get(appid)
+        if d is None:
+            return
+        d["rate"].add(now, done)
+        d.update(at=now, done=done, total=total or d["total"])
+        self.dl_emit(appid)
+
+    def dl_emit(self, appid):
+        d = self.download[appid]
+        total = max(1, d["total"])
+        self.emit({"kind": "download", "state": "running", "appid": appid, "name": self.name(appid),
+                   "pct": min(99, int(d["done"] * 100 / total)), "left": d["rate"].left(total), "speed": speed(d["rate"].bps())})
+
+    def dl_finish(self, appid, state):
+        if self.download.pop(appid, None) is not None:
+            self.emit({"kind": "download", "state": state, "appid": appid, "name": self.name(appid), "pct": 100 if state == "done" else 0, "left": 0, "speed": ""})
+
+    def poll(self, now):
+        for appid in list(self.download):
+            m = manifest(appid)
+            if m:
+                self.progress(appid, m[0], m[1], now)
+
+    def finish(self, appid, state):
+        s = self.shader.pop(appid, None)
+        if s is not None:
+            self.emit({"kind": "shader", "state": state, "appid": appid, "name": self.name(appid), "pct": 100 if state == "done" else s.get("pct", 0), "left": 0})
+
+    def tick(self, now):
+        for appid, s in list(self.shader.items()):
+            if now - s["at"] > STALL:
+                self.finish(appid, "done" if s.get("pct", 0) >= 95 else "stopped")
+
+    def busy(self):
+        return bool(self.shader or self.download)
+
+
+def emit(ev):
+    print(json.dumps(ev), flush=True)
+
+
+def follow():
+    files = [os.path.join(LOGS, "shader_log.txt"), os.path.join(LOGS, "content_log.txt")]
+    os.makedirs(LOGS, exist_ok=True)
+    tail = subprocess.Popen(["tail", "-n0", "-F", "-v"] + files, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+    fd = tail.stdout.fileno()
+    f = Follow(emit)
+    cur = files[0]
+    buf = b""
+    while True:
+        r, _, _ = select.select([fd], [], [], (2 if f.download else 5) if f.busy() else None)
+        now = time.time()
+        if r:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            buf += chunk
+            *lines, buf = buf.split(b"\n")
+            for raw in lines:
+                line = raw.decode("utf-8", "replace")
+                m = re.match(r"^==> (.*) <==$", line.strip())
+                if m:
+                    cur = m.group(1)
+                    continue
+                f.line(cur, line, now)
+        f.poll(now)
+        f.tick(now)
+
+
+def replay(path):
+    f = Follow(emit)
+    for line in open(path):
+        t, _, rest = line.rstrip("\n").partition("\t")
+        if rest == "TICK":
+            f.tick(float(t))
+            continue
+        if rest.startswith("manifest\t"):
+            _, appid, done, total = rest.split("\t")
+            f.progress(appid, int(done), int(total), float(t))
+            continue
+        src, _, text = rest.partition("\t")
+        f.line(src, text, float(t))
+
+
+def main():
+    a = sys.argv[1:] or ["follow"]
+    if a[0] == "follow":
+        follow()
+    elif a[0] == "replay" and len(a) == 2:
+        replay(a[1])
+    else:
+        sys.exit("usage: torus-steamlog follow | replay FILE")
+
+
+if __name__ == "__main__":
+    main()

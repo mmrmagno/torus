@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Hyprland
 import qs
+import qs.components
 
 PanelWindow {
     id: root
@@ -167,9 +168,17 @@ PanelWindow {
             event.accepted = true
         }
 
+        KeyHints {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: 11
+            visible: root.query === ""
+            hints: [["Tab", "next"], ["type", "filter"], ["Esc", "cancel"]]
+        }
+
         Row {
             anchors.horizontalCenter: parent.horizontalCenter
             y: 12
+            visible: root.query !== ""
             spacing: Theme.sp3
             Text {
                 text: "󰍉"
@@ -197,6 +206,7 @@ PanelWindow {
             Repeater {
                 model: root.shown
                 Rectangle {
+                    id: tile
                     required property var modelData
                     required property int index
                     readonly property bool sel: index === root.selected
@@ -216,17 +226,28 @@ PanelWindow {
                             return Quickshell.iconPath(e ? e.icon : "", "application-x-executable")
                         }
                     }
-                    ScreencopyView {
-                        id: shot
+                    Item {
+                        id: shotBox
                         anchors.fill: parent
                         anchors.margins: 8
                         anchors.bottomMargin: 30
-                        captureSource: root.visible ? parent.modelData.wayland : null
-                        live: false
-                        constraintSize: Qt.size(width, height)
-                        onCaptureSourceChanged: if (captureSource) captureFrame()
-                        opacity: hasContent ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+                        ClippingRectangle {
+                            anchors.centerIn: parent
+                            width: Math.min(shotBox.width, shot.implicitWidth)
+                            height: Math.min(shotBox.height, shot.implicitHeight)
+                            radius: Theme.rSm
+                            color: "transparent"
+                            opacity: shot.hasContent ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+                            ScreencopyView {
+                                id: shot
+                                anchors.fill: parent
+                                captureSource: root.visible ? tile.modelData.wayland : null
+                                live: false
+                                constraintSize: Qt.size(shotBox.width, shotBox.height)
+                                onCaptureSourceChanged: if (captureSource) captureFrame()
+                            }
+                        }
                     }
                     Text {
                         anchors.bottom: parent.bottom

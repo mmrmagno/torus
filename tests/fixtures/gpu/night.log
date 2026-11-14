@@ -1,0 +1,10 @@
+amdgpu 0000:03:00.0: ring gfx_0.0.0 timeout, signaled seq=97942349, emitted seq=97942351
+amdgpu 0000:03:00.0:  Process cs2 pid 3098240 thread VKRenderThread pid 3098300
+amdgpu 0000:03:00.0: GPU reset begin!. Source:  1
+amdgpu 0000:03:00.0: GPU reset(1) succeeded!
+amdgpu 0000:03:00.0: [mmhub] page fault (src_id:0 ring:24 vmid:14 pasid:5848)
+amdgpu 0000:03:00.0:  Process gpu-screen-reco pid 3150223 thread gpu-screen:cs0 pid 3150224
+amdgpu 0000:03:00.0: ring vcn_unified_1 timeout, signaled seq=2870373, emitted seq=2870375
+amdgpu 0000:03:00.0:  Process gpu-screen-reco pid 3150223 thread gpu-screen:cs0 pid 3150224
+amdgpu 0000:03:00.0: GPU reset begin!. Source:  1
+amdgpu 0000:03:00.0: GPU reset(2) succeeded!

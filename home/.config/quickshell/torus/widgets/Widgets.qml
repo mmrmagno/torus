@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Widgets
 import Quickshell.Wayland
 import qs
 import qs.components
@@ -13,7 +14,7 @@ PanelWindow {
     readonly property bool portrait: screen ? screen.height > screen.width : false
     readonly property bool on: Store.widgets === "all" || (Store.widgets === "landscape" && !portrait)
 
-    visible: on
+    visible: on && !Store.widgetsQuiet
     onOnChanged: Store.reportWidgets(screen.name, on)
     Component.onCompleted: Store.reportWidgets(screen.name, on)
 
@@ -102,11 +103,10 @@ PanelWindow {
                 anchors.fill: parent
                 anchors.margins: 12
                 spacing: Theme.sp6
-                Rectangle {
+                ClippingRectangle {
                     Layout.preferredWidth: 52
                     Layout.preferredHeight: 52
                     radius: Theme.radius
-                    clip: true
                     color: Theme.surface0
                     Text {
                         anchors.centerIn: parent

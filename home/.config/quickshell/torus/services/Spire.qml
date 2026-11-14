@@ -14,6 +14,28 @@ Singleton {
     readonly property bool ok: data.ok === true
     readonly property int problems: ok ? (data.problems || 0) : 0
     readonly property bool hubOpen: Store.isOpen("homelab")
+    readonly property bool kvmBusy: kvmProc.running
+    property string kvmError: ""
+
+    function kvm() {
+        if (kvmProc.running)
+            return
+        kvmError = ""
+        kvmProc.running = true
+    }
+
+    Process {
+        id: kvmProc
+        command: ["torus-launch", "torus-spire", "kvm"]
+        stderr: StdioCollector {
+            onStreamFinished: {
+                root.kvmError = text.trim().replace(/^torus-spire: /, "")
+                if (root.kvmError !== "")
+                    Island.flash("notification", { summary: "Remote KVM", body: root.kvmError, app: "torus", icon: "dialog-error", image: "", cat: "homelab" }, 6000)
+            }
+        }
+    }
+
     readonly property bool allowed: !Store.locked && !Store.lockSecure && Net.online && hasContext
 
     function refresh() {

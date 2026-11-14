@@ -98,7 +98,7 @@ PanelWindow {
                     Text {
                         width: parent.width
                         wrapMode: Text.Wrap
-                        text: Ai.status === "offline" ? "Start it, then reopen this panel:" : "Pull one, then reopen this panel:"
+                        text: Ai.status === "offline" ? "Start it, then press Retry:" : "Pull one, then press Retry:"
                         color: Theme.subtext
                         font.family: Theme.fontUi
                         font.pixelSize: Theme.fsMd
@@ -109,6 +109,7 @@ PanelWindow {
                         font.family: Theme.fontMono
                         font.pixelSize: Theme.fsMd
                     }
+                    PanelButton { icon: "󰑐"; label: "Retry"; implicitHeight: 28; onClicked: Ai.refresh() }
                 }
             }
 
@@ -226,7 +227,7 @@ PanelWindow {
                     }
                     Text {
                         visible: parent.text === ""
-                        text: Ai.busy ? "thinking…" : "message, shift+enter for a new line"
+                        text: Ai.busy ? "thinking…" : "message"
                         color: Theme.overlay
                         font: parent.font
                     }
@@ -251,6 +252,11 @@ PanelWindow {
                         }
                     }
                 }
+            }
+
+            KeyHints {
+                Layout.fillWidth: true
+                hints: [["↵", "send"], ["Shift ↵", "new line"], ["Esc", "close"]]
             }
         }
     }

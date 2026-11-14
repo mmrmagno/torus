@@ -111,8 +111,31 @@ status() {
     }'
 }
 
+listening() {
+  [[ $1 =~ ^[A-Za-z0-9.:-]+$ && $2 =~ ^[0-9]+$ ]] || return 1
+  timeout 1 bash -c 'exec 3<>"/dev/tcp/$0/$1"' "$1" "$2" 2> /dev/null
+}
+
+kvm() {
+  local url dir host port i
+  url=$(jq -r '.meshcommander.url // empty' "$conf" 2> /dev/null)
+  url=${url:-http://127.0.0.1:3000/default.htm}
+  dir=$(path_from_conf meshcommander.dir)
+  dir=${dir:-${XDG_DATA_HOME:-$HOME/.local/share}/meshcommander}
+  [[ $url =~ ^https?://([^/:]+)(:([0-9]+))? ]] || { echo "torus-spire: bad meshcommander url: $url" >&2; exit 2; }
+  host=${BASH_REMATCH[1]} port=${BASH_REMATCH[3]:-80}
+  if ! listening "$host" "$port"; then
+    [[ -x $dir/run.sh ]] || { echo "torus-spire: MeshCommander not found in $dir" >&2; exit 3; }
+    setsid -f "$dir/run.sh" > "${XDG_RUNTIME_DIR:-/tmp}/meshcommander.log" 2>&1 < /dev/null
+    for i in $(seq 1 60); do listening "$host" "$port" && break; sleep 0.25; done
+    listening "$host" "$port" || { echo "torus-spire: MeshCommander did not start, see ${XDG_RUNTIME_DIR:-/tmp}/meshcommander.log" >&2; exit 4; }
+  fi
+  torus-launch xdg-open "$url"
+}
+
 case ${1:-status} in
   status) status ;;
   amt-check) amt_check ;;
-  *) echo "usage: torus-spire status | amt-check" >&2; exit 2 ;;
+  kvm) kvm ;;
+  *) echo "usage: torus-spire status | amt-check | kvm" >&2; exit 2 ;;
 esac

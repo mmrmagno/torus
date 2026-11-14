@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# usage: torus-crash save|notify|list|last
+# usage: torus-crash save|qs|notify|list|last
 set -uo pipefail
 dir=${XDG_CACHE_HOME:-$HOME/.cache}/torus/crashes
 
 newest() { ls -1t "$dir"/*.log 2> /dev/null | head -1; }
+
+warnings() {
+  sed 's/\x1b\[[0-9;]*m//g' | grep -E 'WARN|ERROR|TypeError|ReferenceError|[Bb]inding loop|Unable to assign|is not a function|Cannot read property' | grep -vE 'dmabuf|quickshell\.dbus|crashreporter|Quickshell has (crashed|been restarted)|Further crash information' | tail -n 30
+}
 
 case ${1:-list} in
   save)
@@ -11,7 +15,13 @@ case ${1:-list} in
     sig=${HYPRLAND_INSTANCE_SIGNATURE:-$(ls -t "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/hypr" 2> /dev/null | head -1)}
     HYPRLAND_INSTANCE_SIGNATURE=$sig hyprctl monitors > /dev/null 2>&1 || exit 0
     mkdir -p -m 700 "$dir"
+    last=$(newest)
+    if [[ -n $last ]] && head -1 "$last" | grep -q 'caught by Quickshell' && (($(date +%s) - $(stat -c %Y "$last") < 30)); then
+      echo "== then the unit stopped: ${SERVICE_RESULT:-?} ${EXIT_CODE:-} ${EXIT_STATUS:-}" >> "$last"
+      exit 0
+    fi
     f=$dir/$(date +%Y%m%d-%H%M%S).log
+    [[ -e $f ]] && f=${f%.log}-$$.log
     {
       echo "result: ${SERVICE_RESULT:-?} ${EXIT_CODE:-} ${EXIT_STATUS:-}"
       echo "== QML warnings in this run"
@@ -19,7 +29,7 @@ case ${1:-list} in
         journalctl --user -u torus-shell.service "_SYSTEMD_INVOCATION_ID=$INVOCATION_ID" --no-pager -o cat
       else
         journalctl --user -u torus-shell.service -n 400 --no-pager -o cat
-      fi | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'WARN|ERROR|TypeError|ReferenceError|[Bb]inding loop|Unable to assign|is not a function|Cannot read property' | grep -vE 'dmabuf|quickshell\.dbus' | tail -n 30
+      fi | warnings
       echo "== shell"
       journalctl --user -u torus-shell.service -n 80 --no-pager -o short-iso
       echo "== session"
@@ -27,6 +37,35 @@ case ${1:-list} in
     } > "$f" 2>&1
     ls -1t "$dir"/*.log | tail -n +11 | xargs -r rm -f
     echo "${SERVICE_RESULT:-?}" > "$dir/pending"
+    ;;
+  qs)
+    qsdir=${TORUS_QS_CRASHES:-${XDG_CACHE_HOME:-$HOME/.cache}/quickshell/crashes}
+    seen=$dir/qs-seen
+    mkdir -p -m 700 "$dir"
+    touch "$seen"
+    report=$(ls -1t "$qsdir"/report.txt "$qsdir"/*/report.txt 2> /dev/null | head -1)
+    [[ -n $report ]] || exit 0
+    crash=$(dirname "$report")
+    key="$report $(stat -c %Y "$report")"
+    grep -qxF "$key" "$seen" && exit 0
+    echo "$key" >> "$seen"
+    f=$dir/$(date +%Y%m%d-%H%M%S).log
+    [[ -e $f ]] && f=${f%.log}-$$.log
+    {
+      echo "result: crash caught by Quickshell, which restarted the shell in place ($crash)"
+      echo "== QML warnings in this run"
+      journalctl --user -u torus-shell.service -n 600 --no-pager -o cat | warnings
+      echo "== Quickshell crash report"
+      sed -n '/Stacktrace\|stacktrace\|Backtrace\|#[0-9]/,$p' "$report" | head -n 80
+      echo "== shell log before the crash"
+      tail -n 60 "$crash/log.qslog.log" 2> /dev/null
+      echo "== shell"
+      journalctl --user -u torus-shell.service -n 80 --no-pager -o short-iso
+    } > "$f" 2>&1
+    chmod 600 "$f"
+    ls -1t "$dir"/*.log | tail -n +11 | xargs -r rm -f
+    echo "crash (restarted in place)" > "$dir/pending"
+    exec "$0" notify
     ;;
   notify)
     [[ -e $dir/pending ]] || exit 0
@@ -47,5 +86,5 @@ case ${1:-list} in
     if [[ -t 1 && -z ${TORUS_CRASH_CAT:-} ]] && command -v nvim > /dev/null; then exec nvim -R "+/== QML warnings" "$f"; fi
     cat "$f"
     ;;
-  *) echo "usage: torus-crash save|notify|list|last" >&2; exit 2 ;;
+  *) echo "usage: torus-crash save|qs|notify|list|last" >&2; exit 2 ;;
 esac

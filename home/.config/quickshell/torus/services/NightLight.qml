@@ -7,8 +7,15 @@ import qs
 Singleton {
     id: root
 
-    property bool on: false
-    property int temperature: 6000
+    property alias on: kept.on
+    property alias temperature: kept.temperature
+
+    PersistentProperties {
+        id: kept
+        reloadableId: "torus-nightlight"
+        property bool on: false
+        property int temperature: 6000
+    }
     property int seen: -1
     readonly property int warm: 5500
     property bool auto: false

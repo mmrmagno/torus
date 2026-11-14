@@ -43,7 +43,7 @@ PanelWindow {
     Timer {
         interval: 1000
         repeat: true
-        running: donut.living && win.shown
+        running: donut.living && donut.live
         onTriggered: Store.reportLife(win.screen ? win.screen.name : "", donut.spin.toFixed(2) + ":" + donut.breath.toFixed(2) + ":" + donut.peakBank.toFixed(1) + ":" + donut.peakKick.toFixed(2))
     }
 
@@ -58,6 +58,7 @@ PanelWindow {
         shape: Store.wallFor(win.screen ? win.screen.name : "") === "xwing" ? "xwing" : "torus"
         live: win.shown && !win.fullscreen && !Store.gamemode && !Store.donutPaused && !Store.locked && !Calm.active
         cellH: win.screen ? Math.max(8, Math.round(Math.min(win.screen.width, win.screen.height) * 0.5 / (Store.wallFor(win.screen ? win.screen.name : "") === "xwing" ? DonutClock.h * 2 : DonutClock.h))) : 16
+        onLiveChanged: if (!live) Store.reportLife(win.screen ? win.screen.name : "", "paused")
         onFrame: {
             win.frames++
             Store.reportFrames(win.screen.name, win.frames)

@@ -8,6 +8,13 @@ import Qt.labs.folderlistmodel
 Singleton {
     id: root
 
+    PersistentProperties {
+        id: kept
+        reloadableId: "torus-store"
+        property bool dnd: false
+        property bool stayAwake: false
+    }
+
     readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/torus"
     readonly property var barPresets: ["full", "compact"]
     property string barPreset: "full"
@@ -30,10 +37,14 @@ Singleton {
         return list.length > 0 ? list[0] : null
     }
     property int notifCount: 0
-    property bool dnd: false
+    property alias dnd: kept.dnd
     property bool osdVisible: false
     property bool gamemode: false
     property var altTabber: null
+    property var rulerView: null
+    property string rulerShot: ""
+    property string pendingCut: ""
+    property string rulerLast: ""
     property bool donutPaused: false
     property bool locked: false
 
@@ -144,7 +155,10 @@ Singleton {
     property var closedAt: ({})
 
     property string themeSection: ""
-    property bool stayAwake: false
+    property alias stayAwake: kept.stayAwake
+    property string focusLabel: ""
+    property bool widgetsQuiet: false
+    property string mixerShown: ""
     property var screenOf: ({})
     property var pendingScreen: null
 
@@ -206,7 +220,10 @@ Singleton {
 
     property var soundAt: ({})
 
+    property string soundAsked: ""
+
     function sound(ev) {
+        soundAsked = ev
         if (!sounds || !Feel.soundOn(ev))
             return
         const now = Date.now()
@@ -216,6 +233,22 @@ Singleton {
         a[ev] = now
         soundAt = a
         Quickshell.execDetached(["torus-sound", "play", ev, String(Feel.soundVolume)])
+    }
+
+    signal trashed(string name, int count)
+    signal restored()
+
+    function trash(path) {
+        trashMany([path])
+    }
+
+    function trashMany(paths) {
+        const list = paths.filter(p => p)
+        if (list.length === 0)
+            return
+        Quickshell.execDetached(["torus-trash", "put"].concat(list))
+        sound("delete")
+        trashed(list[0].split("/").pop(), list.length)
     }
 
     function setSounds(on) {
@@ -257,6 +290,13 @@ Singleton {
         }
         open = o
     }
+
+    property string captureSel: ""
+    property string clipsInfo: ""
+    property string look: ""
+    property string sheetTitle: ""
+    property bool ocrEmpty: false
+    readonly property bool popupsRest: isOpen("center") || isOpen("network") || isOpen("updates") || isOpen("session") || isOpen("ai")
 
     function isOpen(name) {
         return open[name] === true

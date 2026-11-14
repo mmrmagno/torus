@@ -10,5 +10,5 @@ Chip {
     iconColor: Net.online ? Theme.accent : Theme.red
     label: Net.online ? "" : "offline"
     onClicked: Store.toggleOn("network", QsWindow.window ? QsWindow.window.screen : null)
-    onRightClicked: Quickshell.execDetached(["nm-connection-editor"])
+    onRightClicked: Quickshell.execDetached(["torus-launch", "nm-connection-editor"])
 }

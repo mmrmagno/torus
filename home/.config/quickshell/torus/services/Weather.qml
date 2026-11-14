@@ -8,6 +8,8 @@ Singleton {
     id: root
 
     property bool ok: false
+    property bool tried: false
+    readonly property bool busy: proc.running
     property string temp: "--"
     property string feels: "--"
     property string desc: "weather unavailable"
@@ -72,6 +74,7 @@ Singleton {
             }
         }
         onExited: code => {
+            root.tried = true
             if (code !== 0) {
                 root.ok = false
                 root.desc = "weather unavailable"

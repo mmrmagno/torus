@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+import json, os, re, subprocess, sys, threading
+
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "torus")
+SEEN = os.path.join(STATE, "gpu-resets")
+RING = re.compile(r"ring (\S+) timeout")
+PROC = re.compile(r"Process (\S+) pid \d+")
+DONE = re.compile(r"GPU reset\((\d+)\) (succeeded|failed)")
+QUIET = 5
+NAMES = {"cs2": "Counter-Strike 2", "gpu-screen-reco": "the clip recorder", "Xwayland": "an X11 app", "Hyprland": "Hyprland"}
+
+
+def boot_id():
+    try:
+        return open("/proc/sys/kernel/random/boot_id").read().strip()
+    except OSError:
+        return "unknown"
+
+
+def seen():
+    try:
+        b, n = open(SEEN).read().split()
+        return int(n) if b == boot_id() else 0
+    except (OSError, ValueError):
+        return 0
+
+
+def mark(n):
+    os.makedirs(STATE, exist_ok=True)
+    tmp = SEEN + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(f"{boot_id()} {n}\n")
+    os.replace(tmp, SEEN)
+
+
+class Watch:
+    def __init__(self):
+        self.ring = ""
+        self.culprit = ""
+        self.encoder = False
+        self.resets = 0
+
+    def feed(self, line):
+        m = RING.search(line)
+        if m:
+            self.ring = m.group(1)
+            self.culprit = ""
+            if self.ring.startswith("vcn"):
+                self.encoder = True
+            return None
+        m = PROC.search(line)
+        if m and self.ring and not self.culprit:
+            self.culprit = m.group(1)
+            return None
+        m = DONE.search(line)
+        if m:
+            self.resets = max(self.resets, int(m.group(1)))
+            return self.event(m.group(2) == "succeeded")
+        return None
+
+    def event(self, ok):
+        who = NAMES.get(self.culprit, self.culprit) if self.culprit else ""
+        return {"resets": self.resets, "culprit": self.culprit, "who": who, "encoder": self.encoder, "recovered": ok}
+
+
+def text(ev, later=False):
+    who = ev["who"]
+    head = (who[0].upper() + who[1:] + " froze the GPU" if who else "The GPU froze") + " and the driver reset it"
+    if later:
+        head += " (that is why the session restarted)"
+    parts = [head + "."]
+    if ev["encoder"]:
+        parts.append("The video encoder stays broken until a reboot, so game clips are off.")
+    parts.append("A reboot gives a clean GPU." if ev["recovered"] else "The reset failed, reboot now.")
+    return " ".join(parts)
+
+
+def notify(ev, later=False):
+    title = "GPU reset" + (f" ({ev['resets']} this boot)" if ev["resets"] > 1 else "")
+    try:
+        r = subprocess.run(["notify-send", "-a", "torus", "-i", "dialog-warning", "--wait",
+                            "-A", "reboot=Reboot now", "-A", "later=Later", title, text(ev, later)],
+                           capture_output=True, text=True, timeout=3600)
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    if r.stdout.strip() == "reboot":
+        subprocess.run(["qs", "-c", "torus", "ipc", "call", "torus", "logoutToggle"], capture_output=True, timeout=5)
+
+
+def announce(ev, later=False):
+    if ev["resets"] <= seen():
+        return
+    mark(ev["resets"])
+    print(json.dumps(ev), flush=True)
+    threading.Thread(target=notify, args=(ev, later)).start()
+
+
+def scan(lines):
+    w = Watch()
+    last = None
+    for line in lines:
+        ev = w.feed(line)
+        if ev:
+            last = ev
+    return w, last
+
+
+def follow():
+    try:
+        past = subprocess.run(["journalctl", "-k", "-b", "-q", "--no-pager", "-o", "cat", "-g", "ring .* timeout|Process .* pid|GPU reset\\("],
+                              capture_output=True, text=True, timeout=20).stdout.splitlines()
+    except (OSError, subprocess.TimeoutExpired):
+        past = []
+    w, last = scan(past)
+    if last:
+        announce(last, later=True)
+    p = subprocess.Popen(["journalctl", "-k", "-f", "-n", "0", "-q", "-o", "cat"], stdout=subprocess.PIPE, text=True)
+    timer = None
+    while True:
+        line = p.stdout.readline()
+        if not line:
+            break
+        ev = w.feed(line)
+        if ev:
+            if timer:
+                timer.cancel()
+            timer = threading.Timer(QUIET, announce, args=(ev,))
+            timer.start()
+    p.wait()
+
+
+def replay(path):
+    w, _ = scan([])
+    with open(path) as f:
+        for line in f:
+            ev = w.feed(line)
+            if ev:
+                print(json.dumps(dict(ev, text=text(ev))), flush=True)
+
+
+a = sys.argv[1:]
+if a == ["follow"]:
+    follow()
+elif len(a) == 2 and a[0] == "replay":
+    replay(a[1])
+else:
+    sys.exit("usage: torus-gpuwatch follow | replay FILE")

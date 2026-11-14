@@ -7,8 +7,15 @@ import qs
 Singleton {
     id: root
 
-    property string type: "none"
-    property string name: ""
+    property alias type: kept.type
+    property alias name: kept.name
+
+    PersistentProperties {
+        id: kept
+        reloadableId: "torus-net"
+        property string type: "none"
+        property string name: ""
+    }
     readonly property bool online: type !== "none"
     property bool known: false
     onOnlineChanged: if (known) Store.sound(online ? "online" : "offline")

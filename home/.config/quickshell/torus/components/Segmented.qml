@@ -9,10 +9,22 @@ Rectangle {
     property string current: ""
     signal picked(string value)
 
+    function step(dir) {
+        const i = options.indexOf(current)
+        const n = Math.max(0, Math.min(options.length - 1, (i < 0 ? 0 : i) + dir))
+        if (options.length && options[n] !== current)
+            picked(options[n])
+    }
+    activeFocusOnTab: visible
+    onActiveFocusChanged: if (activeFocus) Store.focusLabel = "segmented:" + current
+    Keys.onLeftPressed: step(-1)
+    Keys.onRightPressed: step(1)
     implicitWidth: row.implicitWidth + 6
     implicitHeight: 30
     radius: height / 2
     color: Theme.surface0
+
+    FocusRing { on: root.activeFocus; baseRadius: root.radius }
 
     Rectangle {
         id: thumb

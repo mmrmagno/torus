@@ -57,6 +57,13 @@ PanelWindow {
 
     Rectangle {
         id: sessFrame
+        Connections {
+            target: root
+            function onVisibleChanged() {
+                if (root.visible)
+                    sessFrame.forceActiveFocus()
+            }
+        }
         focus: true
         Keys.onEscapePressed: Store.setOpen("session", false)
         PanelMotion {
@@ -67,7 +74,7 @@ PanelWindow {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 32, root.implicitHeight)
+        height: Math.min(body.implicitHeight + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.TopRight
         radius: Theme.rPanel
@@ -77,14 +84,18 @@ PanelWindow {
         clip: true
 
         Flickable {
+            id: scroller
             anchors.fill: parent
-            anchors.margins: 16
-            contentHeight: body.implicitHeight
+            anchors.margins: 11
+            anchors.bottomMargin: 16 + hintBar.height + Theme.sp5
+            contentHeight: body.implicitHeight + 10
             clip: true
 
             ColumnLayout {
                 id: body
-                width: parent.width
+                x: 5
+                y: 5
+                width: parent.width - 10
                 spacing: Theme.sp5
 
                 RowLayout {
@@ -224,6 +235,17 @@ PanelWindow {
                     }
                 }
             }
+        }
+
+        ScrollFade { flick: scroller }
+
+        KeyHints {
+            id: hintBar
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 16
+            hints: [["Tab", "move"], ["↵", "press"], ["Esc", "close"]]
         }
     }
 

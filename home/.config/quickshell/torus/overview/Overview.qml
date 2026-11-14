@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Widgets
 import qs
+import qs.components
 
 PanelWindow {
     id: root
@@ -19,7 +20,7 @@ PanelWindow {
     }
 
     screen: Store.screenFor("overview")
-    visible: Store.isOpen("overview")
+    visible: Store.isOpen("overview") || motion.leaving
     onVisibleChanged: if (visible) Hyprland.refreshToplevels()
     anchors {
         top: true
@@ -31,12 +32,19 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "torus-panel"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    WlrLayershell.keyboardFocus: Store.isOpen("overview") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     Loader {
+        id: stageHost
         anchors.fill: parent
         active: root.visible
         sourceComponent: content
+        PanelMotion {
+            id: motion
+            target: stageHost
+            shown: Store.isOpen("overview")
+            from: 0.98
+        }
     }
 
     Component {
@@ -115,7 +123,6 @@ PanelWindow {
                     border.color: target ? Theme.green : (active ? Theme.accent : Theme.surface1)
                     scale: target ? 1.04 : 1
                     Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
-                    clip: true
 
 
                     TapHandler {
@@ -152,10 +159,11 @@ PanelWindow {
                     property bool settled: false
                     visible: tileItem !== null
                     opacity: stage.dragging === modelData ? 0.3 : 1
-                    width: Math.min(tw, Math.max(12, (ipc.size ? ipc.size[0] : 400) * root.scale))
-                    height: Math.min(th, Math.max(12, (ipc.size ? ipc.size[1] : 300) * root.scale))
-                    x: tileItem ? grid.x + tileItem.x + Math.max(0, Math.min(tw - width, ((ipc.at ? ipc.at[0] : 0) - (root.monitor ? root.monitor.x : 0)) * root.scale)) : 0
-                    y: tileItem ? grid.y + tileItem.y + Math.max(0, Math.min(th - height, ((ipc.at ? ipc.at[1] : 0) - (root.monitor ? root.monitor.y : 0)) * root.scale)) : 0
+                    readonly property real pad: 4
+                    width: Math.min(tw - 2 * pad, Math.max(12, (ipc.size ? ipc.size[0] : 400) * root.scale))
+                    height: Math.min(th - 2 * pad, Math.max(12, (ipc.size ? ipc.size[1] : 300) * root.scale))
+                    x: tileItem ? grid.x + tileItem.x + Math.max(pad, Math.min(tw - width - pad, ((ipc.at ? ipc.at[0] : 0) - (root.monitor ? root.monitor.x : 0)) * root.scale)) : 0
+                    y: tileItem ? grid.y + tileItem.y + Math.max(pad, Math.min(th - height - pad, ((ipc.at ? ipc.at[1] : 0) - (root.monitor ? root.monitor.y : 0)) * root.scale)) : 0
                     Behavior on x { enabled: thumb.settled; NumberAnimation { duration: Theme.durSlow; easing.type: Easing.OutCubic } }
                     Behavior on y { enabled: thumb.settled; NumberAnimation { duration: Theme.durSlow; easing.type: Easing.OutCubic } }
                     Behavior on width { enabled: thumb.settled; NumberAnimation { duration: Theme.durSlow; easing.type: Easing.OutCubic } }
@@ -180,12 +188,12 @@ PanelWindow {
                         }
                     }
 
-                    Rectangle {
+                    ClippingRectangle {
                         anchors.fill: parent
-                        radius: 4
+                        radius: Math.max(0, Theme.radius - thumb.pad)
                         color: Theme.surface0
-                        visible: !cap.hasContent
                         IconImage {
+                            visible: !cap.hasContent
                             anchors.centerIn: parent
                             implicitSize: Math.min(parent.width, parent.height) * 0.45
                             source: {
@@ -195,17 +203,17 @@ PanelWindow {
                                 return Quickshell.iconPath(e ? e.icon : id.toLowerCase(), "application-x-executable")
                             }
                         }
-                    }
-                    ScreencopyView {
-                        id: cap
-                        anchors.fill: parent
-                        captureSource: thumb.modelData.wayland
-                        live: root.visible && thumb.modelData.workspace !== null && thumb.modelData.workspace.active
+                        ScreencopyView {
+                            id: cap
+                            anchors.fill: parent
+                            captureSource: thumb.modelData.wayland
+                            live: root.visible && thumb.modelData.workspace !== null && thumb.modelData.workspace.active
+                        }
                     }
                     Rectangle {
                         anchors.fill: parent
                         color: "transparent"
-                        radius: 4
+                        radius: Math.max(0, Theme.radius - thumb.pad)
                         border.width: 1
                         border.color: thumbHover.hovered ? Theme.accent : Qt.alpha(Theme.accent, 0.4)
                     }
@@ -263,6 +271,13 @@ PanelWindow {
             }
         }
 
+        HintPill {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 24
+            hints: [["1 … 0", "jump"], ["click", "go there"], ["drag", "move a window"], ["Esc", "close"]]
+        }
+
         Item {
             visible: stage.dragging !== null
             x: stage.dragPos.x - width / 2
@@ -270,10 +285,15 @@ PanelWindow {
             width: stage.dragSize.width * 1.1
             height: stage.dragSize.height * 1.1
             z: 10
-            ScreencopyView {
+            ClippingRectangle {
                 anchors.fill: parent
-                captureSource: stage.dragging ? stage.dragging.wayland : null
-                live: stage.dragging !== null
+                radius: 6
+                color: "transparent"
+                ScreencopyView {
+                    anchors.fill: parent
+                    captureSource: stage.dragging ? stage.dragging.wayland : null
+                    live: stage.dragging !== null
+                }
             }
             Rectangle {
                 anchors.fill: parent

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs
+import qs.components
 import qs.services
 
 Column {
@@ -51,19 +52,56 @@ Column {
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fsXs
             }
-            HoverHandler { id: todayHover; cursorShape: todayBtn.away ? Qt.PointingHandCursor : Qt.ArrowCursor }
-            TapHandler {
-                onTapped: {
-                    root.shown = new Date(root.today.getFullYear(), root.today.getMonth(), 1)
-                    root.picked = root.today
-                }
+            function go() {
+                root.shown = new Date(root.today.getFullYear(), root.today.getMonth(), 1)
+                root.picked = root.today
             }
+            activeFocusOnTab: away
+            onActiveFocusChanged: if (activeFocus) Store.focusLabel = "today"
+            Keys.onReturnPressed: go()
+            Keys.onEnterPressed: go()
+            Keys.onSpacePressed: go()
+            FocusRing { on: todayBtn.activeFocus; baseRadius: todayBtn.radius }
+            HoverHandler { id: todayHover; cursorShape: todayBtn.away ? Qt.PointingHandCursor : Qt.ArrowCursor }
+            TapHandler { onTapped: todayBtn.go() }
         }
         Item { width: 6; height: 1 }
-        Text { text: "󰅁"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsXl; width: 30
-            TapHandler { onTapped: root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() - 1, 1) } }
-        Text { text: "󰅂"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.fsXl; width: 30
-            TapHandler { onTapped: root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() + 1, 1) } }
+        Text {
+            id: prevMonth
+            text: "󰅁"
+            color: Theme.accent
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fsXl
+            width: 30
+            horizontalAlignment: Text.AlignHCenter
+            function go() { root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() - 1, 1) }
+            activeFocusOnTab: true
+            onActiveFocusChanged: if (activeFocus) Store.focusLabel = "previous month"
+            Keys.onReturnPressed: go()
+            Keys.onEnterPressed: go()
+            Keys.onSpacePressed: go()
+            FocusRing { on: prevMonth.activeFocus; pad: 0 }
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: prevMonth.go() }
+        }
+        Text {
+            id: nextMonth
+            text: "󰅂"
+            color: Theme.accent
+            font.family: Theme.fontMono
+            font.pixelSize: Theme.fsXl
+            width: 30
+            horizontalAlignment: Text.AlignHCenter
+            function go() { root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() + 1, 1) }
+            activeFocusOnTab: true
+            onActiveFocusChanged: if (activeFocus) Store.focusLabel = "next month"
+            Keys.onReturnPressed: go()
+            Keys.onEnterPressed: go()
+            Keys.onSpacePressed: go()
+            FocusRing { on: nextMonth.activeFocus; pad: 0 }
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: nextMonth.go() }
+        }
     }
 
     Grid {

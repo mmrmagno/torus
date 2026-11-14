@@ -18,7 +18,7 @@ play() {
     [[ -s $out ]] || { mkdir -p "$cache"; ffmpeg -loglevel quiet -y -i "$src" -af "adelay=350:all=1" "$out" < /dev/null || out=$src; }
     src=$out
   fi
-  setsid -f pw-play --volume "$vol" "$src" > /dev/null 2>&1 < /dev/null
+  setsid -f pw-play --media-role Event --volume "$vol" "$src" > /dev/null 2>&1 < /dev/null
 }
 
 case ${1:-status} in

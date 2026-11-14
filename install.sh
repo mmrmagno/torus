@@ -215,7 +215,7 @@ fi
 stamp=$(date +%Y%m%d-%H%M%S)
 attic=$home/.local/share/torus/attic/$stamp
 skip=(.config/hypr/monitors.lua)
-linked=0 kept=0 moved=0
+linked=0 kept=0 moved=0 newshell=0
 
 act() {
   if ((dry_run)); then
@@ -233,6 +233,7 @@ while IFS= read -r -d '' src; do
     kept=$((kept + 1))
     continue
   fi
+  [[ $rel == .config/quickshell/* && ! -e $dst ]] && newshell=1
   if [[ -e $dst || -L $dst ]]; then
     act mkdir -p "$(dirname "$attic/$rel")"
     act mv "$dst" "$attic/$rel"
@@ -253,7 +254,8 @@ if ((!no_packages)); then
 fi
 if ((!dry_run)) && [[ $home == "$HOME" ]]; then
   "$REPO/home/.local/bin/torus" setup
+  "$REPO/home/.local/bin/torus-gsi" install --quiet || true
   hyprctl monitors > /dev/null 2>&1 && "$REPO/home/.local/bin/torus-reload" || true
-  "$REPO/home/.local/bin/torus-doctor" --reload-shell > /dev/null 2>&1 || true
+  "$REPO/home/.local/bin/torus-doctor" --reload-shell "$( ((newshell)) && echo --restart)" > /dev/null 2>&1 || true
 fi
 exit 0

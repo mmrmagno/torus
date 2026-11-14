@@ -112,12 +112,9 @@ PanelWindow {
                             font.family: Theme.fontUi
                             font.pixelSize: Theme.fsLg
                         }
-                        Text {
+                        Keycap {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: parent.parent.modelData.key
-                            color: Theme.overlay
-                            font.family: Theme.fontMono
-                            font.pixelSize: Theme.fsSm
+                            text: parent.parent.modelData.key.toUpperCase()
                         }
                     }
 

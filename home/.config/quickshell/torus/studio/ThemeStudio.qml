@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Widgets
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
@@ -50,7 +51,7 @@ PanelWindow {
         if (!loader.running)
             loader.running = true
         Qt.callLater(() => {
-            const target = Store.themeSection === "wallpaper" ? wallHeading : (Store.themeSection === "feel" ? feelHeading : null)
+            const target = Store.themeSection === "wallpaper" ? wallHeading : (Store.themeSection === "feel" || Store.themeSection === "lock" ? feelHeading : null)
             flick.contentY = target ? Math.max(0, Math.min(target.y - 8, flick.contentHeight - flick.height)) : 0
         })
     }
@@ -95,6 +96,13 @@ PanelWindow {
 
     Rectangle {
         id: studioFrame
+        Connections {
+            target: root
+            function onVisibleChanged() {
+                if (root.visible)
+                    studioFrame.forceActiveFocus()
+            }
+        }
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -117,14 +125,16 @@ PanelWindow {
         Flickable {
             id: flick
             anchors.fill: parent
-            anchors.margins: 20
-            contentHeight: body.implicitHeight
+            anchors.margins: 15
+            contentHeight: body.implicitHeight + 10
             clip: true
             boundsBehavior: Flickable.StopAtBounds
 
             ColumnLayout {
                 id: body
-                width: parent.width
+                x: 5
+                y: 5
+                width: parent.width - 10
                 spacing: Theme.sp6
 
                 RowLayout {
@@ -229,23 +239,32 @@ PanelWindow {
                             width: 208
                             height: 117
                             radius: Theme.rCard
-                            border.width: on ? 2 : 1
-                            border.color: on ? Theme.accent : (wallHover.hovered ? Theme.surface1 : Qt.alpha(Theme.surface1, 0.5))
                             gradient: Gradient {
                                 GradientStop { position: 0; color: Theme.base }
                                 GradientStop { position: 1; color: Theme.mantle }
                             }
                             scale: wallHover.hovered && !on ? 1.03 : 1
                             Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
-                            clip: true
-                            Image {
+                            ClippingRectangle {
                                 visible: wall.still
                                 anchors.fill: parent
-                                anchors.margins: 2
-                                source: wall.still ? "file://" + wall.modelData.slice(6) : ""
-                                sourceSize: Qt.size(416, 234)
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
+                                radius: wall.radius
+                                color: "transparent"
+                                Image {
+                                    anchors.fill: parent
+                                    source: wall.still ? "file://" + wall.modelData.slice(6) : ""
+                                    sourceSize: Qt.size(416, 234)
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                }
+                            }
+                            Rectangle {
+                                anchors.fill: parent
+                                z: 5
+                                radius: wall.radius
+                                color: "transparent"
+                                border.width: wall.on ? 2 : 1
+                                border.color: wall.on ? Theme.accent : (wallHover.hovered ? Theme.surface1 : Qt.alpha(Theme.surface1, 0.5))
                             }
                             Loader {
                                 active: !wall.still && root.visible
@@ -308,7 +327,7 @@ PanelWindow {
                             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "~/Pictures/wallpapers"; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
                         }
                         HoverHandler { id: addHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: Quickshell.execDetached(["sh", "-c", "mkdir -p \"$HOME/Pictures/wallpapers\" && xdg-open \"$HOME/Pictures/wallpapers\""]) }
+                        TapHandler { onTapped: Quickshell.execDetached(["torus-launch", "sh", "-c", "mkdir -p \"$HOME/Pictures/wallpapers\" && xdg-open \"$HOME/Pictures/wallpapers\""]) }
                     }
                 }
 
@@ -411,6 +430,8 @@ PanelWindow {
                 FeelSection {}
             }
         }
+
+        ScrollFade { flick: flick }
     }
 
     component Heading: Text {

@@ -28,6 +28,10 @@ PanelWindow {
         Commands.query = ""
         list.currentIndex = 0
         search.forceActiveFocus()
+        if (Commands.pendingScope !== "") {
+            Commands.setScope(Commands.pendingScope)
+            Commands.pendingScope = ""
+        }
     }
 
     Connections {

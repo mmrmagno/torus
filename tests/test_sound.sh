@@ -18,7 +18,7 @@ sleep 0.2
 assert_eq on "$("$T" on)" "on"
 for ev in open lock unlock shot; do "$T" play $ev; done
 for _ in $(seq 20); do [[ $(grep -c . "$STUB_LOG" 2> /dev/null) == 4 ]] && break; sleep 0.1; done
-grep -q "pw-play --volume 0.35 $F/sounds/audio-volume-change.oga" "$STUB_LOG" || fail "panel click: $(cat "$STUB_LOG")"
+grep -q "pw-play --media-role Event --volume 0.35 $F/sounds/audio-volume-change.oga" "$STUB_LOG" || fail "panel click: $(cat "$STUB_LOG")"
 grep -q "service-logout.oga" "$STUB_LOG" || fail "lock chime"
 grep -q "service-login.oga" "$STUB_LOG" || fail "unlock chime"
 grep -q "camera-shutter.oga" "$STUB_LOG" || fail "shutter"
@@ -41,7 +41,7 @@ export XDG_CACHE_HOME=$F/cache
 "$T" play tick
 for _ in $(seq 20); do grep -q pw-play "$STUB_LOG" && break; sleep 0.1; done
 grep -q 'ffmpeg .*adelay=350' "$STUB_LOG" || fail "a sleeping output gets a lead-in"
-grep -q "pw-play --volume 0.3 $F/cache/torus/sounds/audio-volume-change-lead.wav" "$STUB_LOG" || fail "the lead-in copy plays: $(cat "$STUB_LOG")"
+grep -q "pw-play --media-role Event --volume 0.3 $F/cache/torus/sounds/audio-volume-change-lead.wav" "$STUB_LOG" || fail "the lead-in copy plays: $(cat "$STUB_LOG")"
 : > "$STUB_LOG"
 "$T" play tick
 for _ in $(seq 20); do grep -q pw-play "$STUB_LOG" && break; sleep 0.1; done
@@ -50,7 +50,7 @@ sed -i 's/SUSPENDED/RUNNING/' "$F/bin/pactl"
 : > "$STUB_LOG"
 "$T" play tick
 for _ in $(seq 20); do grep -q pw-play "$STUB_LOG" && break; sleep 0.1; done
-grep -q "pw-play --volume 0.3 $F/sounds/audio-volume-change.oga" "$STUB_LOG" || fail "an awake output plays at once"
+grep -q "pw-play --media-role Event --volume 0.3 $F/sounds/audio-volume-change.oga" "$STUB_LOG" || fail "an awake output plays at once"
 assert_fails "$T" play bogus
 "$T" off > /dev/null
 assert_eq off "$("$T" status)" "off again"
@@ -61,4 +61,4 @@ sleep 0.3
 grep -q "pw-play" "$STUB_LOG" && fail "play stays silent while sounds are off"
 "$T" preview tick 0.5
 for _ in $(seq 20); do grep -q pw-play "$STUB_LOG" && break; sleep 0.1; done
-grep -q "pw-play --volume 0.15 $F/sounds/audio-volume-change.oga" "$STUB_LOG" || fail "preview plays even when off, scaled by the volume slider: $(cat "$STUB_LOG")"
+grep -q "pw-play --media-role Event --volume 0.15 $F/sounds/audio-volume-change.oga" "$STUB_LOG" || fail "preview plays even when off, scaled by the volume slider: $(cat "$STUB_LOG")"

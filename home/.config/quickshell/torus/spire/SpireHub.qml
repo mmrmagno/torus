@@ -43,10 +43,17 @@ PanelWindow {
 
     Rectangle {
         id: hubFrame
+        Connections {
+            target: root
+            function onVisibleChanged() {
+                if (root.visible)
+                    hubFrame.forceActiveFocus()
+            }
+        }
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 40, root.implicitHeight)
+        height: Math.min(body.implicitHeight + 40 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.Top
         focus: true
@@ -69,15 +76,19 @@ PanelWindow {
         clip: true
 
         Flickable {
+            id: scroller
             anchors.fill: parent
-            anchors.margins: 20
-            contentHeight: body.implicitHeight
+            anchors.margins: 15
+            anchors.bottomMargin: 20 + hintBar.height + Theme.sp5
+            contentHeight: body.implicitHeight + 10
             boundsBehavior: Flickable.StopAtBounds
             clip: true
 
             ColumnLayout {
                 id: body
-                width: parent.width
+                x: 5
+                y: 5
+                width: parent.width - 10
                 spacing: Theme.sp6
 
                 RowLayout {
@@ -223,8 +234,8 @@ PanelWindow {
                                     title: amtRow.modelData.node + (amtRow.modelData.up ? "  ·  reachable" : "  ·  not reachable")
                                     sub: "TCP 16993 from this workstation"
                                 }
-                                PanelButton { icon: "󰍹"; label: "Console"; implicitHeight: 30; onClicked: Quickshell.execDetached(["torus-launch", "kitty", "--class", "torus-amt", "-e", "amt"]) }
-                                PanelButton { icon: "󰖟"; label: "Web"; implicitHeight: 30; onClicked: root.browse(amtRow.modelData.web) }
+                                PanelButton { icon: "󰢹"; label: Spire.kvmBusy ? "Starting…" : "Remote KVM"; active: true; implicitHeight: 30; onClicked: Spire.kvm() }
+                                PanelButton { icon: "󰖟"; label: "AMT web"; implicitHeight: 26; onClicked: root.browse(amtRow.modelData.web) }
                             }
                         }
                     }
@@ -243,6 +254,17 @@ PanelWindow {
                     }
                 }
             }
+        }
+
+        ScrollFade { flick: scroller }
+
+        KeyHints {
+            id: hintBar
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 20
+            hints: [["R", "refresh"], ["Tab", "move"], ["↵", "press"], ["Esc", "close"]]
         }
     }
 }

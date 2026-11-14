@@ -149,7 +149,7 @@ PanelWindow {
                         anchors.fill: search
                         verticalAlignment: Text.AlignVCenter
                         visible: search.text === ""
-                        text: "search by name, command or PID   ·   ↑↓ select   ·   Del stop   ·   Tab sort"
+                        text: "search by name, command or PID"
                         color: Theme.overlay
                         font: search.font
                         elide: Text.ElideRight
@@ -202,7 +202,7 @@ PanelWindow {
                             Layout.fillWidth: true
                             spacing: 0
                             Text { Layout.fillWidth: true; text: row.modelData.name; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                            Text { Layout.fillWidth: true; text: row.modelData.cmd; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs; elide: Text.ElideMiddle }
+                            Text { Layout.fillWidth: true; text: row.modelData.cmd.replace(/\s+/g, " "); maximumLineCount: 1; textFormat: Text.PlainText; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs; elide: Text.ElideMiddle }
                         }
                         Cell { text: row.modelData.pid; Layout.preferredWidth: 64; dim: true }
                         Cell { text: row.modelData.cpu.toFixed(1) + "%"; Layout.preferredWidth: 64; hot: row.modelData.cpu > 50 }
@@ -229,12 +229,19 @@ PanelWindow {
                 }
             }
 
-            Text {
+            RowLayout {
                 Layout.fillWidth: true
-                text: root.status !== "" ? root.status : root.shown.length + " of " + root.all.filter(p => !root.mineOnly || p.mine).length + " processes · CPU is the share of all cores"
-                color: root.status !== "" ? Theme.green : Theme.overlay
-                font.family: Theme.fontUi
-                font.pixelSize: Theme.fsXs
+                spacing: Theme.sp5
+                KeyHints {
+                    Layout.fillWidth: true
+                    hints: [["↑ / ↓", "select"], ["Del", "stop"], ["Tab", "sort"], ["Esc", "close"]]
+                }
+                Text {
+                    text: root.status !== "" ? root.status : root.shown.length + " of " + root.all.filter(p => !root.mineOnly || p.mine).length + " processes · CPU is the share of all cores"
+                    color: root.status !== "" ? Theme.green : Theme.overlay
+                    font.family: Theme.fontUi
+                    font.pixelSize: Theme.fsXs
+                }
             }
         }
     }

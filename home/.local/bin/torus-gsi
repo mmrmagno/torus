@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+import glob
+import hmac
+import json
+import os
+import re
+import secrets
+import subprocess
+import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+HOME = os.path.expanduser("~")
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME", HOME + "/.local/state"), "torus")
+TOKEN = os.path.join(STATE, "gsi-token")
+MATCH = os.path.join(STATE, "gsi-match.json")
+PENDING = os.path.join(STATE, "gsi-pending")
+STEAM = os.environ.get("TORUS_STEAM", os.path.join(HOME, ".local/share/Steam"))
+PORT = int(os.environ.get("TORUS_GSI_PORT", "3471"))
+CFG_NAME = "gamestate_integration_torus.cfg"
+APPID = "730"
+SAVE_DELAY = float(os.environ.get("TORUS_GSI_SAVE_DELAY", "2"))
+
+
+def load(path, default):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def save(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".new"
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=1)
+    os.replace(tmp, path)
+
+
+def token():
+    try:
+        t = open(TOKEN).read().strip()
+        if re.fullmatch(r"[0-9a-f]{32,}", t):
+            return t
+    except OSError:
+        pass
+    os.makedirs(STATE, exist_ok=True)
+    t = secrets.token_hex(24)
+    fd = os.open(TOKEN, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(t + "\n")
+    return t
+
+
+def settings():
+    out = subprocess.run(["torus-play", "settings", APPID], capture_output=True, text=True, timeout=5).stdout
+    try:
+        return json.loads(out)
+    except ValueError:
+        return {}
+
+
+def libraries():
+    roots = [STEAM]
+    vdf = os.path.join(STEAM, "steamapps", "libraryfolders.vdf")
+    try:
+        roots += re.findall(r'"path"\s+"([^"]+)"', open(vdf).read())
+    except OSError:
+        pass
+    seen, out = set(), []
+    for r in roots:
+        r = os.path.realpath(r)
+        if r not in seen:
+            seen.add(r)
+            out.append(r)
+    return out
+
+
+def cfg_dir():
+    for lib in libraries():
+        d = os.path.join(lib, "steamapps", "common", "Counter-Strike Global Offensive", "game", "csgo", "cfg")
+        if os.path.isdir(d):
+            return d
+    return ""
+
+
+def cfg_text(tok):
+    return f'''"torus highlights (written by torus-gsi, remove with: torus-gsi uninstall)"
+{{
+ "uri" "http://127.0.0.1:{PORT}/"
+ "timeout" "5.0"
+ "buffer" "0.5"
+ "throttle" "0.5"
+ "heartbeat" "60.0"
+ "auth"
+ {{
+  "token" "{tok}"
+ }}
+ "data"
+ {{
+  "provider" "1"
+  "map" "1"
+  "round" "1"
+  "player_id" "1"
+  "player_state" "1"
+  "player_match_stats" "1"
+ }}
+}}
+'''
+
+
+def cmd_install(quiet):
+    d = cfg_dir()
+    if not d:
+        if not quiet:
+            print("torus-gsi: Counter-Strike 2 is not installed here, nothing to do")
+        return 0
+    path = os.path.join(d, CFG_NAME)
+    text = cfg_text(token())
+    try:
+        if open(path).read() == text:
+            return 0
+    except OSError:
+        pass
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        f.write(text)
+    os.chmod(path, 0o600)
+    if not quiet:
+        print("torus-gsi: wrote " + path + " (CS2 reads it on its next start)")
+    return 0
+
+
+def cmd_uninstall():
+    removed = False
+    for lib in libraries():
+        for p in glob.glob(os.path.join(lib, "steamapps", "common", "Counter-Strike Global Offensive", "game", "csgo", "cfg", CFG_NAME)):
+            os.remove(p)
+            removed = True
+            print("torus-gsi: removed " + p)
+    if not removed:
+        print("torus-gsi: nothing installed")
+    return 0
+
+
+def trigger(kind):
+    os.makedirs(STATE, exist_ok=True)
+    with open(PENDING, "w") as f:
+        f.write(kind + "\n")
+    subprocess.run(["pkill", "-USR1", "-f", "gpu-screen-recorder .*-r "])
+
+
+class Match:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.m = {"map": "", "ct": 0, "t": 0, "team": "", "kills": 0, "deaths": 0, "mvps": 0, "best": 0, "best_round": 0,
+                  "auto": 0, "rounds": 0, "start": time.time()}
+        self.round_kills = 0
+        self.alive = True
+        self.round = -1
+        self.done_round = -1
+
+    def feed(self, j, conf):
+        events = []
+        with self.lock:
+            p = j.get("player") or {}
+            prov = j.get("provider") or {}
+            if p.get("steamid") and prov.get("steamid") and p["steamid"] != prov["steamid"]:
+                return events
+            mp = j.get("map") or {}
+            if mp:
+                self.m["map"] = mp.get("name", self.m["map"])
+                self.m["ct"] = (mp.get("team_ct") or {}).get("score", self.m["ct"])
+                self.m["t"] = (mp.get("team_t") or {}).get("score", self.m["t"])
+                self.round = mp.get("round", self.round)
+            if p.get("team"):
+                self.m["team"] = p["team"]
+            ms = p.get("match_stats") or {}
+            for k in ("kills", "deaths", "mvps"):
+                if k in ms:
+                    self.m[k] = ms[k]
+            st = p.get("state") or {}
+            if "round_kills" in st:
+                self.round_kills = st["round_kills"]
+            if "health" in st:
+                self.alive = st["health"] > 0
+            rnd = j.get("round") or {}
+            if rnd.get("phase") == "over" and self.round != self.done_round:
+                self.done_round = self.round
+                rk = self.round_kills
+                won = rnd.get("win_team", "") != "" and rnd.get("win_team") == self.m["team"]
+                kind = ""
+                if rk >= 5:
+                    kind = "ace"
+                elif rk == 4:
+                    kind = "4k"
+                elif rk == 3:
+                    kind = "3k"
+                if won and self.alive and rk >= 2 and not kind:
+                    kind = "clutch"
+                if rk > self.m["best"]:
+                    self.m["best"], self.m["best_round"] = rk, self.round + 1
+                self.m["rounds"] += 1
+                on = conf.get("highlights", "on") == "on" and conf.get("hl_" + kind, "on") == "on" if kind else False
+                if on:
+                    self.m["auto"] += 1
+                    events.append(kind)
+            save(MATCH, self.m)
+        return events
+
+
+def serve():
+    tok = token()
+    match = Match()
+    state = {"conf": settings(), "at": time.time()}
+
+    class H(BaseHTTPRequestHandler):
+        timeout = 5
+
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):
+            n = int(self.headers.get("Content-Length") or 0)
+            if n <= 0 or n > 1 << 20:
+                self.send_response(400)
+                self.end_headers()
+                return
+            try:
+                j = json.loads(self.rfile.read(n))
+            except ValueError:
+                self.send_response(400)
+                self.end_headers()
+                return
+            got = str(((j.get("auth") or {}).get("token")) or "")
+            if not hmac.compare_digest(got, tok):
+                self.send_response(403)
+                self.end_headers()
+                return
+            if time.time() - state["at"] > 10:
+                state["conf"], state["at"] = settings(), time.time()
+            for kind in match.feed(j, state["conf"]):
+                threading.Timer(SAVE_DELAY, trigger, (kind,)).start()
+            self.send_response(200)
+            self.end_headers()
+
+        def do_GET(self):
+            self.send_response(405)
+            self.end_headers()
+
+    if os.path.exists(MATCH):
+        os.remove(MATCH)
+    HTTPServer(("127.0.0.1", PORT), H).serve_forever()
+
+
+def main():
+    a = sys.argv[1:] or ["status"]
+    if a[0] == "serve":
+        serve()
+    elif a[0] == "install":
+        sys.exit(cmd_install("--quiet" in a))
+    elif a[0] == "uninstall":
+        sys.exit(cmd_uninstall())
+    elif a[0] == "status":
+        d = cfg_dir()
+        print(json.dumps({"cs2": bool(d), "installed": bool(d) and os.path.exists(os.path.join(d, CFG_NAME)), "port": PORT, "match": load(MATCH, {})}))
+    else:
+        sys.exit("usage: torus-gsi serve | install [--quiet] | uninstall | status")
+
+
+if __name__ == "__main__":
+    main()

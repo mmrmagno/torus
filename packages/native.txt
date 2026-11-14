@@ -64,3 +64,4 @@ ttf-cascadia-code-nerd
 cava
 fd
 ddcutil
+qt6-multimedia-ffmpeg

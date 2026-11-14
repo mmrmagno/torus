@@ -1,4 +1,5 @@
 //@ pragma Env QT_QPA_PLATFORMTHEME=qt6ct
+import QtQuick
 import Quickshell
 import qs.bar
 import qs.services
@@ -23,10 +24,16 @@ import qs.palette
 import qs.network
 import qs.updates
 import qs.ocr
+import qs.ruler
 import qs.processes
 import qs.spire
 
 ShellRoot {
+    Component.onCompleted: {
+        DeviceBattery.startedAt = Date.now()
+        GpuWatch.last
+    }
+
     Variants {
         model: Quickshell.screens
         Scope {
@@ -60,6 +67,7 @@ ShellRoot {
     Logout {}
     SessionPanel {}
     OcrPanel {}
+    Ruler {}
     ProcPanel {}
     ThemeStudio {}
     CaptureStudio {}
@@ -77,4 +85,11 @@ ShellRoot {
     Polkit {}
     Lock {}
     Ipc {}
+
+    Connections {
+        target: Quickshell
+        function onReloadCompleted() {
+            Quickshell.inhibitReloadPopup()
+        }
+    }
 }

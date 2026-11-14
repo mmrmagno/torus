@@ -7,15 +7,25 @@ import qs
 Singleton {
     id: root
 
+    PersistentProperties {
+        id: kept
+        reloadableId: "torus-meeting"
+        property bool active: false
+        property bool manual: false
+        property bool dndBefore: false
+        property bool dndMine: false
+        property bool joined: false
+    }
+
     property bool autoOn: true
-    property bool active: false
-    property bool manual: false
-    property bool dndBefore: false
-    property bool dndMine: false
+    property alias active: kept.active
+    property alias manual: kept.manual
+    property alias dndBefore: kept.dndBefore
+    property alias dndMine: kept.dndMine
     property bool setting: false
     readonly property bool wanted: autoOn && InUse.mic && (InUse.cam || Island.sharing)
 
-    property bool joined: false
+    property alias joined: kept.joined
     property bool micSeen: false
 
     function joinCall(url) {
@@ -69,6 +79,8 @@ Singleton {
             setting = false
         }
     }
+
+    Component.onCompleted: if (active && !wanted && !manual && !joined) stopTimer.restart()
 
     onWantedChanged: {
         if (wanted) {
