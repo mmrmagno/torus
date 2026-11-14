@@ -43,4 +43,15 @@ assert_eq 0 "$("$T" status | jq -r .count)" "a reused trash name from another ap
 rm -f "$c"
 assert_fails "$T" undo
 [[ ! -e $c ]] || fail "undo restored another app's file to our old path"
+
+d=$F/Videos/Clips/hades/d.mp4; e=$F/Videos/Clips/hades/e.mp4
+echo d > "$d"; echo e > "$e"
+"$T" put "$d" > /dev/null
+"$T" undo "$e" > "$F/undo.out" &
+sleep 0.4
+"$T" put "$e" > /dev/null
+wait $! || fail "an undo that started before its delete landed gave up: $(cat "$F/undo.out")"
+[[ -f $e ]] || fail "undo brings back the file just deleted"
+[[ ! -e $d ]] || fail "undo restored an older delete instead of the one it was asked for"
+assert_fails timeout 5 "$T" undo "$F/Videos/Clips/hades/never.mp4"
 echo "trashcan: ok"

@@ -75,8 +75,11 @@ Singleton {
     function trashUndo() {
         if (flashKind === "trash")
             dismiss()
-        if (!undoProc.running)
-            undoProc.running = true
+        if (undoProc.running)
+            return
+        undoProc.command = ["torus-trash", "undo"].concat(Store.lastTrash)
+        Store.lastTrash = []
+        undoProc.running = true
     }
 
     function shotAct(what) {

@@ -235,6 +235,7 @@ Singleton {
         Quickshell.execDetached(["torus-sound", "play", ev, String(Feel.soundVolume)])
     }
 
+    property var lastTrash: []
     signal trashed(string name, int count)
     signal restored()
 
@@ -246,6 +247,7 @@ Singleton {
         const list = paths.filter(p => p)
         if (list.length === 0)
             return
+        lastTrash = list
         Quickshell.execDetached(["torus-trash", "put"].concat(list))
         sound("delete")
         trashed(list[0].split("/").pop(), list.length)

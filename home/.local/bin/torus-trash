@@ -106,10 +106,19 @@ def cmd_put(paths):
     return 0 if len(batch) == len(paths) else 1
 
 
-def cmd_undo():
+def cmd_undo(paths, hold):
+    want = {os.path.abspath(p) for p in paths}
+    deadline = time.time() + 3
     d = load()
+    while want and not want <= {e.get("path") for e in d.get("last", [])} and time.time() < deadline:
+        fcntl.flock(hold, fcntl.LOCK_UN)
+        time.sleep(0.05)
+        fcntl.flock(hold, fcntl.LOCK_EX)
+        d = load()
     back = 0
     for e in d.get("last", []):
+        if want and e.get("path") not in want:
+            continue
         src = os.path.join(TRASH, "files", e["name"])
         if time.time() - e.get("at", 0) > UNDO_SECS or not ours(e) or os.path.lexists(e["path"]):
             continue
@@ -164,10 +173,10 @@ if a and a[0] in ("put", "undo", "empty"):
     hold = locked()
 if len(a) >= 2 and a[0] == "put":
     sys.exit(cmd_put(a[1:]))
-elif a == ["undo"]:
-    sys.exit(cmd_undo())
+elif a and a[0] == "undo":
+    sys.exit(cmd_undo(a[1:], hold))
 elif a == ["status"]:
     sys.exit(cmd_status())
 elif a == ["empty"]:
     sys.exit(cmd_empty())
-sys.exit("usage: torus-trash put FILE... | undo | status | empty")
+sys.exit("usage: torus-trash put FILE... | undo [FILE...] | status | empty")
