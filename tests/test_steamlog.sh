@@ -19,6 +19,12 @@ done:Counter-Strike 2:100:0
 stopped:Hades:50:0" "$(jq -r '"\(.state):\(.name):\(.pct):\(.left)"' <<< "$out")" "shader replay: name, percent, time left from the rate, finished, a stalled one stops"
 grep -q '"kind": "shader"' <<< "$out" || fail "events are shader kind"
 
+printf '#!/bin/sh\necho x >> %s/games-calls\nprintf "730\\tCounter-Strike 2\\t0\\t0\\t\\n"\n' "$F" > "$F/bin/torus-games"
+for i in $(seq 1 9); do printf '%s\tshader_log.txt\t%s\n' "$i" "[x] Still replaying 228980 ($((i * 10))%, $((i * 100))/1000)"; done > "$F/unknown.tsv"
+"$S" replay "$F/unknown.tsv" > /dev/null
+assert_eq 1 "$(wc -l < "$F/games-calls")" "an app torus-games does not list (Steamworks, Proton) is looked up once, not on every line"
+printf '#!/bin/sh\nprintf "730\\tCounter-Strike 2\\t0\\t0\\t\\n1145360\\tHades\\t0\\t0\\t\\n413150\\tStardew Valley\\t0\\t0\\t\\n"\n' > "$F/bin/torus-games"
+
 out=$("$S" replay "$REPO/tests/fixtures/steam/content.tsv")
 assert_eq "running:Counter-Strike 2:0:-1:
 running:Counter-Strike 2:5:-1:

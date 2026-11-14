@@ -92,12 +92,14 @@ class Follow:
     def __init__(self, emit):
         self.emit = emit
         self.names = None
+        self.looked = 0.0
         self.shader = {}
         self.download = {}
 
     def name(self, appid):
-        if self.names is None or appid not in self.names:
+        if self.names is None or (appid not in self.names and time.monotonic() - self.looked > 60):
             self.names = names()
+            self.looked = time.monotonic()
         return self.names.get(appid, "App " + appid)
 
     def line(self, src, text, now):

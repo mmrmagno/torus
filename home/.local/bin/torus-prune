@@ -20,8 +20,12 @@ def find(root, depth, names):
     for i, n in enumerate(names):
         cmd += (["-o"] if i else []) + ["-iname", n]
     cmd += [")", "-printf", "%T@\\t%p\\0"]
-    out = subprocess.run(cmd, capture_output=True).stdout
-    return [r.split(b"\t", 1) for r in out.split(b"\0") if b"\t" in r]
+    if not os.path.isdir(root):
+        return []
+    r = subprocess.run(cmd, capture_output=True)
+    if r.returncode != 0:
+        raise OSError("could not read " + root)
+    return [x.split(b"\t", 1) for x in r.stdout.split(b"\0") if b"\t" in x]
 
 
 def sources():
@@ -79,8 +83,12 @@ def size(path):
     return os.path.getsize(path)
 
 
-thumbs, strips = sources()
-gone = stale(os.path.join(CACHE, "thumbs"), thumbs) + stale(os.path.join(CACHE, "clip-strip"), strips, dirs=True)
+try:
+    thumbs, strips = sources()
+    gone = stale(os.path.join(CACHE, "thumbs"), thumbs) + stale(os.path.join(CACHE, "clip-strip"), strips, dirs=True)
+except OSError as e:
+    print(f"torus-prune: {e}, keeping every preview", file=sys.stderr)
+    gone = []
 clips = clip_keys()
 if clips is not None:
     gone += stale(os.path.join(CACHE, "clip"), clips)

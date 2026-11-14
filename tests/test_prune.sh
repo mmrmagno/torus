@@ -38,6 +38,11 @@ for f in "$live_png" "$live_jpg" "$live_clip" "$live_strip/00.jpg" "$C/thumbs/fr
 echo x > "$C/clip/gone2.img"; old "$C/clip/gone2.img"
 STUB_CLIPHIST_FAIL=1 "$P" > /dev/null
 [[ -e $C/clip/gone2.img ]] || fail "a failing cliphist must not prune clipboard thumbs"
+echo x > "$C/thumbs/gone3.png"; old "$C/thumbs/gone3.png"
+chmod 000 "$(dirname "$shot")"
+"$P" > /dev/null
+chmod 755 "$(dirname "$shot")"
+[[ -e $C/thumbs/gone3.png && -e $live_png ]] || fail "an unreadable screenshot folder made every preview look orphaned"
 assert_fails "$P" --everything
 grep -q 'OnCalendar=weekly' "$REPO/home/.config/systemd/user/torus-prune.timer" || fail "weekly timer"
 grep -q 'enable --now torus-prune.timer' "$REPO/home/.local/bin/torus" || fail "setup enables the timer"

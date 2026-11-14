@@ -65,7 +65,9 @@ case ${1:-toggle} in
       printf '%s\n' "$2" > "$micfile"
       label="with $label"
     fi
-    if pgrep -f 'gpu-screen-recorder .*-r ' > /dev/null; then
+    if [[ -s $state/play-session.json ]]; then
+      notify-send -a torus -u low "Replay" "the game's replay buffer keeps going, the mic applies from the next game"
+    elif pgrep -f 'gpu-screen-recorder .*-r ' > /dev/null; then
       pkill -INT -f 'gpu-screen-recorder .*-r ' || true
       for _ in $(seq 30); do pgrep -f 'gpu-screen-recorder .*-r ' > /dev/null || break; sleep 0.1; done
       replay_start

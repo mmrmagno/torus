@@ -96,6 +96,15 @@ grep -q -- '-a default_output|alsa_input.usb-mic -c mp4' "$STUB_LOG" || fail "re
 "$B/torus-record" replay-mic nope 2> /dev/null && fail "replay: unknown input must be refused"
 "$B/torus-record" replay-mic off
 assert_eq "" "$("$B/torus-record" replay-mic)" "replay mic off"
+mkdir -p "$F/busy"; printf '#!/bin/sh\nexit 0\n' > "$F/busy/pgrep"; chmod +x "$F/busy/pgrep"
+echo '{"name": "Counter-Strike 2", "replay": true}' > "$XDG_STATE_HOME/torus/play-session.json"
+: > "$STUB_LOG"; PATH=$F/busy:$PATH "$B/torus-record" replay-mic alsa_input.usb-mic
+grep -q 'pkill' "$STUB_LOG" && fail "changing the mic during a game stopped the game's own replay buffer: $(cat "$STUB_LOG")"
+grep -q 'gpu-screen-recorder' "$STUB_LOG" && fail "changing the mic during a game started a plain buffer"
+grep -q 'next game' "$STUB_LOG" || fail "it says the mic applies from the next game: $(cat "$STUB_LOG")"
+rm -f "$XDG_STATE_HOME/torus/play-session.json"
+: > "$STUB_LOG"; PATH=$F/busy:$PATH "$B/torus-record" replay-mic off
+grep -q 'gpu-screen-recorder -w portal' "$STUB_LOG" || fail "outside a game the plain buffer restarts with the new mic: $(cat "$STUB_LOG")"
 
 mkdir -p "$HOME/.config/hypr/hyprlock"; : > "$HOME/.config/hypr/hyprlock/sf_marc.conf"
 : > "$STUB_LOG"; STUB_ROFI_PICK=sf_marc "$B/torus-menu" hyprlock
