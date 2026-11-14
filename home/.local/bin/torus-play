@@ -231,6 +231,9 @@ def cmd_keep():
             save(SESSION, sess)
             return
         time.sleep(1)
+        sess = load(SESSION, None)
+        if not sess or sess.get("keeper") != os.getpid() or not window_open(sess.get("class", "")):
+            return
         cls = sess.get("class", "")
         s = settings(sess.get("appid", ""))
         mon = monitor_of(cls)
@@ -327,6 +330,8 @@ def cmd_start(cls):
             sess.update({"capture": kind, "replay_pid": pid, "replay": True, "replay_secs": int(s["replay_secs"])})
     if appid in GSI_APPS and shutil.which("torus-gsi"):
         run("torus-gsi", "install", "--quiet")
+        run("pkill", "-f", "torus-gsi serve")
+        time.sleep(0.3)
         subprocess.Popen(["setsid", "-f", "torus-gsi", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         sess["gsi"] = True
     cur = load(SESSION, {})

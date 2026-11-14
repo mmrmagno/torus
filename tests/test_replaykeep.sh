@@ -27,8 +27,13 @@ P=$F/sh/torus-play
 mkdir -p "$F/proc/4242"; printf 'SteamAppId=730\0' > "$F/proc/4242/environ"
 export TORUS_PROC=$F/proc
 
+stub setsid 'exit 0'
+stub torus-gsi 'exit 0'
 touch "$F/plain"
 "$P" start cs2
+a=$(grep -n 'pkill -f torus-gsi serve' "$LOG" | head -1 | cut -d: -f1 || true)
+b=$(grep -n 'setsid -f torus-gsi serve' "$LOG" | head -1 | cut -d: -f1 || true)
+[[ -n $a && -n $b && $a -lt $b ]] || fail "a new session stops any older CS2 listener before starting its own (an old one holds the port and runs old code): $(cat "$LOG")"
 grep -q 'pkill -INT -f gpu-screen-recorder' "$LOG" || fail "a plain replay buffer left from the save key is stopped when a game starts: $(cat "$LOG")"
 rm -f "$F/plain"
 grep -q -- '^gpu-screen-recorder -w DP-1 .* -sc .*torus-play-saved' "$LOG" || fail "the game gets its own buffer that files clips under Clips: $(cat "$LOG")"
