@@ -1378,6 +1378,30 @@ check_shot() {
   if [[ -z $bad ]]; then section shot ok "island shows the screenshot, hides after 6 s, no editor forced"; else section shot fail "$bad"; fi
 }
 
+check_shotwindow() {
+  local bad="" stub=/tmp/parity-shotwindow addr want got f before
+  rm -rf "$stub"; mkdir -p "$stub"
+  hyprctl eval 'hl.exec_cmd("kitty --class parity-shotwin")' > /dev/null
+  for _ in $(seq 100); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity-shotwin")' > /dev/null && break; sleep 0.2; done
+  sleep 0.8
+  addr=$(hyprctl clients -j | jq -r '.[] | select(.class == "parity-shotwin") | .address')
+  want=$(hyprctl clients -j | jq -r '.[] | select(.class == "parity-shotwin") | "\(.size[0])x\(.size[1])"')
+  printf '#!/usr/bin/env bash\ncat > %s/boxes\ngrep -m1 " %s$" %s/boxes | cut -d" " -f1,2\n' "$stub" "$addr" "$stub" > "$stub/slurp"
+  chmod +x "$stub/slurp"
+  before=$(ls ~/Pictures/Screenshots/torus-*.png 2> /dev/null | sort | tail -n 1)
+  PATH=$stub:$PATH torus-shot s; sleep 0.8
+  f=$(ls ~/Pictures/Screenshots/torus-*.png 2> /dev/null | sort | tail -n 1)
+  [[ -n $f && $f != "$before" ]] || bad+="no-file "
+  grep -q " $addr$" "$stub/boxes" || bad+="window-not-offered[$(tr '\n' '|' < "$stub/boxes")] "
+  [[ -n $f && $f != "$before" ]] && got=$(magick identify -format '%wx%h' "$f" 2> /dev/null)
+  [[ ${got:-} == "$want" ]] || bad+="size[${got:-}!=$want] "
+  hyprctl clients -j | jq -r '.[] | select(.class == "parity-shotwin") | .pid' | xargs -r kill 2> /dev/null
+  "${QS[@]}" closeAll > /dev/null
+  [[ -n $f && $f != "$before" ]] && rm -f "$f"
+  rm -rf "$stub"
+  if [[ -z $bad ]]; then section shotwindow ok "SUPER+P offers every window on screen: a click on kitty saves exactly its $want"; else section shotwindow fail "$bad"; fi
+}
+
 check_trash() {
   local bad="" d=~/Pictures/Screenshots f what
   mkdir -p "$d"
@@ -2928,6 +2952,7 @@ case ${1:-all} in
   pass) check_pass ;;
   mixer) check_mixer ;;
   shot) check_shot ;;
+  shotwindow) check_shotwindow ;;
   trash) check_trash ;;
   panels) check_panels ;;
   pins) check_pins ;;
@@ -2995,7 +3020,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

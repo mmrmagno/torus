@@ -29,16 +29,37 @@ picker_mapped() {
   done
 }
 
+windows() {
+  { hyprctl monitors -j; hyprctl clients -j; } 2> /dev/null | jq -rs '
+    (.[0] // []) as $mons
+    | [$mons[] | .activeWorkspace.id, .specialWorkspace.id | select(. != null)] as $ws
+    | [(.[1] // [])[] | select(.mapped and (.hidden | not) and .class != "org.quickshell")
+        | select(.workspace.id as $w | any($ws[]; . == $w))] as $cs
+    | [$cs[] | select(.fullscreen > 0) | .workspace.id] as $full
+    | $cs[] | select(.fullscreen > 0 or (.workspace.id as $w | any($full[]; . == $w) | not))
+    | . as $c | first($mons[] | select(.id == $c.monitor)) as $m
+    | ($m | if .transform % 2 == 1 then [.height, .width] else [.width, .height] end | map(. / $m.scale)) as [$mw, $mh]
+    | [([$c.at[0], $m.x] | max), ([$c.at[1], $m.y] | max),
+       ([$c.at[0] + $c.size[0], $m.x + $mw] | min), ([$c.at[1] + $c.size[1], $m.y + $mh] | min)]
+    | select(.[2] > .[0] and .[3] > .[1])
+    | "\(.[0] | floor),\(.[1] | floor) \(.[2] - .[0] | floor)x\(.[3] - .[1] | floor) \($c.address)"
+  ' 2> /dev/null || true
+}
+
+pick() {
+  windows | slurp -d -c b4befeff -w 2 -B b4befe40
+}
+
 case ${1:-s} in
   s)
-    geo=$(slurp -d) || exit 0
+    geo=$(pick) || exit 0
     grim -g "$geo" "$file"
     ;;
   sf)
     hyprpicker -r -z &
     picker=$!
     picker_mapped || true
-    geo=$(slurp -d) || exit 0
+    geo=$(pick) || exit 0
     grim -g "$geo" "$file"
     cleanup
     picker=

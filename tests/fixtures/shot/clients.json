@@ -1,0 +1,9 @@
+[
+  {"address":"0xa1","mapped":true,"hidden":false,"at":[10,20],"size":[800,600],"workspace":{"id":1},"monitor":0,"class":"kitty","fullscreen":0},
+  {"address":"0xa2","mapped":true,"hidden":false,"at":[3000,100],"size":[1000,800],"workspace":{"id":5},"monitor":1,"class":"zen","fullscreen":0},
+  {"address":"0xa3","mapped":true,"hidden":false,"at":[2600,1200],"size":[500,400],"workspace":{"id":-98},"monitor":1,"class":"steam","fullscreen":0},
+  {"address":"0xb1","mapped":true,"hidden":true,"at":[100,100],"size":[300,300],"workspace":{"id":1},"monitor":0,"class":"grouped","fullscreen":0},
+  {"address":"0xb2","mapped":true,"hidden":false,"at":[100,100],"size":[300,300],"workspace":{"id":2},"monitor":0,"class":"elsewhere","fullscreen":0},
+  {"address":"0xb3","mapped":false,"hidden":false,"at":[100,100],"size":[300,300],"workspace":{"id":1},"monitor":0,"class":"unmapped","fullscreen":0},
+  {"address":"0xb4","mapped":true,"hidden":false,"at":[200,200],"size":[300,300],"workspace":{"id":1},"monitor":0,"class":"org.quickshell","fullscreen":0}
+]

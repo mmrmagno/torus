@@ -64,6 +64,7 @@ with it. I want a setup I own end to end.
 - Steam downloads and updates get the same ring on the island with the speed and time left, read from Steam's own log and the game's manifest. While a game runs fullscreen nothing shows; "updated" waits until the game is closed.
 - When several Steam jobs finish during a fullscreen game, the island lists all of them in one line once I am back, not just the last one.
 - SUPER+Shift+M freezes the screen into a ruler: drag a box for its size, Shift+drag for a distance and its angle (add Ctrl and it snaps to straight lines and 45° diagonals), and the color under the cursor shows as hex and rgb (C copies it). Every measurement lands in the clipboard.
+- SUPER+P still takes an area when I drag, and a single click takes the whole window under the cursor. While I choose, every window on screen is tinted and the one under the cursor gets an outline, so I know what a click takes. A window hanging off the screen is cut at the edge.
 - Optional UI sounds (off unless I turn them on in SUPER+Space): a soft click for panels, chimes on lock and unlock, a shutter for screenshots, start and stop for recordings, a trash sound when I delete something, a tick for volume, brightness and mic, network, charger and USB device chimes (the island names the keyboard, mouse or drive), an error tone for a wrong password, and a ding for notifications from apps that have no sound of their own.
 - Display layouts per set of screens: arrange them once, "Save display layout" in SUPER+Space (type "display" to see the saved ones), and they come back that way whenever that set is plugged in (desk at work, desk at home, laptop alone).
 - Face unlock on the laptop (Howdy, IR camera): the lock looks for me as soon as it locks, a key retries, the password always works. `sudo torus-howdy setup --sudo` turns it on for sudo too, `off` puts everything back.
@@ -139,7 +140,7 @@ with it. I want a setup I own end to end.
 | SUPER+O | overview, then a number to jump |
 | SUPER+/ | cheat sheet |
 | SUPER+F12 | focus timer |
-| SUPER+P | screenshot an area |
+| SUPER+P | screenshot an area, or click a window |
 | SUPER+L | lock |
 
 ## Install
