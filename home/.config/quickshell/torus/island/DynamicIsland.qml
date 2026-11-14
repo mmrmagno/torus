@@ -46,8 +46,13 @@ PanelWindow {
     property var trashData: ({})
     Binding { target: root; property: "trashData"; value: Island.flashData; when: root.mode === "trash"; restoreMode: Binding.RestoreNone }
 
+    readonly property int barHole: narrow || mode === "" ? 0 : pillWidth
+    onBarHoleChanged: Island.setHole(screen.name, barHole)
     onModeChanged: Island.report(screen.name, mode === "" ? "hidden" : mode)
-    Component.onCompleted: Island.report(screen.name, mode === "" ? "hidden" : mode)
+    Component.onCompleted: {
+        Island.report(screen.name, mode === "" ? "hidden" : mode)
+        Island.setHole(screen.name, barHole)
+    }
 
     anchors.top: true
     margins.top: narrow ? Store.barGap - 4 : (Store.barPreset === "compact" ? 3 : 4)
@@ -56,7 +61,11 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     color: "transparent"
     visible: !Store.barHidden
-    mask: Region { item: pill }
+    property bool maskFlip: false
+    Region { id: maskA; item: pill }
+    Region { id: maskB; item: pill }
+    mask: maskFlip ? maskA : maskB
+    onVisibleChanged: if (visible) Qt.callLater(() => { root.maskFlip = !root.maskFlip })
     WlrLayershell.namespace: "torus-island"
     WlrLayershell.layer: WlrLayer.Top
 

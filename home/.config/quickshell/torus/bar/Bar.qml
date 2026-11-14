@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs
 import qs.components
+import qs.services
 
 PanelWindow {
     id: bar
@@ -47,6 +48,17 @@ PanelWindow {
     exclusiveZone: Store.barHidden ? 0 : implicitHeight
     visible: !Store.barHidden
     color: "transparent"
+    readonly property int hole: screen ? (Island.holes[screen.name] || 0) : 0
+    mask: Region {
+        width: bar.width
+        height: bar.height
+        Region {
+            x: Math.round((bar.width - bar.hole) / 2)
+            width: bar.hole
+            height: bar.height
+            intersection: Intersection.Subtract
+        }
+    }
     WlrLayershell.namespace: "torus-bar"
     WlrLayershell.layer: WlrLayer.Top
 

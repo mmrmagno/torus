@@ -12,6 +12,16 @@ import qs
 Singleton {
     id: root
 
+    property var holes: ({})
+
+    function setHole(screenName, width) {
+        if ((holes[screenName] || 0) === width)
+            return
+        const h = Object.assign({}, holes)
+        h[screenName] = width
+        holes = h
+    }
+
     property string flashKind: ""
     property var flashData: ({})
     property bool armed: false
