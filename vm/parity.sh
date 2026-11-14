@@ -1402,6 +1402,43 @@ check_shotwindow() {
   if [[ -z $bad ]]; then section shotwindow ok "SUPER+P offers every window on screen: a click on kitty saves exactly its $want"; else section shotwindow fail "$bad"; fi
 }
 
+check_zoom() {
+  local bad="" z seen=""
+  zf() { hyprctl -j getoption cursor:zoom_factor | jq -r '.float | . * 10 | round / 10'; }
+  island_zoom() { [[ $("${QS[@]}" islandState 2> /dev/null | tail -n 1) == *:zoom* ]]; }
+  [[ $(zf) == 1 ]] || { bad+="not-1x-at-start "; hyprctl eval 'hl.config({ cursor = { zoom_factor = 1 } })' > /dev/null; }
+  for want in "SUPER+CTRL mouse_up zoom in" "SUPER+CTRL mouse_down zoom out" "SUPER+CTRL Z zoom 2x"; do
+    read -r mods key _ <<<"$want"
+    hyprctl binds -j | jq -e --arg k "$key" --argjson m "$( [[ $mods == SUPER+CTRL ]] && echo 68)" 'any(.[]; .key == $k and .modmask == $m and (.description | test("zoom")))' > /dev/null || bad+="no-bind[$mods+$key] "
+  done
+  for _ in 1 2 3 4 5; do hyprctl eval 'torus.zoom.by(1)()' > /dev/null; sleep 0.3; seen+="$(zf) "; done
+  [[ $seen == "1.5 2 3 4 4 " ]] || bad+="steps-up[$seen] "
+  sleep 0.5; island_zoom || bad+="no-pill "
+  [[ $("${QS[@]}" zoomLevel | tail -n 1) == 4 ]] || bad+="pill-level[$("${QS[@]}" zoomLevel | tail -n 1)] "
+  hyprctl eval 'torus.zoom.by(-1)()' > /dev/null; sleep 0.3
+  [[ $(zf) == 3 ]] || bad+="step-down[$(zf)] "
+  hyprctl reload > /dev/null; sleep 1.5
+  [[ $(zf) == 1 ]] || bad+="reload-kept-zoom[$(zf)] "
+  island_zoom && bad+="pill-after-reload "
+  hyprctl eval 'torus.zoom.toggle()' > /dev/null; sleep 0.5
+  [[ $(zf) == 2 ]] || bad+="toggle-on[$(zf)] "
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  if locked_is true; then
+    sleep 1
+    [[ $(zf) == 1 ]] || bad+="lock-kept-zoom[$(zf)] "
+    type_pw "$LOCK_PW"
+    locked_is false || bad+="unlock "
+  else
+    bad+="no-lock "
+  fi
+  island_zoom && bad+="pill-after-lock "
+  hyprctl eval 'torus.zoom.toggle()' > /dev/null; sleep 0.3; hyprctl eval 'torus.zoom.toggle()' > /dev/null; sleep 0.5
+  [[ $(zf) == 1 ]] || bad+="toggle-off[$(zf)] "
+  island_zoom && bad+="pill-at-1x "
+  hyprctl eval 'hl.config({ cursor = { zoom_factor = 1 } })' > /dev/null
+  if [[ -z $bad ]]; then section zoom ok "SUPER+Ctrl+scroll steps 1.5x 2x 3x 4x with a pill, SUPER+Ctrl+Z toggles 2x, a reload and the lock put it back to 1x"; else section zoom fail "$bad"; fi
+}
+
 check_trash() {
   local bad="" d=~/Pictures/Screenshots f what
   mkdir -p "$d"
@@ -2953,6 +2990,7 @@ case ${1:-all} in
   mixer) check_mixer ;;
   shot) check_shot ;;
   shotwindow) check_shotwindow ;;
+  zoom) check_zoom ;;
   trash) check_trash ;;
   panels) check_panels ;;
   pins) check_pins ;;
@@ -3020,7 +3058,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

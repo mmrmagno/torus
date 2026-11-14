@@ -507,6 +507,14 @@ IpcHandler {
         return a ? a.cols + ":" + a.rows + ":" + a.implicitWidth + ":" + a.implicitHeight + ":" + (a.screen ? a.screen.width + "x" + a.screen.height : "?") : ""
     }
 
+    function zoomShow(level: string): void {
+        Zoom.show(level)
+    }
+
+    function zoomLevel(): string {
+        return String(Zoom.level)
+    }
+
     function brightnessOsd(value: int): void {
         Island.flash("osd", { icon: "󰃟", label: value + "%", value: value / 100 }, 1600)
         Store.sound("tick")

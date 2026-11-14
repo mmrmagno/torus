@@ -177,3 +177,6 @@ XF86AudioRaiseVolume
 XF86MonBrightnessDown
 XF86MonBrightnessUp
 SUPER+H
+SUPER+CTRL+mouse_down
+SUPER+CTRL+mouse_up
+SUPER+CTRL+Z

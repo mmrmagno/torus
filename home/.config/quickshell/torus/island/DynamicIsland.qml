@@ -14,7 +14,7 @@ PanelWindow {
     readonly property bool narrow: screen ? screen.width < 1400 : false
     readonly property bool focused: Store.focusedScreen === screen
     readonly property bool flashing: Island.state === "osd" || Island.state === "notification" || Island.state === "shot" || Island.state === "trash"
-    readonly property string resting: Island.recording ? "recording" : Island.sharing ? "sharing" : (SteamLog.top || BrowserDownloads.top ? "progress" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player && Feel.islandOn("music") ? "media" : "idle")))))
+    readonly property string resting: Island.recording ? "recording" : Island.sharing ? "sharing" : Zoom.on ? "zoom" : (SteamLog.top || BrowserDownloads.top ? "progress" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player && Feel.islandOn("music") ? "media" : "idle")))))
     readonly property bool faceOn: FaceScan.state !== "idle"
     readonly property string mode: faceOn && focused ? "face" : (flashing && focused ? Island.state : resting)
     readonly property bool lyricRow: mode === "media" && Lyrics.line !== ""
@@ -27,6 +27,7 @@ PanelWindow {
         case "trash": return 400
         case "recording": return Math.max(170, recText.implicitWidth + 56)
         case "sharing": return Math.max(190, shareText.implicitWidth + 56)
+        case "zoom": return zoomRow.implicitWidth + 48
         case "progress": return Math.max(220, progText.implicitWidth + 60)
         case "focus": return 150
         case "timer": return Math.max(150, timerText.implicitWidth + 56)
@@ -98,6 +99,8 @@ PanelWindow {
                     Store.setOpen("center", true)
                 else if (root.mode === "recording")
                     Quickshell.execDetached(["torus-record", "toggle"])
+                else if (root.mode === "zoom")
+                    Zoom.reset()
                 else if (root.mode === "media" && mouse.button === Qt.RightButton && Island.player)
                     Island.player.togglePlaying()
                 else
@@ -499,6 +502,31 @@ PanelWindow {
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fontSize
                 text: "Sharing · " + Island.shareApps.join(", ")
+            }
+        }
+
+        RowLayout {
+            id: zoomRow
+            opacity: root.mode === "zoom" ? 1 : 0
+            visible: opacity > 0
+            transform: Translate { y: root.mode === "zoom" ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } } }
+            Behavior on opacity { NumberAnimation { duration: root.mode === "zoom" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
+            anchors.centerIn: parent
+            spacing: Theme.sp4
+            Text {
+                text: "󰍉"
+                color: Theme.accent
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSize
+            }
+            Text {
+                text: "Zoom " + (Math.round(Zoom.level * 10) / 10) + "x"
+                color: Theme.text
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontSize
+            }
+            KeyHints {
+                hints: [["SUPER+Ctrl+Z", "off"]]
             }
         }
 
