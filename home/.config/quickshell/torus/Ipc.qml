@@ -206,6 +206,14 @@ IpcHandler {
         return Store.look
     }
 
+    function recallState(): string {
+        return "hub=" + Store.hubSpot + ";capture=" + Store.captureTab + ":" + Store.captureSel.split("/").pop() + ";clip=" + Clip.kindFilter
+    }
+
+    function recallForget(): void {
+        Store.recallSince = Date.now()
+    }
+
     function captureSelected(): string {
         return Store.captureSel
     }

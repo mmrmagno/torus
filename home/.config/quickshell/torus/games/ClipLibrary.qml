@@ -42,7 +42,28 @@ Item {
         const out = clips.filter(c => (game === "" || c.game === game) && (!starredOnly || isFav(c)) && (words === "" || c.name.toLowerCase().includes(words) || c.path.split("/").pop().toLowerCase().includes(words)))
         return sort === "size" ? out.slice().sort((a, b) => b.size - a.size) : out
     }
+    property string keptClip: ""
+    property bool placing: false
     onVisibleChanged: if (!visible) leave()
+
+    function keep() {
+        if (loaded && !placing)
+            keptClip = current ? current.path : ""
+    }
+
+    function forget() {
+        game = ""
+        starredOnly = false
+        sort = "new"
+        keptClip = ""
+    }
+
+    function place() {
+        placing = false
+        if (game !== "" && !clips.some(c => c.game === game))
+            game = ""
+        grid.currentIndex = Math.max(0, shown.findIndex(c => c.path === keptClip))
+    }
 
     function leave() {
         managing = false
@@ -290,6 +311,8 @@ Item {
                     return { path: f[0], at: Number(f[1]) || 0, thumb: f[2] || "", size: Number(f[3]) || 0, auto: f[4] || "", game: f[5] || "", name: f[6] || "", fav: f[7] === "1" }
                 })
                 lib.loaded = true
+                if (lib.placing)
+                    lib.place()
                 if (lib.clips.some(c => c.thumb === "") && !thumber.running)
                     thumber.running = true
             }

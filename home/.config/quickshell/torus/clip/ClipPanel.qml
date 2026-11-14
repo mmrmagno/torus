@@ -97,7 +97,8 @@ PanelWindow {
     onVisibleChanged: if (visible) {
         openStart = Date.now()
         moved = false
-        Clip.kindFilter = "all"
+        if (!Store.recalls("clip"))
+            Clip.kindFilter = "all"
         search.text = ""
         Clip.filter = ""
         list.currentIndex = 0

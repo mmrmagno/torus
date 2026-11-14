@@ -294,6 +294,14 @@ Singleton {
     }
 
     property string captureSel: ""
+    property string captureTab: ""
+    property string hubSpot: ""
+    property real recallSince: 0
+
+    function recalls(name) {
+        const t = closedAt[name] || 0
+        return t > recallSince && Date.now() - t < 600000
+    }
     property string clipsInfo: ""
     property string look: ""
     property string sheetTitle: ""

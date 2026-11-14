@@ -32,6 +32,13 @@ PanelWindow {
     }
 
     property int sel: -1
+    property string keptSel: ""
+    property bool placing: false
+    Binding {
+        target: Store
+        property: "captureTab"
+        value: root.tab
+    }
     property bool setting: false
     property string look: ""
     onShownItemsChanged: if (sel >= shownItems.length) sel = shownItems.length - 1
@@ -201,10 +208,16 @@ PanelWindow {
         id: lister
         command: ["torus-captures", "40"]
         stdout: StdioCollector {
-            onStreamFinished: root.items = text.split("\n").filter(l => l).map(l => {
-                const f = l.split("\t")
-                return { kind: f[0], time: Number(f[1]), size: Number(f[2]), path: f[3], thumb: f[4], fav: f[5] === "1" }
-            })
+            onStreamFinished: {
+                root.items = text.split("\n").filter(l => l).map(l => {
+                    const f = l.split("\t")
+                    return { kind: f[0], time: Number(f[1]), size: Number(f[2]), path: f[3], thumb: f[4], fav: f[5] === "1" }
+                })
+                if (root.placing) {
+                    root.placing = false
+                    root.sel = root.shownItems.findIndex(i => i.path === root.keptSel)
+                }
+            }
         }
     }
 
@@ -214,10 +227,17 @@ PanelWindow {
             target: root
             function onVisibleChanged() {
                 if (root.visible) {
+                    if (!Store.recalls("capture")) {
+                        root.tab = "all"
+                        root.keptSel = ""
+                    }
                     root.setting = false
                     root.look = ""
                     root.sel = -1
+                    root.placing = root.keptSel !== ""
                     capFrame.forceActiveFocus()
+                } else {
+                    root.keptSel = root.sel >= 0 && root.sel < root.shownItems.length ? root.shownItems[root.sel].path : ""
                 }
             }
         }
@@ -267,7 +287,11 @@ PanelWindow {
                 event.accepted = root.move(0, 1)
             else if (ctrl && event.key === Qt.Key_Z)
                 Island.trashUndo()
-            else if (!cur)
+            else if (event.key === Qt.Key_BracketRight || event.key === Qt.Key_BracketLeft) {
+                const tabs = ["all", "image", "video", "clip"]
+                root.tab = tabs[(tabs.indexOf(root.tab) + (event.key === Qt.Key_BracketRight ? 1 : 3)) % 4]
+                root.sel = -1
+            } else if (!cur)
                 return
             else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                 root.tileAct(cur, "open")
@@ -485,7 +509,7 @@ PanelWindow {
             anchors.bottom: parent.bottom
             anchors.margins: 15
             hints: root.sel >= 0 ? [["← / → / ↑ / ↓", "pick"], ["Space", "look"], ["↵", "open"], ["Ctrl C", "copy"], ["Ctrl E", "edit"], ["Del", "trash"], ["Esc", "close"]]
-                : [["↓", "captures"], ["Ctrl ↵", "settings"], ["Tab", "buttons"], ["↵", "press"], ["Esc", "close"]]
+                : [["↓", "captures"], ["[ ]", "kind"], ["Ctrl ↵", "settings"], ["Tab", "buttons"], ["↵", "press"], ["Esc", "close"]]
         }
 
         QuickLook {

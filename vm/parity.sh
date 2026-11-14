@@ -160,6 +160,7 @@ check_groups() {
 
 check_clip() {
   local bad="" n got img=/tmp/parity-clip.png
+  "${QS[@]}" recallForget > /dev/null 2>&1
   export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
   magick -size 64x40 xc:'#cba6f7' "$img"
   wl-copy --type image/png < "$img"; sleep 0.6
@@ -191,6 +192,7 @@ clip_stat() { "${QS[@]}" clipStats 2>/dev/null | tail -n 1 | jq -r ".$1"; }
 
 check_clipboard() {
   local bad="" db=${XDG_CACHE_HOME:-$HOME/.cache}/cliphist/db share=${XDG_DATA_HOME:-$HOME/.local/share}/torus bak i n t open cold fmax before after
+  "${QS[@]}" recallForget > /dev/null 2>&1
   export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
   bak=$(mktemp -d)
   cp -a "$db" "$bak/db" 2>/dev/null
@@ -1145,6 +1147,7 @@ check_containers() {
 
 check_games() {
   local bad="" S=~/.local/share/Steam
+  "${QS[@]}" recallForget > /dev/null 2>&1
   [[ -n $(~/.local/bin/torus-games) ]] || { section games fail "no fake Steam library in the VM"; return; }
   [[ $("${QS[@]}" isOpen games) == true ]] && "${QS[@]}" gamesToggle > /dev/null && sleep 0.5
   rm -f /tmp/parity-xdg-open
@@ -1430,6 +1433,51 @@ check_envknobs() {
   hits=$(grep -rlE 'TORUS_[A-Z_]*(API|URL|LOCAL|PLACE|OJP|FALLBACK|CLEAR)\b' ~/.local/bin/torus* ~/.config/quickshell/torus 2> /dev/null)
   [[ -z $hits ]] || bad+="env[$hits] "
   if [[ -z $bad ]]; then section envknobs ok "no installed helper takes a network address, a program or the password clear time from the environment"; else section envknobs fail "$bad"; fi
+}
+
+check_recall() {
+  local bad="" d=~/Pictures/Screenshots a ca c first
+  rs() { "${QS[@]}" recallState | tail -n 1; }
+  ci() { "${QS[@]}" clipsState | tail -n 1 | cut -d'|' -f5; }
+  mkdir -p "$d"
+  magick -size 320x180 xc:'#89b4fa' "$d/torus-parity-recall-1.png"; sleep 1.1
+  magick -size 320x180 xc:'#a6e3a1' "$d/torus-parity-recall-2.png"
+  first=$(torus-games | head -n 1 | cut -f2)
+  "${QS[@]}" closeAll > /dev/null; "${QS[@]}" recallForget > /dev/null
+  "${QS[@]}" gamesToggle > /dev/null; sleep 1.5
+  wtype -k Right; sleep 0.2; wtype -k Right; sleep 0.3
+  wtype -k Tab; sleep 1.5
+  wtype -k bracketright; sleep 0.3; wtype -M ctrl -k o -m ctrl; sleep 0.3; wtype -k Right; sleep 0.4
+  a=$(rs) ca=$(ci)
+  [[ $a == "hub=clips|"*"|"?*"|false|size;"* && $a != "hub=clips|$first|"* ]] || bad+="hub-setup[$a] "
+  "${QS[@]}" gamesToggle > /dev/null; sleep 1; "${QS[@]}" gamesToggle > /dev/null; sleep 2
+  [[ $(rs) == "$a" ]] || bad+="hub-kept[$(rs)] "
+  [[ $(ci) == "$ca" ]] || bad+="clip-kept[$(ci) want $ca] "
+  "${QS[@]}" gamesToggle > /dev/null; sleep 0.6
+  "${QS[@]}" captureToggle > /dev/null; sleep 2.5
+  wtype -k bracketright; sleep 0.3; wtype -k Down; sleep 0.3; wtype -k Right; sleep 0.3
+  c=$(rs)
+  [[ $c == *";capture=image:torus-parity-recall-1.png;"* ]] || bad+="capture-setup[$c] "
+  "${QS[@]}" captureToggle > /dev/null; sleep 1; "${QS[@]}" captureToggle > /dev/null; sleep 2.5
+  [[ $(rs) == *";capture=image:torus-parity-recall-1.png;"* ]] || bad+="capture-kept[$(rs)] "
+  "${QS[@]}" captureToggle > /dev/null; sleep 0.6
+  "${QS[@]}" clipToggle > /dev/null; sleep 0.8; wtype -k Tab; sleep 0.4
+  [[ $(rs) == *";clip=text" ]] || bad+="clip-setup[$(rs)] "
+  "${QS[@]}" clipToggle > /dev/null; sleep 0.8; "${QS[@]}" clipToggle > /dev/null; sleep 0.8
+  [[ $(rs) == *";clip=text" ]] || bad+="clip-filter-kept[$(rs)] "
+  "${QS[@]}" clipToggle > /dev/null; sleep 0.6
+  "${QS[@]}" recallForget > /dev/null
+  "${QS[@]}" gamesToggle > /dev/null; sleep 2
+  [[ $(rs) == "hub=games|$first||false|new;"* ]] || bad+="hub-fresh[$(rs)] "
+  "${QS[@]}" gamesToggle > /dev/null; sleep 0.6
+  "${QS[@]}" captureToggle > /dev/null; sleep 2.5
+  [[ $(rs) == *";capture=all:;"* ]] || bad+="capture-fresh[$(rs)] "
+  "${QS[@]}" captureToggle > /dev/null; sleep 0.6
+  "${QS[@]}" clipToggle > /dev/null; sleep 0.8
+  [[ $(rs) == *";clip=all" ]] || bad+="clip-fresh[$(rs)] "
+  "${QS[@]}" closeAll > /dev/null
+  rm -f "$d"/torus-parity-recall-*
+  if [[ -z $bad ]]; then section recall ok "game hub, capture studio and clipboard reopen where I left them, and fresh after 10 minutes closed"; else section recall fail "$bad"; fi
 }
 
 check_panels() {
@@ -1787,6 +1835,7 @@ check_popuprest() {
 
 check_capturekeys() {
   local bad="" d=~/Pictures/Screenshots a b sel st
+  "${QS[@]}" recallForget > /dev/null 2>&1
   mkdir -p "$d"
   rm -f "$d"/torus-parity-cap-* ~/.local/share/Trash/files/torus-parity-cap-* ~/.local/share/Trash/info/torus-parity-cap-*
   magick -size 640x360 xc:'#89b4fa' "$d/torus-parity-cap-1.png"; sleep 1.1
@@ -1826,6 +1875,7 @@ check_capturekeys() {
 
 check_clips2() {
   local bad="" d=~/Videos/Clips/parity-two st i
+  "${QS[@]}" recallForget > /dev/null 2>&1
   rm -rf "$d"; mkdir -p "$d"
   for i in 1 2 3; do
     ffmpeg -loglevel error -y -f lavfi -i "testsrc=duration=$((4 - i)):size=320x180:rate=10" -c:v libx264 -pix_fmt yuv420p "$d/parity-two-2026-11-0$i-100000.mp4" < /dev/null
@@ -2125,6 +2175,7 @@ check_homelab() {
 
 check_cutter() {
   local bad="" d=$HOME/Videos/Clips/hollow-knight c sum n dur
+  "${QS[@]}" recallForget > /dev/null 2>&1
   mkdir -p "$d"
   c=$d/hollow-knight-2026-01-01-000000.mp4
   ffmpeg -v error -y -f lavfi -i testsrc2=s=640x360:r=30:d=12 -f lavfi -i sine=d=12 -c:v libx264 -g 60 -keyint_min 60 -sc_threshold 0 -pix_fmt yuv420p -c:a aac -shortest "$c"
@@ -2204,6 +2255,7 @@ check_steamheld() {
 
 check_gamesettings() {
   local bad="" before after h=$HOME/Videos/Clips/hades c=$HOME/Videos/Clips/hades/hades-2030-02-01-000000.mp4 mime
+  "${QS[@]}" recallForget > /dev/null 2>&1
   before=$(torus-play settings 1145360 | jq -r .replay)
   "${QS[@]}" closeAll > /dev/null 2>&1
   "${QS[@]}" gamesToggle > /dev/null; sleep 1.5
@@ -2237,6 +2289,7 @@ check_gamesettings() {
 
 check_library() {
   local bad="" h=$HOME/Videos/Clips/hades fav=${XDG_STATE_HOME:-$HOME/.local/state}/torus/clip-favorites.json bak="" c lib
+  "${QS[@]}" recallForget > /dev/null 2>&1
   mkdir -p "$h"
   [[ -f $fav ]] && bak=$(cat "$fav")
   rm -f "$fav"
@@ -2802,6 +2855,7 @@ case ${1:-all} in
   steamheld) check_steamheld ;;
   undorace) check_undorace ;;
   envknobs) check_envknobs ;;
+  recall) check_recall ;;
   cutter) check_cutter ;;
   meetjoin) check_meetjoin ;;
   layout) check_layout ;;
@@ -2823,7 +2877,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

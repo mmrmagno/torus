@@ -19,9 +19,13 @@ PanelWindow {
     property bool clipSetting: false
 
     function setView(v) {
+        if (view === "clips" && v !== "clips")
+            library.keep()
         view = v
-        if (v === "clips")
+        if (v === "clips") {
+            library.placing = true
             library.reload()
+        }
     }
 
     function openSettings(g) {
@@ -63,14 +67,38 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: Store.isOpen("games") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    onVisibleChanged: if (visible) {
+    property string keptGame: ""
+    property bool placing: false
+
+    function place() {
+        placing = false
+        grid.currentIndex = Math.max(0, shown.findIndex(g => g.id === keptGame))
+    }
+
+    Binding {
+        target: Store
+        property: "hubSpot"
+        value: root.view + "|" + (root.selected ? root.selected.name : "") + "|" + library.game + "|" + library.starredOnly + "|" + library.sort
+    }
+
+    onVisibleChanged: if (!visible) {
+        keptGame = selected ? selected.id : ""
+        if (view === "clips")
+            library.keep()
+    } else {
+        const keep = Store.recalls("games")
         cutting = Store.pendingCut
         Store.pendingCut = ""
         setting = false
         clipSetting = false
-        setView(cutting !== "" ? "clips" : "games")
+        setView(cutting !== "" ? "clips" : (keep ? view : "games"))
+        if (!keep) {
+            keptGame = ""
+            library.forget()
+        }
         search.text = ""
-        grid.currentIndex = 0
+        place()
+        placing = keptGame !== ""
         if (!loader.running)
             loader.running = true
         search.forceActiveFocus()
@@ -87,6 +115,8 @@ PanelWindow {
                     return { id: f[0], name: f[1], last: Number(f[2]) || 0, mins: Number(f[3]) || 0, art: f[4] || "" }
                 })
                 root.loaded = true
+                if (root.placing)
+                    root.place()
             }
         }
     }
