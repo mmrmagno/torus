@@ -5,7 +5,7 @@ import os
 from urllib.request import urlopen
 
 CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "torus", "ai.json")
-LOCAL = os.environ.get("TORUS_AI_LOCAL", "http://127.0.0.1:11434")
+LOCAL = "http://127.0.0.1:11434"
 
 
 def tags(url, timeout):

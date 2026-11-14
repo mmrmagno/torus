@@ -15,7 +15,7 @@ case ${1:-list} in
     lastsec=$(date -d "${last:-1970-01-01}" +%s 2> /dev/null || echo 0)
     age=$(($(date +%s) - $(stat -c %Y "$cache" 2> /dev/null || echo 0)))
     if ((age > ${TORUS_NEWS_TTL:-3600})); then
-      fresh=$(curl -sfL --max-time 10 "${TORUS_NEWS_URL:-https://archlinux.org/feeds/news/}" | tr -d '\n' | awk 'BEGIN { RS = "<item>" } NR > 1 && NR <= 21 {
+      fresh=$(curl -sfL --max-time 10 https://archlinux.org/feeds/news/ | tr -d '\n' | awk 'BEGIN { RS = "<item>" } NR > 1 && NR <= 21 {
         t = $0; sub(/.*<title>/, "", t); sub(/<\/title>.*/, "", t)
         l = $0; sub(/.*<link>/, "", l); sub(/<\/link>.*/, "", l)
         d = $0; sub(/.*<pubDate>/, "", d); sub(/<\/pubDate>.*/, "", d)

@@ -14,8 +14,8 @@ from urllib.request import Request, urlopen
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "torus/commute.json"
 ALERT_STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "torus/commute-alert"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "torus/commute.json"
-API = os.environ.get("TORUS_COMMUTE_API", "https://transport.opendata.ch/v1")
-OJP = os.environ.get("TORUS_COMMUTE_OJP", "https://api.opentransportdata.swiss/ojp20")
+API = "https://transport.opendata.ch/v1"
+OJP = "https://api.opentransportdata.swiss/ojp20"
 OJP_KEY = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "torus/ojp.key"
 FRESH = 60
 SHOWN = 3

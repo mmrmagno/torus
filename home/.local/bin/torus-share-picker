@@ -34,4 +34,4 @@ if want:
                 pass
             print("[SELECTION]/window:" + handle, flush=True)
             sys.exit(0)
-os.execvp(os.environ.get("TORUS_SHARE_FALLBACK", "hyprland-share-picker"), ["hyprland-share-picker"] + sys.argv[1:])
+os.execvp("hyprland-share-picker", ["hyprland-share-picker"] + sys.argv[1:])

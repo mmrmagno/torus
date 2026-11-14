@@ -19,7 +19,7 @@ Provider {
     property real loaded: 0
     property var pick: null
     property var fields: null
-    readonly property int clearAfter: Number(Quickshell.env("TORUS_PASS_CLEAR") || 30)
+    readonly property int clearAfter: 30
 
     function entered() {
         if (proc.running || (loadState === "ready" && Date.now() - loaded < 300000))

@@ -8,8 +8,8 @@ from urllib.request import Request, urlopen
 
 STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "torus/rain.json"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "torus/rain-place.json"
-METEO = os.environ.get("TORUS_RAIN_API", "https://api.open-meteo.com/v1/forecast")
-PLACE = os.environ.get("TORUS_RAIN_PLACE", "https://wttr.in/?format=j1")
+METEO = "https://api.open-meteo.com/v1/forecast"
+PLACE = "https://wttr.in/?format=j1"
 WINDOWS = {"morning": (6 * 60 + 30, 9 * 60 + 30), "evening": (16 * 60 + 30, 19 * 60 + 30)}
 WET = 0.1
 

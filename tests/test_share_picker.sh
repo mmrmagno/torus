@@ -5,8 +5,8 @@ set -euo pipefail
 F=$(mktemp -d)
 trap 'rm -rf "$F"' EXIT
 mkdir -p "$F/state/torus" "$F/bin"
-printf '#!/bin/sh\necho "fallback $*"\n' > "$F/bin/picker"; chmod +x "$F/bin/picker"
-export XDG_STATE_HOME=$F/state TORUS_SHARE_FALLBACK=$F/bin/picker
+printf '#!/bin/sh\necho "fallback $*"\n' > "$F/bin/hyprland-share-picker"; chmod +x "$F/bin/hyprland-share-picker"
+export XDG_STATE_HOME=$F/state PATH=$F/bin:$PATH
 export XDPH_WINDOW_SHARING_LIST='11[HC>]discord[HT>]Discord[HE>]a1[HA>]42[HC>]cs2[HT>]Counter-Strike 2[HE>]b2[HA>]'
 P=$REPO/home/.local/bin/torus-share-picker
 

@@ -6,12 +6,12 @@ F=$(mktemp -d)
 srv=
 trap '[[ -n $srv ]] && kill "$srv" 2> /dev/null; rm -rf "$F"' EXIT
 export XDG_CONFIG_HOME=$F/config XDG_CACHE_HOME=$F/cache XDG_STATE_HOME=$F/state TZ=Europe/Zurich
-C=$REPO/home/.local/bin/torus-commute
 NOW=1794294000
 port=$((20000 + RANDOM % 20000))
 python3 -m http.server -d "$REPO/tests/fixtures/commute" -b 127.0.0.1 "$port" > /dev/null 2>&1 & srv=$!
-export TORUS_COMMUTE_API=http://127.0.0.1:$port
-for _ in $(seq 50); do curl -sf "$TORUS_COMMUTE_API/connections" > /dev/null && break; sleep 0.1; done
+mkdir -p "$F/bin"
+C=$(patched "$REPO/home/.local/bin/torus-commute" "$F/bin" https://transport.opendata.ch/v1 "http://127.0.0.1:$port")
+for _ in $(seq 50); do curl -sf "http://127.0.0.1:$port/connections" > /dev/null && break; sleep 0.1; done
 
 q() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 

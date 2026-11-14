@@ -58,3 +58,22 @@ mkedid() {
     for i in $(seq 91 128); do printf '\x00'; done
   } > "$out"
 }
+
+patched() {
+  local src=$1 dir=$2 out
+  out=$dir/$(basename "$src")
+  shift 2
+  cp "$src" "$out"
+  python3 -I - "$out" "$@" <<'PY' || fail "patched: $(basename "$src") no longer holds the address the test replaces"
+import sys
+p, pairs = sys.argv[1], sys.argv[2:]
+s = open(p).read()
+for old, new in zip(pairs[::2], pairs[1::2]):
+    if old not in s:
+        sys.exit(1)
+    s = s.replace(old, new)
+open(p, "w").write(s)
+PY
+  chmod +x "$out"
+  echo "$out"
+}

@@ -118,6 +118,7 @@ with it. I want a setup I own end to end.
 - When the GPU freezes and the driver resets it, one notification says in plain words what froze it (a game, the clip recorder) and whether clips are off until a reboot, with Reboot now (the logout menu) and Later. If the reset took the session down, it says so once after the restart. It follows the kernel log, so it costs nothing while all is well.
 - If the GPU's video encoder hung earlier in this boot, torus stops starting the replay buffer with a game (it would hang the GPU again and take the session down) and says so; `torus doctor` reports GPU resets and a running kernel whose modules are gone.
 - Nothing I delete in the shell is gone for good: screenshots, recordings and clips go to the trash, from the island after a screenshot and from SUPER+Shift+C.
+- No helper takes a server address, a program to run or the password clear time from an environment variable, so nothing set in my session can send my OJP key, my addresses or my prompts somewhere else.
 - One flavor (Mocha, Macchiato, Frappe, Latte) and one accent color that every app follows: `torus flavor latte`, `torus accent blue`.
 
 ## Keys I use the most
