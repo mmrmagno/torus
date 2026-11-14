@@ -68,8 +68,8 @@ Rectangle {
     }
     Rectangle {
         visible: tile.badge !== ""
-        x: picFrame.x + 6
-        y: picFrame.y + 6
+        x: picFrame.x + 6 + (actionRow.visible && tile.marked ? 28 : 0)
+        y: actionRow.visible ? picFrame.y + picFrame.height - height - 8 : picFrame.y + 6
         z: 2
         width: badgeText.implicitWidth + 12
         height: 18
@@ -153,6 +153,7 @@ Rectangle {
     }
 
     Row {
+        id: actionRow
         visible: tileHover.hovered || tile.selected
         anchors.right: tile.right
         anchors.top: tile.top
