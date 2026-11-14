@@ -171,13 +171,17 @@ class Match:
             p = j.get("player") or {}
             prov = j.get("provider") or {}
             if p.get("steamid") and prov.get("steamid") and p["steamid"] != prov["steamid"]:
-                return events
+                p = {}
+                self.alive = False
             mp = j.get("map") or {}
             if mp:
                 self.m["map"] = mp.get("name", self.m["map"])
                 self.m["ct"] = (mp.get("team_ct") or {}).get("score", self.m["ct"])
                 self.m["t"] = (mp.get("team_t") or {}).get("score", self.m["t"])
-                self.round = mp.get("round", self.round)
+                if mp.get("round", self.round) != self.round:
+                    self.round = mp.get("round", self.round)
+                    self.round_kills = 0
+                    self.alive = True
             if p.get("team"):
                 self.m["team"] = p["team"]
             ms = p.get("match_stats") or {}
@@ -190,10 +194,11 @@ class Match:
             if "health" in st:
                 self.alive = st["health"] > 0
             rnd = j.get("round") or {}
-            if rnd.get("phase") == "over" and self.round != self.done_round:
+            died = not self.alive and self.round_kills >= 3
+            if (rnd.get("phase") == "over" or died) and self.round != self.done_round:
                 self.done_round = self.round
                 rk = self.round_kills
-                won = rnd.get("win_team", "") != "" and rnd.get("win_team") == self.m["team"]
+                won = rnd.get("phase") == "over" and rnd.get("win_team", "") != "" and rnd.get("win_team") == self.m["team"]
                 kind = ""
                 if rk >= 5:
                     kind = "ace"

@@ -38,8 +38,8 @@ run_match() {
   ss -ltnH "sport = :$port" | grep -qE "(0\.0\.0\.0|\*|\[::\]):$port" && fail "listens on all interfaces"
   while IFS= read -r line; do
     curl -s -o /dev/null -w '%{http_code}\n' -H 'Content-Type: application/json' --data "${line//TOKEN/$tok}" "http://127.0.0.1:$port/" >> "$F/codes"
-  done < "$REPO/tests/fixtures/gsi/match.jsonl"
-  for _ in $(seq 20); do [[ $(wc -l < "$F/codes") == $(wc -l < "$REPO/tests/fixtures/gsi/match.jsonl") ]] && break; sleep 0.1; done
+  done < "$REPO/tests/fixtures/gsi/${1:-match}.jsonl"
+  for _ in $(seq 20); do [[ $(wc -l < "$F/codes") == $(wc -l < "$REPO/tests/fixtures/gsi/${1:-match}.jsonl") ]] && break; sleep 0.1; done
   [[ -z $(grep -v '^200$' "$F/codes") ]] || fail "every update with the right token is accepted: $(sort "$F/codes" | uniq -c | tr '\n' ' ')"
   kill "$G"; wait "$G" 2> /dev/null || true; G=""
 }
@@ -52,6 +52,9 @@ printf '#!/bin/sh\necho "$*" >> "%s/pkill.log"\n[ "$1" = -USR1 ] && exit 1\nexit
 run_match
 [[ -e $F/state/torus/gsi-pending ]] && fail "with no replay buffer running an auto clip leaves no label behind for my next manual save"
 printf '#!/bin/sh\necho "$*" >> "%s/pkill.log"\n[ "$1" = -USR1 ] && cat "%s/state/torus/gsi-pending" >> "%s/saves"\nexit 0\n' "$F" "$F" "$F" > "$F/bin/pkill"
+
+run_match spectate
+assert_eq "3k 3k" "$(paste -sd' ' "$F/saves")" "a 3k is clipped when I die after it (the round ends while I spectate), once; a dead player's won round is no clutch"
 
 "$P" set 730 hl_clutch off
 run_match
