@@ -1486,6 +1486,16 @@ check_recall() {
   if [[ -z $bad ]]; then section recall ok "game hub, capture studio and clipboard reopen where I left them, and fresh after 10 minutes closed"; else section recall fail "$bad"; fi
 }
 
+check_launchenv() {
+  local bad="" pid env k
+  pid=$(systemctl --user show -p MainPID --value torus-shell)
+  env=$(tr '\0' '\n' < "/proc/$pid/environ")
+  for k in XDG_SESSION_TYPE=wayland XDG_SESSION_DESKTOP=Hyprland ELECTRON_OZONE_PLATFORM_HINT=auto QT_QPA_PLATFORM='wayland;xcb' MOZ_ENABLE_WAYLAND=1 QT_QPA_PLATFORMTHEME=qt6ct; do
+    grep -qxF "$k" <<<"$env" || bad+="shell-lacks[$k] "
+  done
+  if [[ -z $bad ]]; then section launchenv ok "apps the shell starts get Hyprland's session variables (Discord shares the screen through the portal, Electron and Qt apps run on Wayland)"; else section launchenv fail "$bad"; fi
+}
+
 check_panels() {
   local bad="" r
   "${QS[@]}" networkToggle > /dev/null; sleep 3
@@ -2864,6 +2874,7 @@ case ${1:-all} in
   undorace) check_undorace ;;
   envknobs) check_envknobs ;;
   recall) check_recall ;;
+  launchenv) check_launchenv ;;
   cutter) check_cutter ;;
   meetjoin) check_meetjoin ;;
   layout) check_layout ;;
@@ -2885,7 +2896,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

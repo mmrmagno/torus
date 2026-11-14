@@ -104,6 +104,7 @@ with it. I want a setup I own end to end.
 - On Latte the tray icons are darkened so they stay visible on the light bar.
 - A panel that scrolls fades at the edge where there is more.
 - Everything the shell starts goes through its own launcher, so pavucontrol, the network editor, the wallpapers folder and the timetable link survive a shell restart.
+- Apps the shell starts get the same session variables as Hyprland, so Discord and other Electron apps run on Wayland and screen sharing goes through the portal (every window and both screens, not black frames).
 - `torus update` installs what I signed in torus-dev: fast-forward only, it refuses commits without a good signature, runs the install and restarts the shell only when new shell files came with it. On a machine without torus-dev it follows the Git remote the same way.
 - Once a week torus drops cached previews whose screenshot, clip or clipboard entry is gone (`torus-prune --dry-run` shows what would go).
 - Options live behind a cog: the capture studio and the clips view open a small settings sheet (Ctrl+Enter) with the same switches as a game's settings, instead of option rows in the panel.

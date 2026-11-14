@@ -20,6 +20,9 @@ if probe then
 	vars.MANGOHUD = "1"
 	vars.MANGOHUD_CONFIGFILE = state .. "mangohud.conf"
 end
+torus.env = {}
 for k, v in pairs(vars) do
 	hl.env(k, v)
+	torus.env[#torus.env + 1] = k
 end
+table.sort(torus.env)
