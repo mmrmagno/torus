@@ -148,7 +148,11 @@ def trigger(kind):
     os.makedirs(STATE, exist_ok=True)
     with open(PENDING, "w") as f:
         f.write(kind + "\n")
-    subprocess.run(["pkill", "-USR1", "-f", "gpu-screen-recorder .*-r "])
+    if subprocess.run(["pkill", "-USR1", "-f", "gpu-screen-recorder .*-r "]).returncode != 0:
+        try:
+            os.remove(PENDING)
+        except OSError:
+            pass
 
 
 class Match:

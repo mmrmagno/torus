@@ -48,6 +48,11 @@ run_match
 assert_eq "ace clutch 3k" "$(paste -sd' ' "$F/saves")" "saves on an ace, a clutch and a 3K; not twice per round, not for a player being spectated"
 assert_eq "de_mirage:2:3:CT:11:2:2:5:1:3" "$(jq -r '"\(.map):\(.ct):\(.t):\(.team):\(.kills):\(.deaths):\(.mvps):\(.best):\(.best_round):\(.auto)"' "$F/state/torus/gsi-match.json")" "match stats for the recap"
 
+printf '#!/bin/sh\necho "$*" >> "%s/pkill.log"\n[ "$1" = -USR1 ] && exit 1\nexit 0\n' "$F" > "$F/bin/pkill"
+run_match
+[[ -e $F/state/torus/gsi-pending ]] && fail "with no replay buffer running an auto clip leaves no label behind for my next manual save"
+printf '#!/bin/sh\necho "$*" >> "%s/pkill.log"\n[ "$1" = -USR1 ] && cat "%s/state/torus/gsi-pending" >> "%s/saves"\nexit 0\n' "$F" "$F" "$F" > "$F/bin/pkill"
+
 "$P" set 730 hl_clutch off
 run_match
 assert_eq "ace 3k" "$(paste -sd' ' "$F/saves")" "clutch switched off"
@@ -77,7 +82,7 @@ printf '#!/bin/sh\nexit 0\n' > "$F/bin/ffmpeg"; chmod +x "$F/bin/ffmpeg"
 assert_eq "ace" "$("$P" clips 730 | awk -F'\t' -v d="$dest" '$1 == d { print $5 }')" "the clip strip gets an auto badge"
 echo '{"map":"de_mirage","ct":2,"t":3,"team":"CT","kills":11,"deaths":2,"mvps":2,"best":5,"best_round":1,"auto":1,"start":2}' > "$F/state/torus/gsi-match.json"
 cp "$F/state/torus/play-session.json" "$F/session.bak"
-"$P" end
+"$P" end --closed
 grep -q -- '-f torus-gsi serve' "$F/pkill.log" || fail "the game ending stops the listener"
 txt=$("$P" recap | jq -r .text)
 [[ $txt == "Counter-Strike 2: de_mirage 2:3 · 11/2 K/D · 2 MVPs · "*"best round ace (round 1)"*"2 clips saved (1 auto)" ]] || fail "recap: $txt"

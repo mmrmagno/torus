@@ -102,6 +102,8 @@ echo '{"name": "Counter-Strike 2", "replay": true}' > "$XDG_STATE_HOME/torus/pla
 grep -q 'pkill' "$STUB_LOG" && fail "changing the mic during a game stopped the game's own replay buffer: $(cat "$STUB_LOG")"
 grep -q 'gpu-screen-recorder' "$STUB_LOG" && fail "changing the mic during a game started a plain buffer"
 grep -q 'next game' "$STUB_LOG" || fail "it says the mic applies from the next game: $(cat "$STUB_LOG")"
+: > "$STUB_LOG"; "$B/torus-record" replay-save; sleep 0.3
+grep -q -- '-r 60 -sc .*torus-play-saved' "$STUB_LOG" || fail "a buffer the save key starts during a game files its clips under the game: $(cat "$STUB_LOG")"
 rm -f "$XDG_STATE_HOME/torus/play-session.json"
 : > "$STUB_LOG"; PATH=$F/busy:$PATH "$B/torus-record" replay-mic off
 grep -q 'gpu-screen-recorder -w portal' "$STUB_LOG" || fail "outside a game the plain buffer restarts with the new mic: $(cat "$STUB_LOG")"

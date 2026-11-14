@@ -228,10 +228,15 @@ hl.on("window.fullscreen", function(w)
 end)
 
 hl.on("window.close", function(w)
-	if gen == _G.torus_guard_gen and w and guard.addr == w.address then
+	if gen ~= _G.torus_guard_gen or not w then
+		return
+	end
+	if guard.addr == w.address then
 		guard.addr = nil
 		lower_moat("game closed")
-		hl.exec_cmd("torus-gamemode auto-off")
+		hl.exec_cmd("torus-gamemode auto-off closed")
+	elseif is_game(w) then
+		hl.exec_cmd("torus-gamemode auto-off closed")
 	end
 end)
 

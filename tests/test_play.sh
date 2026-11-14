@@ -3,8 +3,8 @@ set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
 F=$(mktemp -d)
-trap 'rm -rf "$F"' EXIT
-mkdir -p "$F/bin" "$F/state/torus"
+trap '/usr/bin/pkill -f "^python3 $F/sh/torus-play replay-keep" 2> /dev/null; rm -rf "$F"' EXIT
+mkdir -p "$F/bin" "$F/state/torus" "$F/sh"
 export PATH=$F/bin:$PATH HOME=$F XDG_STATE_HOME=$F/state XDG_CACHE_HOME=$F/cache XDG_CONFIG_HOME=$F/config XDG_VIDEOS_DIR=$F/Videos LOG=$F/calls
 stub() { printf '#!/usr/bin/env bash\necho "%s $*" >> "$LOG"\n%s\n' "$1" "$2" > "$F/bin/$1"; chmod +x "$F/bin/$1"; }
 stub torus-games 'printf "730\tCounter-Strike 2\t0\t0\t\n"'
@@ -17,7 +17,8 @@ stub powerprofilesctl 'exit 0'
 stub gpu-screen-recorder 'exit 0'
 stub setsid 'echo "setsid $*" >> "$LOG"'
 stub journalctl '[[ -n ${STUB_VCN:-} ]] && echo "amdgpu 0000:03:00.0: ring vcn_unified_1 timeout, signaled seq=1, emitted seq=2"; exit 0'
-P=$REPO/home/.local/bin/torus-play
+cp "$REPO/home/.local/bin/torus-play" "$REPO/home/.local/bin/torus-play-saved" "$F/sh/"
+P=$F/sh/torus-play
 
 assert_eq '{"overlay": "keep", "power": "performance", "replay": "on", "replay_secs": 60, "hold": "on", "gamescope": "off", "highlights": "on", "hl_3k": "on", "hl_4k": "on", "hl_ace": "on", "hl_clutch": "on", "clip_audio": "everything"}' "$("$P" settings 730)" "defaults"
 "$P" set 730 replay_secs 120
@@ -64,7 +65,7 @@ pkill -f "^sleep 30$" || true
 rm "$F/state/torus/play-session.json" "$F/state/torus/share-target"; : > "$LOG"
 printf '#!/usr/bin/env bash\necho "gpu-screen-recorder $*" >> "$LOG"\nexit 1\n' > "$F/bin/gpu-screen-recorder"; chmod +x "$F/bin/gpu-screen-recorder"
 "$P" start steam_app_730
-grep -q -- "setsid -f gpu-screen-recorder -w DP-1 " "$LOG" || fail "falls back to the monitor when the portal fails: $(cat "$LOG")"
+grep -q -- "^gpu-screen-recorder -w DP-1 " "$LOG" || fail "falls back to the monitor when the portal fails: $(cat "$LOG")"
 [[ -e $F/state/torus/share-target ]] && fail "a failed portal start leaves no stale target"
 mkdir -p "$F/Videos"
 ffmpeg -v error -f lavfi -i color=c=red:s=64x48:d=2 -c:v libx264 "$F/Videos/Replay_x.mp4"
@@ -80,7 +81,7 @@ mkdir -p "$(dirname "$log")"
   for i in $(seq 99); do echo "200,5.0,10,90,60,70,$i"; done; echo "50,20.0,10,90,60,78,100"; } > "$log"
 jq '.start -= 6300' "$F/state/torus/play-session.json" > "$F/s.json" && mv "$F/s.json" "$F/state/torus/play-session.json"
 touch "$log"
-"$P" end
+"$P" end --closed
 r=$("$P" recap)
 assert_eq "105:198:50:78:1" "$(jq -r '"\(.minutes):\(.fps_avg):\(.fps_low1):\(.gpu_temp_max):\(.clips)"' <<< "$r")" "recap numbers"
 assert_eq "Counter-Strike 2: played 1 h 45 · average 198 FPS · 1 % low 50 · GPU max 78 °C · 1 clip saved" "$(jq -r .text <<< "$r")" "recap text"

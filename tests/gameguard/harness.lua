@@ -122,7 +122,7 @@ check(mon("DP-2").x >= 50000, "the moat comes back after unlock")
 
 execs = {}
 fire("window.close", game)
-check(ran("torus-gamemode auto-off"), "closing the game ends automatic game mode")
+check(ran("torus-gamemode auto-off closed"), "closing the game ends automatic game mode and tells torus-play the game is gone")
 active = nil
 check(mon("DP-2").x == 2560, "closing the game restores the screen")
 local f = io.open(os.getenv("XDG_STATE_HOME") .. "/torus/gameguard-moat")

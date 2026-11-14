@@ -2578,6 +2578,42 @@ check_segv() {
   if [[ -z $bad ]]; then section segv ok "a segfault Quickshell restarts in place still leaves a torus crash log and a notification"; else section segv fail "$bad"; fi
 }
 
+check_playkeep() {
+  local bad="" st0 st1 main
+  local state=~/.local/state/torus
+  rm -f "$state/play-session.json" "$state/play-last.json"
+  main=$(hyprctl monitors -j | jq -r '.[0].name')
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' > /dev/null
+  hyprctl eval 'hl.exec_cmd("kitty --class steam_app_620")' > /dev/null
+  for _ in $(seq 100); do hyprctl clients -j | jq -e 'any(.[]; .class == "steam_app_620")' > /dev/null && break; sleep 0.2; done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:steam_app_620" }))' > /dev/null 2>&1
+  for _ in $(seq 10); do
+    hyprctl clients -j | jq -e 'any(.[]; .class == "steam_app_620" and .fullscreen > 0)' > /dev/null && break
+    hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen())' > /dev/null
+    sleep 0.5
+  done
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' > /dev/null; sleep 0.5
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:steam_app_620" }))' > /dev/null 2>&1
+  for _ in $(seq 40); do [[ -s $state/play-session.json ]] && break; sleep 0.25; done
+  for _ in $(seq 60); do pgrep -f "[t]orus-play start" > /dev/null || break; sleep 0.1; done
+  st0=$(jq -r .start "$state/play-session.json" 2> /dev/null)
+  [[ -n $st0 ]] || bad+="no-session "
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:steam_app_620" }))' > /dev/null 2>&1
+  hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen())' > /dev/null; sleep 2
+  hyprctl clients -j | jq -e 'any(.[]; .class == "steam_app_620" and .fullscreen == 0)' > /dev/null || bad+="did-not-leave-fullscreen "
+  st1=$(jq -r .start "$state/play-session.json" 2> /dev/null)
+  [[ -n $st1 && $st1 == "$st0" ]] || bad+="leaving-fullscreen-ended-the-session[$st0>$st1] "
+  [[ ! -s $state/play-last.json ]] || bad+="recap-on-alt-tab "
+  hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen())' > /dev/null; sleep 2
+  [[ $(jq -r .start "$state/play-session.json" 2> /dev/null) == "$st0" ]] || bad+="back-to-fullscreen-made-a-new-session "
+  hyprctl clients -j | jq -r '.[] | select(.class == "steam_app_620") | .pid' | xargs -r kill
+  for _ in $(seq 40); do [[ ! -e $state/play-session.json ]] && break; sleep 0.25; done
+  [[ ! -e $state/play-session.json ]] || bad+="closing-did-not-end "
+  rm -f "$state/play-last.json"
+  if [[ -z $bad ]]; then section playkeep ok "leaving fullscreen keeps the play session and its replay buffer, closing the game ends it"; else section playkeep fail "$bad"; fi
+}
+
 check_battery() {
   local bad="" r
   r=$(torus-battery status)
@@ -2914,6 +2950,7 @@ case ${1:-all} in
   undorace) check_undorace ;;
   envknobs) check_envknobs ;;
   recall) check_recall ;;
+  playkeep) check_playkeep ;;
   hubpolish) check_hubpolish ;;
   launchenv) check_launchenv ;;
   cutter) check_cutter ;;
@@ -2937,7 +2974,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

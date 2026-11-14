@@ -4,6 +4,8 @@ import glob
 import json
 import os
 import re
+import select
+import signal
 import shutil
 import subprocess
 import sys
@@ -158,13 +160,88 @@ def start_replay(cls, mon, audio, secs):
                 break
             time.sleep(0.2)
         if p.poll() is None:
-            return "window"
+            return "window", p.pid
         try:
             os.remove(os.path.join(STATE, "share-target"))
         except OSError:
             pass
-    subprocess.Popen(["setsid", "-f", "gpu-screen-recorder", "-w", mon] + base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return "monitor"
+    p = subprocess.Popen(["gpu-screen-recorder", "-w", mon] + base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    return "monitor", p.pid
+
+
+def replay_procs():
+    out = run("pgrep", "-af", "gpu-screen-recorder .*-r ")
+    return [l for l in out.splitlines() if "gpu-screen-recorder" in l]
+
+
+def stop_plain_replay():
+    if not any("-saved" not in l for l in replay_procs()):
+        return
+    run("pkill", "-INT", "-f", "gpu-screen-recorder .*-r ")
+    for _ in range(30):
+        if not replay_running():
+            break
+        time.sleep(0.1)
+
+
+def ours(pid, word):
+    try:
+        return word in open(f"/proc/{pid}/cmdline", "rb").read().decode(errors="replace")
+    except (OSError, ValueError):
+        return False
+
+
+def stop_keeper(sess):
+    k = sess.get("keeper")
+    if isinstance(k, int) and k != os.getpid() and ours(k, "replay-keep"):
+        try:
+            os.kill(k, signal.SIGTERM)
+        except OSError:
+            pass
+
+
+def cmd_keep():
+    deaths = []
+    for _ in range(30):
+        if (load(SESSION, None) or {}).get("keeper") == os.getpid():
+            break
+        time.sleep(0.1)
+    while True:
+        sess = load(SESSION, None)
+        if not sess or sess.get("keeper") != os.getpid() or not sess.get("replay"):
+            return
+        pid = sess.get("replay_pid")
+        try:
+            fd = os.pidfd_open(pid)
+            select.select([fd], [], [])
+            os.close(fd)
+        except (OSError, TypeError):
+            pass
+        sess = load(SESSION, None)
+        if not sess or sess.get("keeper") != os.getpid():
+            return
+        if not window_open(sess.get("class", "")):
+            cmd_end(closed=True)
+            return
+        now = time.time()
+        deaths = [t for t in deaths if now - t < 120] + [now]
+        if len(deaths) > 3:
+            ipc("islandFlash", "notification", "The replay buffer keeps stopping, clips are off for this game")
+            sess["replay"] = False
+            save(SESSION, sess)
+            return
+        time.sleep(1)
+        cls = sess.get("class", "")
+        s = settings(sess.get("appid", ""))
+        mon = monitor_of(cls)
+        if not mon:
+            return
+        sess["capture"], sess["replay_pid"] = start_replay(cls, mon, replay_audio(cls, s["clip_audio"]), int(sess.get("replay_secs", 60)))
+        cur = load(SESSION, None)
+        if not cur or cur.get("keeper") != os.getpid():
+            return
+        cur.update({"capture": sess["capture"], "replay_pid": sess["replay_pid"]})
+        save(SESSION, cur)
 
 
 def game_binary(cls):
@@ -216,6 +293,7 @@ def cmd_start(cls):
     if old is not None:
         if window_open(old.get("class", "")):
             return
+        stop_keeper(old)
         if old.get("replay"):
             run("pkill", "-INT", "-f", "gpu-screen-recorder .*-r ")
             for _ in range(30):
@@ -238,12 +316,15 @@ def cmd_start(cls):
     if s["replay"] == "on" and not replay_running() and shutil.which("gpu-screen-recorder") and encoder_broken():
         s = dict(s, replay="off")
         ipc("islandFlash", "notification", "Replay buffer off until a reboot: the video encoder hung after a GPU reset")
+    if s["replay"] == "on" and shutil.which("gpu-screen-recorder"):
+        stop_plain_replay()
     if s["replay"] == "on" and not replay_running() and shutil.which("gpu-screen-recorder"):
         mon = monitor_of(cls)
         if mon:
             audio = replay_audio(cls, s["clip_audio"])
             os.makedirs(VIDEOS, exist_ok=True)
-            sess.update({"capture": start_replay(cls, mon, audio, int(s["replay_secs"])), "replay": True, "replay_secs": int(s["replay_secs"])})
+            kind, pid = start_replay(cls, mon, audio, int(s["replay_secs"]))
+            sess.update({"capture": kind, "replay_pid": pid, "replay": True, "replay_secs": int(s["replay_secs"])})
     if appid in GSI_APPS and shutil.which("torus-gsi"):
         run("torus-gsi", "install", "--quiet")
         subprocess.Popen(["setsid", "-f", "torus-gsi", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -251,6 +332,11 @@ def cmd_start(cls):
     cur = load(SESSION, {})
     sess["clips"] = max(sess["clips"], cur.get("clips", 0))
     save(SESSION, sess)
+    if sess.get("replay_pid"):
+        k = subprocess.Popen([os.path.abspath(sys.argv[0]), "replay-keep"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        cur = load(SESSION, {})
+        cur["keeper"] = k.pid
+        save(SESSION, cur)
 
 
 def load_text(path):
@@ -323,10 +409,13 @@ def recap_text(r):
     return r["name"] + ": " + " · ".join(parts)
 
 
-def cmd_end():
+def cmd_end(closed=False):
     sess = load(SESSION, None)
     if not sess:
         return
+    if not closed and window_open(sess.get("class", "")):
+        return
+    stop_keeper(sess)
     if sess.get("replay"):
         run("pkill", "-INT", "-f", "gpu-screen-recorder .*-r ")
     if sess.get("gsi"):
@@ -555,7 +644,9 @@ def main():
     if a[0] == "start":
         cmd_start(a[1] if len(a) > 1 else "")
     elif a[0] == "end":
-        cmd_end()
+        cmd_end(closed="--closed" in a[1:])
+    elif a[0] == "replay-keep":
+        cmd_keep()
     elif a[0] == "saved":
         cmd_saved(a[1])
     elif a[0] == "settings":

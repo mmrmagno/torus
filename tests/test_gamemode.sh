@@ -44,3 +44,11 @@ echo balanced > "$XDG_STATE_HOME/pp"
 echo power-saver > "$XDG_STATE_HOME/pp"
 "$G" auto-off
 assert_eq power-saver "$(cat "$XDG_STATE_HOME/pp")" "a profile I picked during the game is kept"
+mkdir -p "$F/sh"
+cp "$G" "$F/sh/"
+printf '#!/bin/sh\necho "torus-play $*" >> "%s/play"\n' "$F" > "$F/sh/torus-play"; chmod +x "$F/sh/torus-play"
+"$F/sh/torus-gamemode" auto-off; sleep 0.3
+assert_eq "torus-play end" "$(cat "$F/play")" "leaving fullscreen only asks torus-play to end (it keeps the session while the game window is open)"
+: > "$F/play"; "$F/sh/torus-gamemode" auto-off closed; sleep 0.3
+assert_eq "torus-play end --closed" "$(cat "$F/play")" "a closed game ends the session"
+

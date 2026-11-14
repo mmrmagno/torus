@@ -13,7 +13,9 @@ replay_audio() {
 }
 
 replay_start() {
-  setsid -f gpu-screen-recorder -w portal -f 60 -a "$(replay_audio)" -c mp4 -r 60 -o "$dir" > /dev/null 2>&1
+  local file=()
+  [[ -s $state/play-session.json ]] && file=(-sc "$(dirname "$(readlink -f "$0")")/torus-play-saved")
+  setsid -f gpu-screen-recorder -w portal -f 60 -a "$(replay_audio)" -c mp4 -r 60 "${file[@]}" -o "$dir" > /dev/null 2>&1
 }
 
 mics() {
