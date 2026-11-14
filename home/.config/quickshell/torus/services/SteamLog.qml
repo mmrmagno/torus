@@ -17,8 +17,10 @@ Singleton {
     onQuietChanged: if (!quiet && held.length) {
         const h = held
         held = []
-        for (const n of h)
-            Island.flash("notification", n, 5000)
+        if (h.length === 1)
+            Island.flash("notification", h[0], 5000)
+        else
+            Island.flash("notification", { summary: "Steam finished while you played", body: h.map(n => n.summary).join(" · "), app: "Steam", icon: "steam", image: "", cat: "steam" }, 8000)
     }
 
     function note(n) {

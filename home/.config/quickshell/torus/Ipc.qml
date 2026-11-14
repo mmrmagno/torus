@@ -153,6 +153,11 @@ IpcHandler {
         return Recordings.count
     }
 
+    function islandText(): string {
+        const d = Island.flashData || {}
+        return Island.flashKind + "|" + (d.summary || "") + "|" + (d.body || "")
+    }
+
     function islandFlash(kind: string, label: string): void {
         Island.flash(kind, { icon: "󰋼", label: label, value: -1, summary: label, body: "" }, 3000)
     }

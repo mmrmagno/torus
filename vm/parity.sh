@@ -2149,6 +2149,32 @@ check_steam() {
   if [[ -z $bad ]]; then section steam ok "Steam's shader log drives a progress ring on the island with time left, the hub card shows it, 100% says ready to play"; else section steam fail "$bad"; fi
 }
 
+check_steamheld() {
+  local bad="" log=$HOME/.local/share/Steam/logs/shader_log.txt t id
+  mkdir -p "$(dirname "$log")"
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "empty" }))' > /dev/null
+  hyprctl eval 'hl.exec_cmd("kitty --class parity-held-full")' > /dev/null; sleep 2
+  for _ in 1 2 3 4 5; do
+    hyprctl clients -j | jq -e 'any(.[]; .class == "parity-held-full" and .fullscreen > 0)' > /dev/null && break
+    hyprctl eval 'hl.dispatch(hl.dsp.window.fullscreen())' > /dev/null
+    sleep 1
+  done
+  for id in 1145360 367520; do
+    echo "[$(date '+%F %T')] Still replaying $id (50%, 5000/10000)" >> "$log"
+  done
+  sleep 3
+  for id in 1145360 367520; do
+    echo "[$(date '+%F %T')] Still replaying $id (100%, 10000/10000)" >> "$log"
+  done
+  sleep 3
+  [[ $("${QS[@]}" islandState 2>/dev/null) != *notification* ]] || bad+="note-over-game "
+  hyprctl clients -j | jq -r '.[] | select(.class == "parity-held-full") | .pid' | xargs -r kill
+  sleep 1.5
+  t=$("${QS[@]}" islandText 2>/dev/null | tail -n 1)
+  [[ $t == notification\|* && $t == *Hades* && $t == *"Hollow Knight"* ]] || bad+="held[$t] "
+  if [[ -z $bad ]]; then section steamheld ok "every Steam note held during a fullscreen game shows after it, in one line"; else section steamheld fail "$bad"; fi
+}
+
 check_gamesettings() {
   local bad="" before after h=$HOME/Videos/Clips/hades c=$HOME/Videos/Clips/hades/hades-2030-02-01-000000.mp4 mime
   before=$(torus-play settings 1145360 | jq -r .replay)
@@ -2746,6 +2772,7 @@ case ${1:-all} in
   library) check_library ;;
   gamesettings) check_gamesettings ;;
   steam) check_steam ;;
+  steamheld) check_steamheld ;;
   cutter) check_cutter ;;
   meetjoin) check_meetjoin ;;
   layout) check_layout ;;
@@ -2767,7 +2794,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"
