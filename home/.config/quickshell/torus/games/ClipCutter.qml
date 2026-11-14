@@ -26,6 +26,9 @@ Rectangle {
     property real outAt: 0
     property bool playingSel: false
     property string status: ""
+    onInAtChanged: if (!cut.running && duration > 0) status = ""
+    onOutAtChanged: if (!cut.running && duration > 0) status = ""
+    onKeepArmedChanged: if (!keepArmed && status.startsWith("Ctrl+Enter again")) status = ""
     property bool keepArmed: false
     signal closed()
     signal saved(string path)
@@ -94,7 +97,7 @@ Rectangle {
             return
         if (keepOnly && !keepArmed) {
             keepArmed = true
-            status = "Ctrl+Enter again replaces the original with this part (the original goes to the trash)"
+            status = "Ctrl+Enter again: keep only this part, the original goes to the trash"
             return
         }
         keepArmed = false
@@ -111,6 +114,10 @@ Rectangle {
     focus: visible
 
     Keys.onPressed: event => {
+        if (event.isAutoRepeat && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space)) {
+            event.accepted = true
+            return
+        }
         const fine = event.modifiers & Qt.ShiftModifier ? 5 : 1
         if (event.key === Qt.Key_Escape)
             cutter.close()
@@ -311,7 +318,7 @@ Rectangle {
             Layout.maximumWidth: 520
             text: cutter.status !== "" && cutter.duration > 0 ? cutter.status : ("part " + cutter.fmt(cutter.inAt) + " → " + cutter.fmt(cutter.outAt) + "  ·  " + (cutter.outAt - cutter.snapped).toFixed(1) + " s" + (cutter.snapped < cutter.inAt - 0.05 ? "  ·  starts on the keyframe at " + cutter.fmt(cutter.snapped) : ""))
             color: cutter.keepArmed ? Theme.red : Theme.subtext
-            elide: Text.ElideLeft
+            elide: Text.ElideRight
             font.family: Theme.fontMono
             font.pixelSize: Theme.fsSm
         }

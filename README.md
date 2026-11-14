@@ -115,6 +115,7 @@ with it. I want a setup I own end to end.
 - Text size in the theme studio has three one-click steps (Compact, Normal, Large) next to the slider, for the laptop.
 - Every delete can be undone: the island says what went to the trash with an Undo button, and Ctrl+Z in the capture studio or the clips brings it back.
 - Undo right after a delete brings back exactly that file, even when I hit it at once on a busy machine, never an older one.
+- Holding Del, Enter or Ctrl+S in the game hub, the capture studio or the cutter never counts as the second press, closing a panel ends quick look and any armed delete, a rename or a fresh thumbnail keeps the same clip selected, and a double click starts a game once.
 - Space on a capture or a clip shows it big right there (a clip plays), arrows step to the next one, Space or Esc puts it away.
 - The settings sheets show how much torus has put in the trash and empty just that (Del twice), never what other apps trashed.
 - When the GPU freezes and the driver resets it, one notification says in plain words what froze it (a game, the clip recorder) and whether clips are off until a reboot, with Reboot now (the logout menu) and Later. If the reset took the session down, it says so once after the restart. It follows the kernel log, so it costs nothing while all is well.

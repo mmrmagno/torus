@@ -51,6 +51,19 @@ Item {
             keptClip = current ? current.path : ""
     }
 
+    property bool failed: false
+    property string renameFrom: ""
+
+    function setClips(list, keepPath) {
+        const at = grid.currentIndex
+        const want = keepPath !== undefined ? keepPath : (current ? current.path : "")
+        clips = list
+        if (game !== "" && !clips.some(c => c.game === game))
+            game = ""
+        const i = shown.findIndex(c => c.path === want)
+        grid.currentIndex = i >= 0 ? i : Math.max(0, Math.min(at, shown.length - 1))
+    }
+
     function forget() {
         game = ""
         starredOnly = false
@@ -99,11 +112,9 @@ Item {
             return
         }
         armed = ""
-        const keep = grid.currentIndex
-        clips = clips.filter(c => paths.indexOf(c.path) < 0)
+        setClips(clips.filter(c => paths.indexOf(c.path) < 0), "")
         marks = ({})
         Store.trashMany(paths)
-        grid.currentIndex = Math.max(0, Math.min(keep, shown.length - 1))
     }
 
     property var healed: ({})
@@ -114,7 +125,7 @@ Item {
         const h = Object.assign({}, healed)
         h[path] = true
         healed = h
-        clips = clips.map(c => c.path === path ? Object.assign({}, c, { thumb: "" }) : c)
+        setClips(clips.map(c => c.path === path ? Object.assign({}, c, { thumb: "" }) : c))
         if (!thumber.running)
             thumber.running = true
     }
@@ -122,17 +133,17 @@ Item {
     function startRename(c) {
         if (!c)
             return
+        renameFrom = c.path
         renameText = c.path.split("/").pop().replace(/\.[^.]+$/, "")
         renameError = ""
         renaming = true
     }
 
     function commitRename() {
-        const c = current
-        if (!c || renamer.running)
+        if (renameFrom === "" || renamer.running)
             return
-        renamer.from = c.path
-        renamer.command = ["torus-play", "rename", c.path, renameText]
+        renamer.from = renameFrom
+        renamer.command = ["torus-play", "rename", renameFrom, renameText]
         renamer.running = true
     }
     readonly property var current: shown[grid.currentIndex] || null
@@ -197,10 +208,8 @@ Item {
             return
         }
         armed = ""
-        const keep = grid.currentIndex
-        clips = clips.filter(x => x.path !== c.path)
+        setClips(clips.filter(x => x.path !== c.path), "")
         Store.trash(c.path)
-        grid.currentIndex = Math.min(keep, shown.length - 1)
     }
 
     function play(c) {
@@ -287,7 +296,7 @@ Item {
                 if (to === "")
                     return
                 const was = lib.favs[renamer.from]
-                lib.clips = lib.clips.map(c => c.path === renamer.from ? Object.assign({}, c, { path: to, thumb: "" }) : c)
+                lib.setClips(lib.clips.map(c => c.path === renamer.from ? Object.assign({}, c, { path: to, thumb: "" }) : c), to)
                 if (was !== undefined) {
                     const f = Object.assign({}, lib.favs)
                     f[to] = was
@@ -303,16 +312,21 @@ Item {
     Process {
         id: lister
         command: ["torus-play", "library"]
+        onExited: code => lib.failed = code !== 0
         stdout: StdioCollector {
             onStreamFinished: {
                 lib.favs = ({})
-                lib.clips = text.split("\n").filter(l => l).map(l => {
+                const list = text.split("\n").filter(l => l).map(l => {
                     const f = l.split("\t")
                     return { path: f[0], at: Number(f[1]) || 0, thumb: f[2] || "", size: Number(f[3]) || 0, auto: f[4] || "", game: f[5] || "", name: f[6] || "", fav: f[7] === "1" }
                 })
-                lib.loaded = true
-                if (lib.placing)
+                if (lib.placing) {
+                    lib.clips = list
                     lib.place()
+                } else {
+                    lib.setClips(list)
+                }
+                lib.loaded = true
                 if (lib.clips.some(c => c.thumb === "") && !thumber.running)
                     thumber.running = true
             }
@@ -409,6 +423,7 @@ Item {
                     onThumbLost: lib.thumbLost(cell.modelData.path)
                     onOpened: {
                         lib.placing = false
+                        lib.renaming = false
                         grid.currentIndex = cell.index
                         if (lib.managing)
                             lib.mark(cell.modelData)
@@ -417,6 +432,8 @@ Item {
                     }
                     onAct: what => {
                         lib.placing = false
+                        if (what !== "rename")
+                            lib.renaming = false
                         grid.currentIndex = cell.index
                         if (what === "rename") {
                             lib.startRename(cell.modelData)
@@ -440,8 +457,9 @@ Item {
 
             CardState {
                 anchors.fill: parent
-                status: lib.shown.length > 0 ? "ready" : (!lib.loaded ? "loading" : "empty")
-                text: lib.clips.length === 0 ? "No clips yet: SUPER+ALT+R saves the replay buffer while you play" : (lib.starredOnly ? "No favorites here yet: Ctrl+S makes one" : "Nothing matches")
+                status: lib.shown.length > 0 ? "ready" : (lib.failed && !lib.loaded ? "error" : (!lib.loaded ? "loading" : "empty"))
+                onRetry: lib.reload()
+                text: lib.failed && !lib.loaded ? "Could not list the clips in ~/Videos/Clips" : lib.clips.length === 0 ? "No clips yet: SUPER+ALT+R saves the replay buffer while you play" : (lib.filter !== "" ? "No clip matches \u201c" + lib.filter + "\u201d" : (lib.starredOnly ? "No favorites here yet: Ctrl+S makes one" : "Nothing matches"))
             }
         }
 

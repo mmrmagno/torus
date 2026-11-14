@@ -209,6 +209,7 @@ PanelWindow {
         command: ["torus-captures", "40"]
         stdout: StdioCollector {
             onStreamFinished: {
+                const was = root.sel >= 0 && root.sel < root.shownItems.length ? root.shownItems[root.sel].path : ""
                 root.items = text.split("\n").filter(l => l).map(l => {
                     const f = l.split("\t")
                     return { kind: f[0], time: Number(f[1]), size: Number(f[2]), path: f[3], thumb: f[4], fav: f[5] === "1" }
@@ -216,6 +217,9 @@ PanelWindow {
                 if (root.placing) {
                     root.placing = false
                     root.sel = root.shownItems.findIndex(i => i.path === root.keptSel)
+                } else if (was !== "") {
+                    const i = root.shownItems.findIndex(x => x.path === was)
+                    root.sel = i >= 0 ? i : Math.min(root.sel, root.shownItems.length - 1)
                 }
             }
         }
@@ -236,7 +240,11 @@ PanelWindow {
                     root.sel = root.keptSel !== "" ? root.shownItems.findIndex(i => i.path === root.keptSel) : -1
                     root.placing = root.keptSel !== ""
                     capFrame.forceActiveFocus()
-                } else if (!root.placing) {
+                } else {
+                    root.look = ""
+                    root.setting = false
+                }
+                if (!root.visible && !root.placing) {
                     root.keptSel = root.sel >= 0 && root.sel < root.shownItems.length ? root.shownItems[root.sel].path : ""
                 }
             }
@@ -250,6 +258,10 @@ PanelWindow {
         focus: true
         Keys.onEscapePressed: root.look !== "" ? root.look = "" : (root.setting ? root.setting = false : Store.setOpen("capture", false))
         Keys.onPressed: event => {
+            if (event.isAutoRepeat && [Qt.Key_Delete, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space, Qt.Key_C, Qt.Key_E, Qt.Key_Z].indexOf(event.key) >= 0) {
+                event.accepted = true
+                return
+            }
             root.placing = false
             const cur = root.sel >= 0 ? root.shownItems[root.sel] : null
             const ctrl = event.modifiers & Qt.ControlModifier

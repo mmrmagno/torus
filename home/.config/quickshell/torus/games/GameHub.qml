@@ -86,6 +86,10 @@ PanelWindow {
             keptGame = selected ? selected.id : ""
         if (view === "clips")
             library.keep()
+        library.leave()
+        cutting = ""
+        setting = false
+        clipSetting = false
     } else {
         const keep = Store.recalls("games")
         cutting = Store.pendingCut
@@ -99,7 +103,7 @@ PanelWindow {
         }
         search.text = ""
         place()
-        placing = keptGame !== ""
+        placing = true
         if (!loader.running)
             loader.running = true
         search.forceActiveFocus()
@@ -111,6 +115,7 @@ PanelWindow {
         onExited: code => root.failed = code !== 0 && root.games.length === 0
         stdout: StdioCollector {
             onStreamFinished: {
+                const keep = root.selected ? root.selected.id : ""
                 root.games = text.split("\n").filter(l => l).map(l => {
                     const f = l.split("\t")
                     return { id: f[0], name: f[1], last: Number(f[2]) || 0, mins: Number(f[3]) || 0, art: f[4] || "" }
@@ -118,6 +123,8 @@ PanelWindow {
                 root.loaded = true
                 if (root.placing)
                     root.place()
+                else if (keep !== "")
+                    grid.currentIndex = Math.max(0, root.shown.findIndex(g => g.id === keep))
             }
         }
     }
@@ -161,6 +168,10 @@ PanelWindow {
                         grid.currentIndex = 0
                     }
                     Keys.onPressed: event => {
+                        if (event.isAutoRepeat && [Qt.Key_Delete, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space, Qt.Key_S, Qt.Key_E, Qt.Key_M, Qt.Key_Z, Qt.Key_F2].indexOf(event.key) >= 0) {
+                            event.accepted = true
+                            return
+                        }
                         root.placing = false
                         library.placing = false
                         const ctrl = event.modifiers & Qt.ControlModifier
@@ -369,10 +380,6 @@ PanelWindow {
                                     return
                                 root.placing = false
                                 grid.currentIndex === cell.index ? root.launch(cell.modelData) : grid.currentIndex = cell.index
-                            }
-                            onDoubleTapped: (point, button) => {
-                                if (!(cog.visible && cog.contains(cog.mapFromItem(card, point.position))))
-                                    root.launch(cell.modelData)
                             }
                         }
                     }

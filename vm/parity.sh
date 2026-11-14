@@ -1496,6 +1496,46 @@ check_launchenv() {
   if [[ -z $bad ]]; then section launchenv ok "apps the shell starts get Hyprland's session variables (Discord shares the screen through the portal, Electron and Qt apps run on Wayland)"; else section launchenv fail "$bad"; fi
 }
 
+check_hubpolish() {
+  local bad="" d=~/Videos/Clips/parity-polish e=~/Videos/Clips/parity-lone i cur
+  rm -rf "$d" "$e"; mkdir -p "$d" "$e"
+  for i in 1 2 3; do
+    ffmpeg -loglevel error -y -f lavfi -i "testsrc=duration=2:size=320x180:rate=10" -c:v libx264 -pix_fmt yuv420p "$d/parity-polish-2031-01-0$i-100000.mp4" < /dev/null
+    touch -d "2031-01-0$i 10:00" "$d/parity-polish-2031-01-0$i-100000.mp4"
+  done
+  cp "$d/parity-polish-2031-01-01-100000.mp4" "$e/parity-lone-2030-12-01-100000.mp4"; touch -d "2030-12-01 10:00" "$e/parity-lone-2030-12-01-100000.mp4"
+  ci() { "${QS[@]}" clipsState | tail -n 1 | cut -d'|' -f"$1"; }
+  "${QS[@]}" closeAll > /dev/null; "${QS[@]}" recallForget > /dev/null
+  "${QS[@]}" gamesToggle > /dev/null; sleep 1.2; wtype -k Tab; sleep 1.5
+  wtype parity-polish; sleep 0.6
+  [[ $(ci 5) == parity-polish-2031-01-03-100000.mp4 ]] || bad+="setup[$("${QS[@]}" clipsState | tail -n 1)] "
+  wtype -P Delete; sleep 1.2; wtype -p Delete; sleep 1
+  [[ -e $d/parity-polish-2031-01-03-100000.mp4 ]] || { bad+="held-del-trashed "; torus-trash undo > /dev/null; sleep 1; "${QS[@]}" clipReload > /dev/null 2>&1; sleep 1; }
+  wtype -k Right; sleep 0.3
+  [[ $(ci 5) == parity-polish-2031-01-02-100000.mp4 ]] || bad+="pick-second[$(ci 5)] "
+  wtype -k F2; sleep 0.3; wtype -k BackSpace; wtype -k BackSpace; wtype ZZ; wtype -k Return; sleep 1.5
+  [[ $(ci 5) == parity-polish-2031-01-02-1000ZZ.mp4 ]] || bad+="rename-moved-selection[$(ci 5)] "
+  wtype -k Delete; sleep 0.3
+  "${QS[@]}" gamesToggle > /dev/null; sleep 1; "${QS[@]}" gamesToggle > /dev/null; sleep 1.5
+  wtype -k Delete; sleep 1
+  ls "$d" | grep -q 1000ZZ || { bad+="armed-del-survived-reopen "; torus-trash undo > /dev/null; sleep 1; }
+  wtype -k Left; sleep 0.2; wtype -k Right; sleep 0.3
+  wtype -k space; sleep 0.8
+  [[ -n $("${QS[@]}" quickLook | tail -n 1) ]] || bad+="no-look "
+  "${QS[@]}" gamesToggle > /dev/null; sleep 1
+  [[ -z $("${QS[@]}" quickLook | tail -n 1) ]] || bad+="look-plays-after-close "
+  "${QS[@]}" gamesToggle > /dev/null; sleep 1.5
+  for _ in 1 2 3 4 5 6; do [[ $("${QS[@]}" recallState | tail -n 1 | cut -d'|' -f3) == parity-lone ]] && break; wtype -k bracketright; sleep 0.3; done
+  cur=$(ci 5)
+  [[ $cur == parity-lone-2030-12-01-100000.mp4 ]] || bad+="lone-chip[$cur] "
+  wtype -k Delete; sleep 0.3; wtype -k Delete; sleep 1.5
+  [[ $("${QS[@]}" recallState | tail -n 1 | cut -d'|' -f3) == "" ]] || bad+="chip-stuck-on-empty-game[$("${QS[@]}" recallState | tail -n 1)] "
+  "${QS[@]}" closeAll > /dev/null
+  rm -rf "$d" "$e"
+  torus-trash empty > /dev/null
+  if [[ -z $bad ]]; then section hubpolish ok "a held Del never skips the second press, rename keeps the clip selected, close ends quick look and the armed Del, an emptied game chip falls back to all"; else section hubpolish fail "$bad"; fi
+}
+
 check_panels() {
   local bad="" r
   "${QS[@]}" networkToggle > /dev/null; sleep 3
@@ -2874,6 +2914,7 @@ case ${1:-all} in
   undorace) check_undorace ;;
   envknobs) check_envknobs ;;
   recall) check_recall ;;
+  hubpolish) check_hubpolish ;;
   launchenv) check_launchenv ;;
   cutter) check_cutter ;;
   meetjoin) check_meetjoin ;;
@@ -2896,7 +2937,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"
