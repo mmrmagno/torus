@@ -23,6 +23,7 @@ Singleton {
     property int markedCount: 0
     property string armed: ""
     property var thumbReady: ({})
+    property bool thumbsKnown: false
     property var seen: ({})
     property bool seenFresh: false
     property var hashes: ({})
@@ -501,6 +502,10 @@ Singleton {
         if (decoder.running || !queue.length)
             return
         const line = queue.shift()
+        if (thumbReady[Qt.md5(line)]) {
+            Qt.callLater(root.pump)
+            return
+        }
         decoder.key = Qt.md5(line)
         decoder.command = ["sh", "-c", "umask 077; mkdir -p \"$2\" && chmod 700 \"$2\" && printf '%s\\n' \"$1\" | cliphist decode > \"$2/$3.tmp\" && [ -s \"$2/$3.tmp\" ] && mv -f \"$2/$3.tmp\" \"$2/$3.img\" || { rm -f \"$2/$3.tmp\"; exit 1; }", "sh", line, thumbs, decoder.key]
         decoder.running = true
@@ -640,6 +645,10 @@ Singleton {
                 }
                 root.raw = text
                 root.parse()
+                if (!root.thumbsKnown) {
+                    root.thumbsKnown = true
+                    root.pruneThumbs()
+                }
             }
         }
     }
