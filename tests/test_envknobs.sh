@@ -29,12 +29,13 @@ for _ in $(seq 50); do curl -s -o /dev/null "http://127.0.0.1:$port" && break; s
 : > "$F/seen"
 printf 'secret-key\n' > "$F/config/torus/ojp.key"; chmod 600 "$F/config/torus/ojp.key"
 echo '{"home": "Home street 1", "work": "Work road 2"}' > "$F/config/torus/commute.json"
+C=$(patched "$REPO/home/.local/bin/torus-commute" "$F/bin" https://transport.opendata.ch/v1 http://127.0.0.1:1 https://api.opentransportdata.swiss/ojp20 http://127.0.0.1:1)
 XDG_CONFIG_HOME=$F/config XDG_CACHE_HOME=$F/cache XDG_STATE_HOME=$F/state \
   TORUS_COMMUTE_API=http://127.0.0.1:$port TORUS_COMMUTE_OJP=http://127.0.0.1:$port \
-  timeout 20 "$REPO/home/.local/bin/torus-commute" fetch --to work > /dev/null 2>&1 || true
+  timeout 20 "$C" fetch --to work > /dev/null 2>&1 || true
 grep -q secret-key "$F/seen" && fail "the OJP key went to a host named by the environment"
 [[ -s $F/seen ]] && fail "the commute addresses went to a host named by the environment"
 
-bad=$(grep -rnE 'TORUS_[A-Z_]*(API|URL|LOCAL|PLACE|OJP|FALLBACK|CLEAR)\b' "$REPO/home" "$REPO/system" || true)
+bad=$(grep -rnE 'TORUS_[A-Z_]*(API|URL|LOCAL|PLACE|OJP|FALLBACK|CLEAR|PORT)\b' "$REPO/home" "$REPO/system" || true)
 [[ -z $bad ]] || fail "network addresses, programs and password timing come from the environment: $bad"
 echo "envknobs: ok"

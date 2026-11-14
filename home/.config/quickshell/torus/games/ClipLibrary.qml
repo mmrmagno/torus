@@ -351,7 +351,7 @@ Item {
                     Behavior on color { ColorAnimation { duration: Theme.durFast } }
                     Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.name; color: chip.on ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
                     HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: { lib.game = chip.modelData.id; grid.currentIndex = 0 } }
+                    TapHandler { onTapped: { lib.placing = false; lib.game = chip.modelData.id; grid.currentIndex = 0 } }
                 }
             }
             Rectangle {
@@ -361,7 +361,7 @@ Item {
                 color: lib.starredOnly ? Theme.yellow : (starHover.hovered ? Theme.surface1 : Theme.surface0)
                 Text { id: starText; anchors.centerIn: parent; text: "★ Favorites"; color: lib.starredOnly ? Theme.crust : Theme.yellow; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
                 HoverHandler { id: starHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: { lib.starredOnly = !lib.starredOnly; grid.currentIndex = 0 } }
+                TapHandler { onTapped: { lib.placing = false; lib.starredOnly = !lib.starredOnly; grid.currentIndex = 0 } }
             }
             Segmented {
                 options: ["new", "size"]
@@ -408,6 +408,7 @@ Item {
                     armed: lib.armed === cell.modelData.path || (lib.armed === "marked" && lib.marks[cell.modelData.path] === true)
                     onThumbLost: lib.thumbLost(cell.modelData.path)
                     onOpened: {
+                        lib.placing = false
                         grid.currentIndex = cell.index
                         if (lib.managing)
                             lib.mark(cell.modelData)
@@ -415,6 +416,7 @@ Item {
                             lib.play(cell.modelData)
                     }
                     onAct: what => {
+                        lib.placing = false
                         grid.currentIndex = cell.index
                         if (what === "rename") {
                             lib.startRename(cell.modelData)

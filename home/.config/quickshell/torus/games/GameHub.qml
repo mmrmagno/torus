@@ -82,7 +82,8 @@ PanelWindow {
     }
 
     onVisibleChanged: if (!visible) {
-        keptGame = selected ? selected.id : ""
+        if (!placing)
+            keptGame = selected ? selected.id : ""
         if (view === "clips")
             library.keep()
     } else {
@@ -160,6 +161,8 @@ PanelWindow {
                         grid.currentIndex = 0
                     }
                     Keys.onPressed: event => {
+                        root.placing = false
+                        library.placing = false
                         const ctrl = event.modifiers & Qt.ControlModifier
                         if (root.setting) {
                             settings.key(event)
@@ -354,6 +357,7 @@ PanelWindow {
                             HoverHandler { id: cogHover; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
                                 onTapped: {
+                                    root.placing = false
                                     grid.currentIndex = cell.index
                                     root.openSettings(cell.modelData)
                                 }
@@ -363,6 +367,7 @@ PanelWindow {
                             onTapped: (point, button) => {
                                 if (cog.visible && cog.contains(cog.mapFromItem(card, point.position)))
                                     return
+                                root.placing = false
                                 grid.currentIndex === cell.index ? root.launch(cell.modelData) : grid.currentIndex = cell.index
                             }
                             onDoubleTapped: (point, button) => {

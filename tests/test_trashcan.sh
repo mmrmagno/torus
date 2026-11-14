@@ -54,4 +54,17 @@ wait $! || fail "an undo that started before its delete landed gave up: $(cat "$
 [[ -f $e ]] || fail "undo brings back the file just deleted"
 [[ ! -e $d ]] || fail "undo restored an older delete instead of the one it was asked for"
 assert_fails timeout 5 "$T" undo "$F/Videos/Clips/hades/never.mp4"
+
+g=$F/Videos/Clips/hades/g.mp4; h=$F/Videos/Clips/hades/h.mp4
+echo g > "$g"; echo h > "$h"
+"$T" put "$g" > /dev/null
+"$T" put "$h" > /dev/null
+"$T" undo "$g" > /dev/null || fail "undo of a delete that a later one raced past"
+[[ -f $g && ! -e $h ]] || fail "undo by path restores that file even when another delete landed after it"
+i=$F/Videos/Clips/hades/i.mp4; j=$F/Videos/Clips/hades/j.mp4
+echo i > "$i"; echo j > "$j"
+"$T" put "$i" "$j" > /dev/null
+"$T" undo "$i" > /dev/null
+"$T" undo > /dev/null || fail "the rest of a batch stays undoable"
+[[ -f $i && -f $j ]] || fail "partial undo then undo brings both back"
 echo "trashcan: ok"

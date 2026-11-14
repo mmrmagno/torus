@@ -10,10 +10,12 @@ export PATH=$F/bin:$REPO/home/.local/bin:$PATH HOME=$F XDG_STATE_HOME=$F/state X
 printf '#!/bin/sh\nexit 0\n' > "$F/bin/qs"
 printf '#!/bin/sh\nprintf "730\\tCounter-Strike 2\\t0\\t0\\t\\n"\n' > "$F/bin/torus-games"
 chmod +x "$F/bin/qs" "$F/bin/torus-games"
-S=$REPO/home/.local/bin/torus-gsi
 P=$REPO/home/.local/bin/torus-play
-export TORUS_GSI_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 export TORUS_GSI_SAVE_DELAY=0 TORUS_STEAM=$F/steam
+mkdir -p "$F/gsibin"
+S=$(patched "$REPO/home/.local/bin/torus-gsi" "$F/gsibin" "PORT = 3471" "PORT = $port")
+export PATH=$F/gsibin:$PATH
 printf '#!/bin/sh\necho "$*" >> "%s/pkill.log"\n[ "$1" = -USR1 ] && cat "%s/state/torus/gsi-pending" >> "%s/saves"\nexit 0\n' "$F" "$F" "$F" > "$F/bin/pkill"
 chmod +x "$F/bin/pkill"
 
@@ -26,16 +28,16 @@ tok=$(cat "$F/state/torus/gsi-token")
 [[ $(stat -c %a "$F/state/torus/gsi-token") == 600 ]] || fail "token is private"
 [[ $(stat -c %a "$cfg/gamestate_integration_torus.cfg") == 600 ]] || fail "the cfg holding the token is private"
 grep -q "\"token\" \"$tok\"" "$cfg/gamestate_integration_torus.cfg" || fail "cfg carries the token"
-grep -q "\"uri\" \"http://127.0.0.1:$TORUS_GSI_PORT/\"" "$cfg/gamestate_integration_torus.cfg" || fail "cfg points at 127.0.0.1 only"
+grep -q "\"uri\" \"http://127.0.0.1:$port/\"" "$cfg/gamestate_integration_torus.cfg" || fail "cfg points at 127.0.0.1 only"
 
 run_match() {
   rm -f "$F/saves" "$F/codes" "$F/state/torus/gsi-match.json"
   "$S" serve & G=$!
-  for _ in $(seq 50); do (exec 3<>/dev/tcp/127.0.0.1/$TORUS_GSI_PORT) 2> /dev/null && break; sleep 0.1; done
-  ss -ltnH "sport = :$TORUS_GSI_PORT" | grep -q "127.0.0.1:$TORUS_GSI_PORT" || fail "the listener is not on 127.0.0.1"
-  ss -ltnH "sport = :$TORUS_GSI_PORT" | grep -qE "(0\.0\.0\.0|\*|\[::\]):$TORUS_GSI_PORT" && fail "listens on all interfaces"
+  for _ in $(seq 50); do (exec 3<>/dev/tcp/127.0.0.1/$port) 2> /dev/null && break; sleep 0.1; done
+  ss -ltnH "sport = :$port" | grep -q "127.0.0.1:$port" || fail "the listener is not on 127.0.0.1"
+  ss -ltnH "sport = :$port" | grep -qE "(0\.0\.0\.0|\*|\[::\]):$port" && fail "listens on all interfaces"
   while IFS= read -r line; do
-    curl -s -o /dev/null -w '%{http_code}\n' -H 'Content-Type: application/json' --data "${line//TOKEN/$tok}" "http://127.0.0.1:$TORUS_GSI_PORT/" >> "$F/codes"
+    curl -s -o /dev/null -w '%{http_code}\n' -H 'Content-Type: application/json' --data "${line//TOKEN/$tok}" "http://127.0.0.1:$port/" >> "$F/codes"
   done < "$REPO/tests/fixtures/gsi/match.jsonl"
   for _ in $(seq 20); do [[ $(wc -l < "$F/codes") == $(wc -l < "$REPO/tests/fixtures/gsi/match.jsonl") ]] && break; sleep 0.1; done
   [[ -z $(grep -v '^200$' "$F/codes") ]] || fail "every update with the right token is accepted: $(sort "$F/codes" | uniq -c | tr '\n' ' ')"
@@ -55,9 +57,9 @@ run_match
 assert_eq 0 "$(jq -r .auto "$F/state/torus/gsi-match.json")" "no auto clips counted while off"
 
 "$S" serve & G=$!
-for _ in $(seq 50); do (exec 3<>/dev/tcp/127.0.0.1/$TORUS_GSI_PORT) 2> /dev/null && break; sleep 0.1; done
-assert_eq 403 "$(curl -s -o /dev/null -w '%{http_code}' --data '{"auth":{"token":"nope"},"round":{"phase":"over"}}' "http://127.0.0.1:$TORUS_GSI_PORT/")" "a wrong token is refused"
-assert_eq 405 "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$TORUS_GSI_PORT/")" "GET is refused"
+for _ in $(seq 50); do (exec 3<>/dev/tcp/127.0.0.1/$port) 2> /dev/null && break; sleep 0.1; done
+assert_eq 403 "$(curl -s -o /dev/null -w '%{http_code}' --data '{"auth":{"token":"nope"},"round":{"phase":"over"}}' "http://127.0.0.1:$port/")" "a wrong token is refused"
+assert_eq 405 "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/")" "GET is refused"
 kill "$G"; wait "$G" 2> /dev/null || true; G=""
 
 "$P" set 730 highlights on

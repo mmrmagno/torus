@@ -106,19 +106,23 @@ def cmd_put(paths):
     return 0 if len(batch) == len(paths) else 1
 
 
+def newest(d, path):
+    found = [e for e in d.get("items", []) if e.get("path") == path and ours(e)]
+    return max(found, key=lambda e: e.get("at", 0)) if found else None
+
+
 def cmd_undo(paths, hold):
-    want = {os.path.abspath(p) for p in paths}
+    want = list(dict.fromkeys(os.path.abspath(p) for p in paths))
     deadline = time.time() + 3
     d = load()
-    while want and not want <= {e.get("path") for e in d.get("last", [])} and time.time() < deadline:
+    while want and not all(newest(d, p) for p in want) and time.time() < deadline:
         fcntl.flock(hold, fcntl.LOCK_UN)
         time.sleep(0.05)
         fcntl.flock(hold, fcntl.LOCK_EX)
         d = load()
-    back = 0
-    for e in d.get("last", []):
-        if want and e.get("path") not in want:
-            continue
+    picks = [e for e in (newest(d, p) for p in want) if e] if want else list(d.get("last", []))
+    done = set()
+    for e in picks:
         src = os.path.join(TRASH, "files", e["name"])
         if time.time() - e.get("at", 0) > UNDO_SECS or not ours(e) or os.path.lexists(e["path"]):
             continue
@@ -128,12 +132,12 @@ def cmd_undo(paths, hold):
             os.remove(os.path.join(TRASH, "info", e["name"] + ".trashinfo"))
         except OSError:
             pass
-        back += 1
+        done.add(e["name"])
         print(e["path"])
-    d["last"] = []
+    d["last"] = [e for e in d.get("last", []) if e["name"] not in done] if want else []
     d["items"] = held(d)
     save(d)
-    return 0 if back else 1
+    return 0 if done else 1
 
 
 def cmd_status():

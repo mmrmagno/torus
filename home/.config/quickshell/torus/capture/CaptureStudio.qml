@@ -233,10 +233,10 @@ PanelWindow {
                     }
                     root.setting = false
                     root.look = ""
-                    root.sel = -1
+                    root.sel = root.keptSel !== "" ? root.shownItems.findIndex(i => i.path === root.keptSel) : -1
                     root.placing = root.keptSel !== ""
                     capFrame.forceActiveFocus()
-                } else {
+                } else if (!root.placing) {
                     root.keptSel = root.sel >= 0 && root.sel < root.shownItems.length ? root.shownItems[root.sel].path : ""
                 }
             }
@@ -250,6 +250,7 @@ PanelWindow {
         focus: true
         Keys.onEscapePressed: root.look !== "" ? root.look = "" : (root.setting ? root.setting = false : Store.setOpen("capture", false))
         Keys.onPressed: event => {
+            root.placing = false
             const cur = root.sel >= 0 ? root.shownItems[root.sel] : null
             const ctrl = event.modifiers & Qt.ControlModifier
             if (root.setting) {
@@ -456,7 +457,7 @@ PanelWindow {
                         options: ["all", "image", "video", "clip"]
                         labels: ["All", "Screenshots", "Recordings", "Game clips"]
                         current: root.tab
-                        onPicked: value => root.tab = value
+                        onPicked: value => { root.placing = false; root.tab = value }
                     }
                 }
 

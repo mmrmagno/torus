@@ -1430,7 +1430,7 @@ check_undorace() {
 
 check_envknobs() {
   local bad="" hits
-  hits=$(grep -rlE 'TORUS_[A-Z_]*(API|URL|LOCAL|PLACE|OJP|FALLBACK|CLEAR)\b' ~/.local/bin/torus* ~/.config/quickshell/torus 2> /dev/null)
+  hits=$(grep -rlE 'TORUS_[A-Z_]*(API|URL|LOCAL|PLACE|OJP|FALLBACK|CLEAR|PORT)\b' ~/.local/bin/torus* ~/.config/quickshell/torus 2> /dev/null)
   [[ -z $hits ]] || bad+="env[$hits] "
   if [[ -z $bad ]]; then section envknobs ok "no installed helper takes a network address, a program or the password clear time from the environment"; else section envknobs fail "$bad"; fi
 }
@@ -1453,6 +1453,10 @@ check_recall() {
   "${QS[@]}" gamesToggle > /dev/null; sleep 1; "${QS[@]}" gamesToggle > /dev/null; sleep 2
   [[ $(rs) == "$a" ]] || bad+="hub-kept[$(rs)] "
   [[ $(ci) == "$ca" ]] || bad+="clip-kept[$(ci) want $ca] "
+  wtype -k Tab; sleep 0.5
+  a=$(rs)
+  "${QS[@]}" gamesToggle > /dev/null; sleep 1; "${QS[@]}" gamesToggle > /dev/null; sleep 0.4; wtype -k Right; sleep 2
+  [[ $(rs) != "$a" && $(rs) == "hub=games|"* ]] || bad+="hub-move-undone[$(rs)] "
   "${QS[@]}" gamesToggle > /dev/null; sleep 0.6
   "${QS[@]}" captureToggle > /dev/null; sleep 2.5
   wtype -k bracketright; sleep 0.3; wtype -k Down; sleep 0.3; wtype -k Right; sleep 0.3
@@ -1460,6 +1464,8 @@ check_recall() {
   [[ $c == *";capture=image:torus-parity-recall-1.png;"* ]] || bad+="capture-setup[$c] "
   "${QS[@]}" captureToggle > /dev/null; sleep 1; "${QS[@]}" captureToggle > /dev/null; sleep 2.5
   [[ $(rs) == *";capture=image:torus-parity-recall-1.png;"* ]] || bad+="capture-kept[$(rs)] "
+  "${QS[@]}" captureToggle > /dev/null; sleep 1; "${QS[@]}" captureToggle > /dev/null; sleep 0.4; wtype -k Left; sleep 2.5
+  [[ $(rs) == *";capture=image:torus-parity-recall-2.png;"* ]] || bad+="capture-move-undone[$(rs)] "
   "${QS[@]}" captureToggle > /dev/null; sleep 0.6
   "${QS[@]}" clipToggle > /dev/null; sleep 0.8; wtype -k Tab; sleep 0.4
   [[ $(rs) == *";clip=text" ]] || bad+="clip-setup[$(rs)] "
@@ -2550,7 +2556,9 @@ check_gsi() {
   mkdir -p "$d/bin"
   printf '#!/bin/sh\n[ "$1" = -USR1 ] && cat "%s/torus/gsi-pending" >> "%s/saves"\nexit 0\n' "${XDG_STATE_HOME:-$HOME/.local/state}" "$d" > "$d/bin/pkill"
   chmod +x "$d/bin/pkill"
-  export PATH=$d/bin:$PATH TORUS_STEAM=$d/steam TORUS_GSI_PORT=$port TORUS_GSI_SAVE_DELAY=0
+  sed "s/^PORT = 3471$/PORT = $port/" "$(command -v torus-gsi)" > "$d/bin/torus-gsi"; chmod +x "$d/bin/torus-gsi"
+  grep -q "^PORT = $port$" "$d/bin/torus-gsi" || bad+="port-patch "
+  export PATH=$d/bin:$PATH TORUS_STEAM=$d/steam TORUS_GSI_SAVE_DELAY=0
   torus-gsi install --quiet
   [[ -f "$d/steam/steamapps/common/Counter-Strike Global Offensive/game/csgo/cfg/gamestate_integration_torus.cfg" ]] || bad+="no-cfg "
   tok=$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/torus/gsi-token")
@@ -2569,7 +2577,7 @@ check_gsi() {
   kill "$g" 2> /dev/null; wait "$g" 2> /dev/null
   torus-gsi uninstall > /dev/null
   export PATH=$path0
-  unset TORUS_STEAM TORUS_GSI_PORT TORUS_GSI_SAVE_DELAY
+  unset TORUS_STEAM TORUS_GSI_SAVE_DELAY
   rm -rf "$d" "${XDG_STATE_HOME:-$HOME/.local/state}/torus/gsi-match.json"
   if [[ -z $bad ]]; then section gsi ok "CS2 game state on 127.0.0.1 with a token: ace, clutch and 3K save the replay, a wrong token gets 403, cfg written and removed"; else section gsi fail "$bad"; fi
 }
