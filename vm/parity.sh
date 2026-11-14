@@ -267,7 +267,7 @@ check_clipboard() {
   cp -a "$bak/pins" "$share/pins" 2>/dev/null; cp -a "$bak/pins.json" "$share/pins.json" 2>/dev/null
   rm -rf "$bak"
   "${QS[@]}" clipReload > /dev/null 2>&1
-  if [[ -z $bad ]]; then section clipboard ok "1000 entries: open ${open} ms (cold ${cold} ms), slowest filter ${fmax} ms, a re-copied pin shows once, a pin needs two Del, manage mode deletes the 3 marked, Enter copies"; else section clipboard fail "$bad"; fi
+  if [[ -z $bad ]]; then section clipboard ok "1000 entries: open ${open} ms (cold ${cold} ms), slowest filter ${fmax} ms, a re-copied pin shows once, a pin needs two Del, select mode deletes the 3 selected, Enter copies"; else section clipboard fail "$bad"; fi
 }
 
 check_ai() {
@@ -1837,7 +1837,7 @@ check_clips2() {
   [[ $(clip_info 4) == false ]] || bad+="rename-stays-open "
   "${QS[@]}" closeAll > /dev/null
   rm -rf "$d" ~/.local/share/Trash/files/parity-two-* ~/.local/share/Trash/info/parity-two-*
-  if [[ -z $bad ]]; then section clips2 ok "clips sort by size, manage mode marks and trashes in bulk with undo, F2 renames"; else section clips2 fail "$bad"; fi
+  if [[ -z $bad ]]; then section clips2 ok "clips sort by size, select mode picks several and trashes them with undo, F2 renames"; else section clips2 fail "$bad"; fi
 }
 
 check_update() {

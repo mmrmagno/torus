@@ -129,7 +129,7 @@ bind(MOD .. " + slash", ipc("cheatSheetToggle"), "[Launcher|Menus] keybind cheat
 bind(MOD .. " + comma", "qs -c torus ipc call torus paletteOpen emoji > /dev/null 2>&1 || torus-menu emoji", "[Launcher|Menus] emoji picker")
 bind(MOD .. " + period", "qs -c torus ipc call torus paletteOpen glyphs > /dev/null 2>&1 || torus-menu glyph", "[Launcher|Menus] glyph picker")
 bind(MOD .. " + V", "qs -c torus ipc call torus clipToggle > /dev/null 2>&1 || torus-menu clipboard", "[Launcher|Menus] clipboard")
-bind(MOD .. " + SHIFT + V", "qs -c torus ipc call torus clipManage > /dev/null 2>&1 || torus-menu clipmanager", "[Launcher|Menus] clipboard manager")
+bind(MOD .. " + SHIFT + V", "qs -c torus ipc call torus clipManage > /dev/null 2>&1 || torus-menu clipmanager", "[Launcher|Menus] clipboard: select and delete")
 bind(MOD .. " + I", "qs -c torus ipc call torus aiToggle", "[Launcher|Menus] local AI sidebar")
 bind(MOD .. " + SHIFT + K", "qs -c torus ipc call torus paletteOpen calc > /dev/null 2>&1 || torus-menu calc", "[Launcher|Menus] calculator")
 bind(MOD .. " + SHIFT + slash", "qs -c torus ipc call torus paletteOpen web > /dev/null 2>&1 || torus-menu websearch", "[Launcher|Menus] web search")

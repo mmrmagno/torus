@@ -227,7 +227,7 @@ PanelWindow {
                             Text {
                                 visible: search.text === ""
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: Clip.manage ? "Manage the clipboard: Space marks, Del deletes" : "Search the clipboard"
+                                text: Clip.manage ? "Select entries: Space selects, Del deletes" : "Search the clipboard"
                                 color: Theme.overlay
                                 font: search.font
                             }
@@ -366,7 +366,7 @@ PanelWindow {
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: row.armed ? "<font color=\"" + Theme.red + "\"><b>" + (Clip.armed === "marked" ? "delete marked pins? Del again" : "delete pin? Del again") + "</b></font>  " + root.esc(row.text.slice(0, 80))
+                                text: row.armed ? "<font color=\"" + Theme.red + "\"><b>" + (Clip.armed === "marked" ? "delete selected pins? Del again" : "delete pin? Del again") + "</b></font>  " + root.esc(row.text.slice(0, 80))
                                     : (row.kind === "link" && row.marks === "" ? "<b>" + root.esc(row.host) + "</b><font color=\"" + Theme.overlay + "\">" + root.esc(row.rest) + "</font>" : root.marked(row.text, row.marks))
                                 textFormat: Text.StyledText
                                 color: row.kind === "image" ? Theme.subtext : Theme.text
@@ -475,7 +475,7 @@ PanelWindow {
                     Layout.preferredHeight: 28
                     spacing: Theme.sp5
                     Repeater {
-                        model: Clip.manage ? [["Space", "mark"], ["Del", Clip.markedCount > 0 ? "delete " + Clip.markedCount : "delete"], ["Ctrl M", "done"]] : [["↵", "copy"], ["Ctrl P", "pin"], ["Del", "remove"], ["Tab", "type"]]
+                        model: Clip.manage ? [["Space", "select"], ["Del", Clip.markedCount > 0 ? "delete " + Clip.markedCount : "delete"], ["Ctrl M", "done"]] : [["↵", "copy"], ["Ctrl P", "pin"], ["Del", "remove"], ["Tab", "type"]]
                         Row {
                             id: hint
                             required property var modelData
@@ -497,7 +497,7 @@ PanelWindow {
                         visible: !Clip.manage
                         implicitHeight: 26
                         icon: "󰒆"
-                        label: "Manage"
+                        label: "Select"
                         onClicked: Clip.manage = true
                     }
                     Text {

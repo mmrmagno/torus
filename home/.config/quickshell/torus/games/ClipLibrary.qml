@@ -454,12 +454,12 @@ Item {
             spacing: Theme.sp5
             KeyHints {
                 Layout.fillWidth: true
-                hints: lib.managing ? [["Space", "mark"], ["Del", lib.armed === "marked" ? "again to trash " + lib.markCount : "trash " + lib.markCount], ["Ctrl M / Esc", "done"]]
+                hints: lib.managing ? [["Space", "select"], ["Del", lib.armed === "marked" ? "again to trash " + lib.markCount : "trash " + lib.markCount], ["Ctrl M / Esc", "done"]]
                     : [["↵", "play"], ["Space", "look"], ["Ctrl E", "edit"], ["F2", "rename"], ["Ctrl S", "favorite"], ["Del", "trash"], ["Tab", "games"]]
             }
             PanelButton {
                 icon: "󰒅"
-                label: lib.managing ? "Done" : "Manage"
+                label: lib.managing ? "Done" : "Select"
                 implicitHeight: 26
                 active: lib.managing
                 activeFocusOnTab: false

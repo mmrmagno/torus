@@ -6,7 +6,14 @@ import qs.services
 
 Chip {
     icon: "󰅌"
-    tip: "Clipboard history\nRight click: manage"
-    onClicked: Quickshell.execDetached(["torus-menu", "clipboard"])
-    onRightClicked: Quickshell.execDetached(["torus-menu", "clipmanager"])
+    tip: "Clipboard history\nRight click: select and delete"
+    onClicked: {
+        Clip.manage = false
+        Store.toggle("clip")
+    }
+    onRightClicked: {
+        if (!Store.isOpen("clip"))
+            Store.setOpen("clip", true)
+        Clip.manage = true
+    }
 }
