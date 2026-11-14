@@ -72,6 +72,17 @@ def next_name(path):
     return f"{base}-cut-{n}{ext}"
 
 
+def publish(tmp, path):
+    for _ in range(1000):
+        dest = next_name(path)
+        try:
+            os.link(tmp, dest)
+            return dest
+        except FileExistsError:
+            continue
+    sys.exit("torus-clipcut: no free name next to " + path)
+
+
 def starred(path):
     try:
         with open(FAVS) as f:
@@ -92,28 +103,28 @@ def cmd_cut(path, start, end, keep_only):
     if end - start < 0.5:
         sys.exit("torus-clipcut: the selection is shorter than half a second")
     s = snap_in(start, keyframes(path))
-    dest = next_name(path)
-    tmp = dest + ".part.mp4"
-    r = run("ffmpeg", "-v", "error", "-y", "-ss", f"{s:.3f}", "-to", f"{end:.3f}", "-i", path, "-map", "0", "-c", "copy",
-            "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", tmp, timeout=300)
-    ndur, naudio, nvideo = probe(tmp) if os.path.exists(tmp) else (0, 0, 0)
-    if r.returncode != 0 or ndur <= 0 or nvideo == 0 or naudio != audio:
+    tmp = os.path.join(os.path.dirname(path), f".{os.path.basename(path)}.{os.getpid()}.part")
+    try:
+        try:
+            r = run("ffmpeg", "-v", "error", "-y", "-ss", f"{s:.3f}", "-to", f"{end:.3f}", "-i", path, "-map", "0", "-c", "copy",
+                    "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", "-f", "mp4", tmp, timeout=300)
+        except subprocess.TimeoutExpired:
+            sys.exit("torus-clipcut: ffmpeg took longer than five minutes")
+        ndur, naudio, nvideo = probe(tmp) if os.path.exists(tmp) else (0, 0, 0)
+        if r.returncode != 0 or ndur <= 0 or nvideo == 0 or naudio != audio:
+            sys.exit("torus-clipcut: ffmpeg could not cut it: " + (r.stderr.strip().splitlines() or ["no output"])[-1])
+        replaced = False
+        if keep_only and run("torus-trash", "put", path).returncode == 0:
+            os.replace(tmp, path)
+            dest, replaced = path, True
+        else:
+            dest = publish(tmp, path)
+        print(json.dumps({"path": dest, "start": s, "end": end, "duration": round(ndur, 3), "replaced": replaced}))
+    finally:
         try:
             os.remove(tmp)
         except OSError:
             pass
-        sys.exit("torus-clipcut: ffmpeg could not cut it: " + (r.stderr.strip().splitlines() or ["no output"])[-1])
-    if keep_only:
-        trash = run("torus-trash", "put", path)
-        if trash.returncode != 0:
-            os.replace(tmp, dest)
-            print(json.dumps({"path": dest, "start": s, "end": end, "duration": ndur, "replaced": False}))
-            return
-        os.replace(tmp, path)
-        dest = path
-    else:
-        os.replace(tmp, dest)
-    print(json.dumps({"path": dest, "start": s, "end": end, "duration": round(ndur, 3), "replaced": keep_only}))
 
 
 def main():

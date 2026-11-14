@@ -58,6 +58,7 @@ with it. I want a setup I own end to end.
 - SUPER+Shift+C shows everything I captured in one place: screenshots, recordings and game clips, with small cached previews so it opens instantly. The pencil on a clip opens the same cutter.
 - `torus doctor` on the laptop checks this boot for panel self refresh freezes and prints the exact kernel parameter that fixes them.
 - An optional disk budget for my clips (off, 25, 50 or 100 GB, under Clips): over it, the oldest clips that are not starred go to the trash after each new clip and the island says how much. Off unless I turn it on.
+- The clip budget never touches a clip from the last ten minutes, and when my favorites alone fill it, it removes nothing and says so once a day. Two clips saved in the same second both stay, and a cut that fails leaves nothing behind.
 - Steam downloads and updates get the same ring on the island with the speed and time left, read from Steam's own log and the game's manifest. While a game runs fullscreen nothing shows; "updated" waits until the game is closed.
 - When several Steam jobs finish during a fullscreen game, the island lists all of them in one line once I am back, not just the last one.
 - SUPER+Shift+M freezes the screen into a ruler: drag a box for its size, Shift+drag for a distance and its angle (add Ctrl and it snaps to straight lines and 45° diagonals), and the color under the cursor shows as hex and rgb (C copies it). Every measurement lands in the clipboard.

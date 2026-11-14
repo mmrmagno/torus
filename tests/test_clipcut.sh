@@ -41,4 +41,11 @@ assert_eq "$C:true" "$(jq -r '"\(.path):\(.replaced)"' <<< "$out")" "keep only r
 [[ -f $F/trash/$(basename "$C") ]] || fail "the old original goes to the trash through torus-trash, so Undo and the trash meter see it"
 d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$C")
 awk -v d="$d" 'BEGIN { exit !(d >= 3.9 && d <= 4.2) }' || fail "replaced clip is the 4 s part: $d"
+mkdir -p "$F/slow"
+printf '#!/bin/sh\nfor a; do out=$a; done\necho "$out" > %s/ffout\necho partial > "$out"\nexit 1\n' "$F" > "$F/slow/ffmpeg"; chmod +x "$F/slow/ffmpeg"
+before=$(ls -A "$(dirname "$C")" | paste -sd' ')
+PATH=$F/slow:$PATH "$S" cut "$C" 0 2 > /dev/null 2>&1 && fail "a failed ffmpeg is reported"
+o=$(basename "$(cat "$F/ffout")")
+[[ $o == .* && $o != *.mp4 ]] || fail "the cut is written to a hidden name the clip lists never show: $o"
+assert_eq "$before" "$(ls -A "$(dirname "$C")" | paste -sd' ')" "a failed cut leaves nothing behind"
 echo "clipcut: ok"

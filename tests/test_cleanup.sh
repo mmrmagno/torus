@@ -32,5 +32,31 @@ assert_eq "celeste-2026-11-02-100000.mp4" "$(xargs -r -n1 basename <<< "$out" | 
 [[ -f $F/trash/celeste-2026-11-02-100000.mp4 ]] || fail "through torus-trash, never rm"
 grep -q "islandFlash notification Clips over 25 GB: 1 old clip to the trash" "$F/qs" || fail "the island says what went: $(cat "$F/qs")"
 assert_eq "" "$("$P" cleanup)" "under budget now"
+
+for f in "$F"/Videos/Clips/*/*.mp4; do [[ $f == "$old" ]] || rm "$f"; done
+rm -f "$F/trash/"*
+for i in 1 2 3; do f=$F/Videos/Clips/hades/fav$i.mp4; head -c 10000 /dev/zero > "$f"; touch -d "2026-11-0$i 09:00" "$f"; "$P" fav "$f" on > /dev/null; done
+new=$F/Videos/Clips/hades/hades-2026-11-14-100000.mp4
+head -c 5000 /dev/zero > "$new"
+: > "$F/qs"
+assert_eq "" "$("$P" cleanup)" "favorites alone over the budget: nothing goes"
+[[ -f $new ]] || fail "the clip just saved was trashed because the favorites fill the budget"
+grep -q "favorites alone" "$F/qs" || fail "the island says why nothing went: $(cat "$F/qs")"
+"$P" cleanup > /dev/null
+assert_eq 1 "$(grep -c "favorites alone" "$F/qs")" "it says so once a day, not after every clip"
+rm "$F/Videos/Clips/hades/fav1.mp4" "$F/Videos/Clips/hades/fav2.mp4"
+for i in 1 2 3 4; do f=$F/Videos/Clips/celeste/c$i.mp4; head -c 3000 /dev/zero > "$f"; touch -d "2026-11-0$i 08:00" "$f"; done
+printf '#!/bin/sh
+[ "$1" = put ] || exit 0
+sleep 0.3
+[ -e "$2" ] || exit 1
+mv "$2" "%s/trash/"
+' "$F" > "$F/bin/torus-trash"
+"$P" cleanup > "$F/c1" 2> "$F/e1" & a=$!
+"$P" cleanup > "$F/c2" 2> "$F/e2" & b=$!
+wait $a; wait $b
+[[ -f $new ]] || fail "a clip under ten minutes old is never trashed"
+! grep -q Traceback "$F/e1" "$F/e2" || fail "two cleanups at once crash: $(cat "$F/e1" "$F/e2")"
+assert_eq 3 "$(ls "$F/trash" | wc -l)" "two cleanups at once trash only what is over the budget ($(ls "$F/trash" | paste -sd' '))"
 assert_eq 0 "$("$P" budget 0)" "back off"
 echo "cleanup: ok"

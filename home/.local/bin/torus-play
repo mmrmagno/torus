@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import fcntl
 import glob
 import json
 import os
@@ -29,7 +30,33 @@ GSI_PENDING = os.path.join(STATE, "gsi-pending")
 FAVS = os.path.join(STATE, "clip-favorites.json")
 BUDGETS = [0, 25, 50, 100]
 GB = int(os.environ.get("TORUS_CLIP_GB", str(1 << 30)))
-AUTO_RE = re.compile(r"-(ace|4k|3k|clutch)-\d{4}-\d{2}-\d{2}-\d{6}\.mp4$")
+AUTO_RE = re.compile(r"-(ace|4k|3k|clutch)-\d{4}-\d{2}-\d{2}-\d{6}(-\d+)?\.mp4$")
+FRESH_SECS = 600
+
+
+def clip_files(dirs, newest=True):
+    out = []
+    for d in dirs:
+        for p in glob.glob(os.path.join(d, "*.mp4")):
+            if p.endswith(".part.mp4"):
+                continue
+            try:
+                st = os.stat(p)
+            except OSError:
+                continue
+            out.append((p, st.st_mtime, st.st_size))
+    return sorted(out, key=lambda f: f[1], reverse=newest)
+
+
+def free_dest(base):
+    for n in range(1, 1000):
+        dest = base + ("" if n == 1 else f"-{n}") + ".mp4"
+        try:
+            os.close(os.open(dest, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644))
+            return dest
+        except FileExistsError:
+            continue
+    raise OSError("no free clip name for " + base)
 
 
 def run(*cmd, **kw):
@@ -333,11 +360,19 @@ def cmd_saved(path):
         pass
     if auto not in ("ace", "4k", "3k", "clutch"):
         auto = ""
-    dest = os.path.join(dest_dir, slug(name) + "-" + (auto + "-" if auto else "") + time.strftime("%Y-%m-%d-%H%M%S") + ".mp4")
     try:
-        shutil.move(path, dest)
+        dest = free_dest(os.path.join(dest_dir, slug(name) + "-" + (auto + "-" if auto else "") + time.strftime("%Y-%m-%d-%H%M%S")))
     except OSError:
         dest = path
+    if dest != path:
+        try:
+            shutil.move(path, dest)
+        except OSError:
+            try:
+                os.remove(dest)
+            except OSError:
+                pass
+            dest = path
     if sess:
         sess["clips"] = sess.get("clips", 0) + 1
         if auto:
@@ -367,10 +402,9 @@ def thumb(path):
 def cmd_clips(appid):
     favs = set(favorites())
     dirs = [os.path.join(CLIPS, slug(game_name(appid)))] if appid else glob.glob(os.path.join(CLIPS, "*"))
-    files = sorted((p for d in dirs for p in glob.glob(os.path.join(d, "*.mp4"))), key=os.path.getmtime, reverse=True)
-    for p in files[:12]:
+    for p, mtime, size in clip_files(dirs)[:12]:
         m = AUTO_RE.search(p)
-        print("\t".join([p, str(int(os.path.getmtime(p))), thumb(p), str(os.path.getsize(p)), m.group(1) if m else "", "1" if p in favs else "0"]))
+        print("\t".join([p, str(int(mtime)), thumb(p), str(size), m.group(1) if m else "", "1" if p in favs else "0"]))
 
 
 def favorites():
@@ -427,21 +461,19 @@ def cmd_library():
         parts = line.split("\t")
         if len(parts) > 1:
             names[slug(parts[1])] = parts[1]
-    files = sorted(glob.glob(os.path.join(CLIPS, "*", "*.mp4")), key=os.path.getmtime, reverse=True)
-    for p in files:
+    for p, mtime, size in clip_files(glob.glob(os.path.join(CLIPS, "*"))):
         game = os.path.basename(os.path.dirname(p))
         m = AUTO_RE.search(p)
         t = thumb_path(p)
-        print("\t".join([p, str(int(os.path.getmtime(p))), t if os.path.exists(t) else "", str(os.path.getsize(p)), m.group(1) if m else "",
+        print("\t".join([p, str(int(mtime)), t if os.path.exists(t) else "", str(size), m.group(1) if m else "",
                          game, names.get(game, game.replace("-", " ").title()), "1" if p in favs else "0"]))
 
 
 def cmd_thumbs(limit=60):
-    files = sorted(glob.glob(os.path.join(CLIPS, "*", "*.mp4")), key=os.path.getmtime, reverse=True)[:limit]
     made = 0
-    for p in files:
+    for p, mtime, _ in clip_files(glob.glob(os.path.join(CLIPS, "*")))[:limit]:
         t = thumb_path(p)
-        if not os.path.exists(t) or os.path.getmtime(t) < os.path.getmtime(p):
+        if not os.path.exists(t) or os.path.getmtime(t) < mtime:
             thumb(p)
             made += 1
     print(made)
@@ -469,18 +501,23 @@ def cleanup():
     b = budget()
     if b <= 0:
         return []
-    files = sorted(glob.glob(os.path.join(CLIPS, "*", "*.mp4")), key=os.path.getmtime)
-    total = sum(os.path.getsize(p) for p in files)
+    os.makedirs(STATE, exist_ok=True)
+    lock = open(os.path.join(STATE, "clip-cleanup.lock"), "w")
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    files = clip_files(glob.glob(os.path.join(CLIPS, "*")), newest=False)
+    total = sum(f[2] for f in files)
     limit = b * GB
     favs = {os.path.realpath(p) for p in favorites()}
+    if sum(f[2] for f in files if os.path.realpath(f[0]) in favs) > limit:
+        return None
     gone = []
-    for p in files:
+    for p, mtime, size in files:
         if total <= limit:
             break
-        if os.path.realpath(p) in favs:
+        if os.path.realpath(p) in favs or time.time() - mtime < FRESH_SECS:
             continue
-        size = os.path.getsize(p)
-        if subprocess.run(["torus-trash", "put", p], capture_output=True).returncode == 0:
+        subprocess.run(["torus-trash", "put", p], capture_output=True)
+        if not os.path.lexists(p):
             total -= size
             gone.append((p, size))
     return gone
@@ -488,6 +525,14 @@ def cleanup():
 
 def cmd_cleanup():
     gone = cleanup()
+    if gone is None:
+        mark = os.path.join(STATE, "clip-budget-warned")
+        today = time.strftime("%Y-%m-%d")
+        if load_text(mark) != today:
+            with open(mark, "w") as f:
+                f.write(today)
+            ipc("islandFlash", "notification", f"Your favorites alone are over the {budget()} GB clip budget, so no clip was removed")
+        return
     for p, _ in gone:
         print(p)
     if gone:
