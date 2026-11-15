@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
 import qs
+import qs.services
 import "../route.mjs" as R
 
 Provider {
@@ -48,6 +49,8 @@ Provider {
         winFor = null
         const w = []
         for (const t of Hyprland.toplevels.values) {
+            if (Pins.isPin(t))
+                continue
             const app = t.wayland && t.wayland.appId ? t.wayland.appId : ""
             const top = t
             const e = app ? DesktopEntries.heuristicLookup(app) : null

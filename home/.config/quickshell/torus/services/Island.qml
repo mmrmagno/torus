@@ -101,6 +101,8 @@ Singleton {
             Quickshell.execDetached(["torus-launch", "satty", "--filename", p, "--output-filename", p, "--early-exit", "--copy-command", "wl-copy"])
         } else if (what === "Text") {
             Quickshell.execDetached(["torus-ocr", p])
+        } else if (what === "Pin") {
+            Pins.pin(p)
         } else if (what === "Folder") {
             Quickshell.execDetached(["torus-launch", "xdg-open", p.substring(0, p.lastIndexOf("/"))])
         } else if (what === "Delete") {

@@ -32,6 +32,7 @@ PanelWindow {
     }
 
     property int sel: -1
+    readonly property bool selImage: sel >= 0 && sel < shownItems.length && shownItems[sel].kind === "image"
     property string keptSel: ""
     property bool placing: false
     Binding {
@@ -104,6 +105,9 @@ PanelWindow {
             act("satty --filename '" + p.replace(/'/g, "'\\''") + "' --early-exit --copy-command wl-copy")
         } else if (what === "text") {
             Quickshell.execDetached(["torus-ocr", p])
+        } else if (what === "pin") {
+            if (item.kind === "image" && Pins.pin(p))
+                Store.setOpen("capture", false)
         } else if (what === "folder") {
             Quickshell.execDetached(["torus-launch", "xdg-open", p.substring(0, p.lastIndexOf("/"))])
         } else if (what === "delete") {
@@ -310,6 +314,8 @@ PanelWindow {
                 root.tileAct(cur, "open")
             else if (ctrl && event.key === Qt.Key_C)
                 root.tileAct(cur, "copy")
+            else if (ctrl && event.key === Qt.Key_P && cur.kind === "image")
+                root.tileAct(cur, "pin")
             else if (ctrl && event.key === Qt.Key_E)
                 root.tileAct(cur, cur.kind === "image" ? "edit" : "cut")
             else if (event.key === Qt.Key_Delete)
@@ -521,7 +527,7 @@ PanelWindow {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: 15
-            hints: root.sel >= 0 ? [["← / → / ↑ / ↓", "pick"], ["Space", "look"], ["↵", "open"], ["Ctrl C", "copy"], ["Ctrl E", "edit"], ["Del", "trash"], ["Esc", "close"]]
+            hints: root.sel >= 0 ? [["← / → / ↑ / ↓", "pick"], ["Space", "look"], ["↵", "open"], ["Ctrl C", "copy"], ["Ctrl E", "edit"]].concat(root.selImage ? [["Ctrl P", "pin"]] : []).concat([["Del", "trash"], ["Esc", "close"]])
                 : [["↓", "captures"], ["[ ]", "kind"], ["Ctrl ↵", "settings"], ["Tab", "buttons"], ["↵", "press"], ["Esc", "close"]]
         }
 

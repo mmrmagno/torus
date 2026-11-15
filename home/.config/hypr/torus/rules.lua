@@ -233,3 +233,15 @@ hl.window_rule({
 	match = { class = "^(gamescope|steam_app_[0-9]+)$", fullscreen = true },
 	confine_pointer = true,
 })
+
+hl.window_rule({
+	name = "torus_pins",
+	match = { title = "^torus-pin-[0-9]+$" },
+	float = true,
+	pin = true,
+	no_initial_focus = true,
+	border_size = 0,
+	no_shadow = true,
+	keep_aspect_ratio = true,
+	opaque = true,
+})

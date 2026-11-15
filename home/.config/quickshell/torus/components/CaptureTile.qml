@@ -20,7 +20,7 @@ Rectangle {
     property bool cuttable: false
     property bool renamable: false
     property bool marked: false
-    readonly property var actions: kind === "image" ? [["󰆏", "copy"], ["󰏫", "edit"], ["󰊄", "text"], ["󰉋", "folder"], ["󰆴", "delete"]] : (cuttable ? [["󰏫", "cut"]] : []).concat(renamable ? [["󰑕", "rename"]] : []).concat(starrable ? [[starred ? "󰓎" : "󰓒", "star"]] : []).concat([["󰆏", "copy"], ["󰉋", "folder"]]).concat(starred ? [] : [["󰆴", "delete"]])
+    readonly property var actions: kind === "image" ? [["󰆏", "copy"], ["󰏫", "edit"], ["󰊄", "text"], ["󰐃", "pin"], ["󰉋", "folder"], ["󰆴", "delete"]] : (cuttable ? [["󰏫", "cut"]] : []).concat(renamable ? [["󰑕", "rename"]] : []).concat(starrable ? [[starred ? "󰓎" : "󰓒", "star"]] : []).concat([["󰆏", "copy"], ["󰉋", "folder"]]).concat(starred ? [] : [["󰆴", "delete"]])
     readonly property real picHeight: Math.max(0, height - 34)
 
     signal opened()

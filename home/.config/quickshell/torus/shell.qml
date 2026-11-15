@@ -26,6 +26,7 @@ import qs.updates
 import qs.ocr
 import qs.ruler
 import qs.draw
+import qs.pin
 import qs.processes
 import qs.spire
 
@@ -61,6 +62,11 @@ ShellRoot {
             required property var modelData
             screen: modelData
         }
+    }
+
+    Variants {
+        model: Pins.list
+        PinWindow {}
     }
 
     Popups {}

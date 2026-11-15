@@ -19,7 +19,7 @@ Row {
         const seen = {}
         const out = []
         for (const t of Hyprland.toplevels.values) {
-            if (t.workspace !== ws)
+            if (t.workspace !== ws || Pins.isPin(t))
                 continue
             const id = t.wayland && t.wayland.appId ? t.wayland.appId : (t.lastIpcObject ? t.lastIpcObject.class || "" : "")
             if (!id || seen[id])

@@ -200,6 +200,22 @@ IpcHandler {
         Notifs.clearAll()
     }
 
+    function pinPath(path: string): bool {
+        return Pins.pin(path)
+    }
+
+    function pinList(): string {
+        return Pins.list.map(p => p.id + ":" + p.path).join(";")
+    }
+
+    function pinZoom(id: int, steps: int): void {
+        Pins.zoom(id, steps)
+    }
+
+    function pinClose(id: int): void {
+        Pins.close(id)
+    }
+
     function notifKey(what: string): string {
         return Notifs.popupKey(what)
     }

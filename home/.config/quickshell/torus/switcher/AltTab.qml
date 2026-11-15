@@ -5,6 +5,7 @@ import Quickshell.Widgets
 import Quickshell.Hyprland
 import qs
 import qs.components
+import qs.services
 
 PanelWindow {
     id: root
@@ -18,7 +19,7 @@ PanelWindow {
             const i = mru.indexOf(t.address)
             return i >= 0 ? i : 1000 + ((t.lastIpcObject || {}).focusHistoryID || 0)
         }
-        return Hyprland.toplevels.values.slice().sort((a, b) => rank(a) - rank(b))
+        return Hyprland.toplevels.values.filter(t => !Pins.isPin(t)).sort((a, b) => rank(a) - rank(b))
     }
 
     property string query: ""

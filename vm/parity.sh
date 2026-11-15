@@ -2154,6 +2154,53 @@ check_popuprest() {
   if [[ -z $bad ]]; then section popuprest ok "a popup rests while network, updates, session or AI is open and comes back after"; else section popuprest fail "$bad"; fi
 }
 
+pin_json() { hyprctl clients -j | jq -c '[.[] | select(.title | test("^torus-pin-[0-9]+$"))]'; }
+pins_close() { local i; for i in $("${QS[@]}" pinList | tail -n 1 | tr ';' '\n' | cut -d: -f1); do "${QS[@]}" pinClose "$i" > /dev/null; done; }
+pin_wait() { local _; for _ in $(seq 20); do [[ $(pin_json | jq length) == "$1" ]] && return 0; sleep 0.25; done; return 1; }
+
+check_pins() {
+  local bad="" d=~/Pictures/Screenshots before shot room j id w0 w1
+  mkdir -p "$d"; rm -f "$d"/torus-parity-pin-*
+  pins_close; "${QS[@]}" closeAll > /dev/null
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$(hyprctl monitors -j | jq -r '.[] | select(.name != "SIDE") | .name' | head -n 1)\" }))" > /dev/null
+  room=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | if (.transform % 2) == 1 then "\(.height / .scale) \(.width / .scale)" else "\(.width / .scale) \(.height / .scale)" end')
+  before=$(ls -t "$d"/torus-*.png 2> /dev/null | head -n 1)
+  torus-shot p; sleep 0.8
+  shot=$(ls -t "$d"/torus-*.png 2> /dev/null | head -n 1)
+  [[ -n $shot && $shot != "$before" ]] || bad+="no-shot "
+  [[ $("${QS[@]}" screenshotAct Pin | tail -n 1) == true ]] || bad+="island-pin "
+  pin_wait 1 || bad+="island-no-window "
+  j=$(pin_json)
+  jq -e '.[0].floating and .[0].pinned' <<<"$j" > /dev/null || bad+="not-floating-pinned[$j] "
+  awk -v r="$room" -v w="$(jq '.[0].size[0]' <<<"$j")" -v h="$(jq '.[0].size[1]' <<<"$j")" 'BEGIN { split(r, m, " "); exit !(w > 40 && h > 40 && w <= m[1] / 3 + 1 && h <= m[2] / 3 + 1) }' || bad+="size[$(jq -c '.[0].size' <<<"$j") in $room] "
+  [[ $(hyprctl activewindow -j | jq -r '.title // ""') != torus-pin-* ]] || bad+="took-focus "
+  magick -size 1600x900 gradient:'#89b4fa-#f38ba8' "$d/torus-parity-pin-a.png"
+  "${QS[@]}" recallForget > /dev/null 2>&1
+  "${QS[@]}" captureToggle > /dev/null; sleep 2.5
+  wtype -k Down; sleep 0.3
+  [[ $("${QS[@]}" captureSelected | tail -n 1) == */torus-parity-pin-a.png ]] || bad+="studio-select[$("${QS[@]}" captureSelected | tail -n 1)] "
+  wtype -M ctrl -k p -m ctrl; sleep 0.5
+  pin_wait 2 || bad+="studio-no-window "
+  [[ $("${QS[@]}" isOpen capture | tail -n 1) == false ]] || bad+="studio-stays "
+  id=$("${QS[@]}" pinList | tail -n 1 | tr ';' '\n' | grep torus-parity-pin-a | cut -d: -f1)
+  w0=$(pin_json | jq ".[] | select(.title == \"torus-pin-$id\") | .size[0]")
+  rm -f "$d/torus-parity-pin-a.png"
+  "${QS[@]}" pinZoom "$id" 2 > /dev/null; sleep 0.6
+  w1=$(pin_json | jq ".[] | select(.title == \"torus-pin-$id\") | .size[0]")
+  ((${w1:-0} > ${w0:-0} + 20)) || bad+="zoom[$w0->$w1] "
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ window = \"title:^torus-pin-$id\$\" }))" > /dev/null; sleep 0.3
+  wtype -k Escape; sleep 0.5
+  pin_wait 1 || bad+="esc[$(pin_json | jq -c 'map(.title)')] "
+  [[ $("${QS[@]}" pinPath "$d/clip.mp4" | tail -n 1) == false ]] || bad+="video-offered "
+  "${QS[@]}" pinPath "$d/torus-parity-pin-gone.png" > /dev/null; sleep 1
+  pin_wait 1 || bad+="missing-file-window "
+  [[ $("${QS[@]}" pinList | tail -n 1) != *pin-gone* ]] || bad+="missing-file-kept "
+  pins_close; pin_wait 0 || bad+="close "
+  [[ -n $shot && $shot != "$before" ]] && rm -f "$shot"
+  "${QS[@]}" closeAll > /dev/null
+  if [[ -z $bad ]]; then section pins ok "Pin on the island and Ctrl+P in the studio float the picture pinned and unfocused within a third of the screen, zoom resizes, Esc closes, videos and missing files never pin"; else section pins fail "$bad"; fi
+}
+
 check_notifkeys() {
   local bad="" out
   out=$(mktemp)
@@ -3265,6 +3312,7 @@ case ${1:-all} in
   scopes) check_scopes ;;
   rules) check_rules ;;
   calendar) check_calendar ;;
+  pins) check_pins ;;
   notifkeys) check_notifkeys ;;
   notify) check_notify ;;
   island) check_island ;;
@@ -3277,7 +3325,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_pins; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

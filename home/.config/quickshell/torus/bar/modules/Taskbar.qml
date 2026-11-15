@@ -16,7 +16,7 @@ Row {
 
     Repeater {
         id: windows
-        model: Hyprland.toplevels.values.filter(t => t.workspace && root.monitor && t.workspace === root.monitor.activeWorkspace)
+        model: Hyprland.toplevels.values.filter(t => t.workspace && root.monitor && !Pins.isPin(t) && t.workspace === root.monitor.activeWorkspace)
 
         IconImage {
             required property var modelData

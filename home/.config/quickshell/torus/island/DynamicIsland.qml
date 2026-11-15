@@ -24,7 +24,7 @@ PanelWindow {
         case "face": return Math.max(190, faceText.implicitWidth + 64)
         case "osd": return 300
         case "notification": return 440
-        case "shot": return 460
+        case "shot": return 540
         case "trash": return 400
         case "recording": return Math.max(170, recText.implicitWidth + 56)
         case "sharing": return Math.max(190, shareText.implicitWidth + 56)
@@ -388,7 +388,7 @@ PanelWindow {
                 Row {
                     spacing: Theme.sp3
                     Repeater {
-                        model: [["󰏫", "Edit"], ["󰊄", "Text"], ["󰉋", "Folder"], ["󰆴", "Delete"]]
+                        model: [["󰏫", "Edit"], ["󰊄", "Text"], ["󰐃", "Pin"], ["󰉋", "Folder"], ["󰆴", "Delete"]]
                         Rectangle {
                             id: shotBtn
                             required property var modelData
