@@ -24,7 +24,7 @@ PanelWindow {
         case "face": return Math.max(190, faceText.implicitWidth + 64)
         case "osd": return 300
         case "notification": return 440
-        case "shot": return 540
+        case "shot": return Math.max(460, shotRow.implicitWidth + 20)
         case "trash": return 400
         case "recording": return Math.max(170, recText.implicitWidth + 56)
         case "sharing": return Math.max(190, shareText.implicitWidth + 56)
