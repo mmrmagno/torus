@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+found=${XDG_RUNTIME_DIR:-}/torus-qr-found.json
+
+scan() {
+  command -v zbarimg > /dev/null || { echo '[]'; return 0; }
+  local xml
+  xml=$(zbarimg -q --xml -Sdisable -Sqrcode.enable "$1" 2> /dev/null)
+  printf '%s' "$xml" | perl -MJSON::PP -MMIME::Base64 -MEncode -0777 -ne '
+    my @out;
+    while (m{<data([^>]*)>(.*?)</data>}gs) {
+      my ($attr, $raw) = ($1, $2);
+      my $t = join "", $raw =~ m{<!\[CDATA\[(.*?)\]\]>}gs;
+      $t = decode_base64($t) if $attr =~ /format=.base64/;
+      $t = eval { decode("UTF-8", $t, Encode::FB_CROAK) } // next;
+      next if $t eq "" || length($t) > 4000;
+      my $s = $t; $s =~ s/^\s+|\s+$//g;
+      if ($s =~ m{^https?://[^\s<>"]+$}i) {
+        push @out, { kind => "link", text => $s };
+      } elsif ($s =~ /^WIFI:(.*)$/is) {
+        my (%f, $esc);
+        my $body = $1;
+        my $cur = "";
+        my @parts;
+        for my $c (split //, $body) {
+          if ($esc) { $cur .= $c; $esc = 0; next }
+          if ($c eq "\\") { $esc = 1; next }
+          if ($c eq ";") { push @parts, $cur; $cur = ""; next }
+          $cur .= $c;
+        }
+        push @parts, $cur if $cur ne "";
+        for my $p (@parts) {
+          next unless $p =~ /^([A-Za-z]+):(.*)$/s;
+          $f{uc $1} //= $2;
+        }
+        if (defined $f{S} && $f{S} ne "") {
+          push @out, { kind => "wifi", text => "Wi-Fi " . $f{S}, ssid => $f{S}, password => $f{P} // "",
+            secure => (($f{T} // "") !~ /^(nopass)?$/i && ($f{P} // "") ne "") ? JSON::PP::true : JSON::PP::false,
+            hidden => (($f{H} // "") =~ /^true$/i) ? JSON::PP::true : JSON::PP::false };
+        } else {
+          push @out, { kind => "text", text => $t };
+        }
+      } else {
+        push @out, { kind => "text", text => $t };
+      }
+    }
+    print JSON::PP->new->canonical->encode(\@out), "\n";
+  ' 2> /dev/null || echo '[]'
+}
+
+join_wifi() {
+  [[ $1 =~ ^[0-9]+$ && -n ${XDG_RUNTIME_DIR:-} && -r $found ]] || { echo "fail"; return 1; }
+  local ssid pw hidden
+  ssid=$(jq -r --argjson i "$1" '.[$i] | select(.kind == "wifi") | .ssid' "$found" 2> /dev/null)
+  [[ -n $ssid && $ssid == "$2" ]] || { echo "fail"; return 1; }
+  pw=$(jq -r --argjson i "$1" '.[$i] | if .secure then .password else "" end' "$found")
+  hidden=$(jq -r --argjson i "$1" '.[$i].hidden' "$found")
+  local args=(device wifi connect "$ssid")
+  [[ -n $pw ]] && args+=(password "$pw")
+  [[ $hidden == true ]] && args+=(hidden yes)
+  if timeout 45 nmcli "${args[@]}" > /dev/null 2>&1; then echo "ok"; else echo "fail"; return 1; fi
+}
+
+case ${1:-} in
+  join) join_wifi "${2:-}" "${3:-}" ;;
+  "" | -h | --help) echo "usage: torus-qrscan FILE | join INDEX SSID" >&2; exit 2 ;;
+  *) scan "$1" ;;
+esac

@@ -3,6 +3,7 @@ set -uo pipefail
 
 conf=${XDG_CONFIG_HOME:-$HOME/.config}/torus/ocr
 out=${XDG_RUNTIME_DIR:-/tmp}/torus-ocr.txt
+found=${XDG_RUNTIME_DIR:-}/torus-qr-found.json
 
 langs() {
   local have want=() l
@@ -38,14 +39,24 @@ case ${1:-} in
   *) src=$1 ;;
 esac
 
+umask 077
+codes='[]'
+[[ -n ${XDG_RUNTIME_DIR:-} ]] && codes=$("$(dirname "$(readlink -f "$0")")"/torus-qrscan "$src" 2> /dev/null)
+[[ $codes == \[* ]] || codes='[]'
+[[ -n ${XDG_RUNTIME_DIR:-} ]] && printf '%s\n' "$codes" > "$found"
 big=$(mktemp --suffix=.png)
 magick "$src" -colorspace Gray -resize 200% "$big" 2> /dev/null && src=$big
 text=$(tesseract "$src" - -l "$(langs)" 2> /dev/null | tidy)
 if [[ -z ${text//[[:space:]]/} ]]; then
-  notify-send -a torus "No text found" "nothing readable in that picture"
-  exit 1
+  if [[ $codes == '[]' ]]; then
+    notify-send -a torus "No text found" "nothing readable in that picture"
+    exit 1
+  fi
+  : > "$out"
+  qs -c torus ipc call torus ocrShow > /dev/null 2>&1 ||
+    notify-send -a torus "QR code found" "open SUPER+Ctrl+S again with the shell running to use it"
+  exit 0
 fi
-umask 077
 printf '%s\n' "$text" > "$out"
 printf '%s' "$text" | wl-copy
 qs -c torus ipc call torus ocrShow > /dev/null 2>&1 ||

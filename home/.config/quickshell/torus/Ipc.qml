@@ -319,6 +319,10 @@ IpcHandler {
         Store.toggle("processes")
     }
 
+    function ocrCodes(): string {
+        return Store.ocrCodes
+    }
+
     function ocrShow(): void {
         Store.setOpen("ocr", true)
     }

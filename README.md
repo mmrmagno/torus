@@ -114,6 +114,7 @@ with it. I want a setup I own end to end.
 - SUPER+N dismisses the newest notification popup, SUPER+Shift+N every popup on screen, and SUPER+Alt+N presses the newest one's first button (Join, Open, Copy code). Dismissed popups stay in the notification center, like ones that timed out.
 - SUPER+Shift+C works without the mouse: arrows pick a capture, Enter opens it, Ctrl+C copies, Ctrl+E edits or cuts, Del twice moves it to the trash.
 - Empty states say what is going on: text from a picture with no text says so, and the AI panel has a Retry button instead of asking me to reopen it.
+- SUPER+Ctrl+S also reads QR codes in the area I pick. A link gets Open and Copy, a Wi-Fi code gets Join (it asks once more before connecting) and Copy password (kept out of the clipboard history), anything else gets Copy. Only http and https links ever open, and the code is shown as plain text, so a 2FA setup or a login code on a web page works without my phone.
 - On Latte the tray icons are darkened so they stay visible on the light bar.
 - A panel that scrolls fades at the edge where there is more.
 - Everything the shell starts goes through its own launcher, so pavucontrol, the network editor, the wallpapers folder and the timetable link survive a shell restart.

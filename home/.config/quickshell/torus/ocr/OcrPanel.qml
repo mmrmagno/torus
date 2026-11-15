@@ -14,7 +14,22 @@ PanelWindow {
     property string copied: ""
     readonly property var lines: source.text().split("\n")
     readonly property bool empty: source.text().trim() === ""
+    readonly property var codes: {
+        try {
+            const c = JSON.parse(qrSource.text() || "[]")
+            return Array.isArray(c) ? c.slice(0, 8) : []
+        } catch (e) {
+            return []
+        }
+    }
     Binding { target: Store; property: "ocrEmpty"; value: root.empty; when: root.visible }
+    Binding { target: Store; property: "ocrCodes"; value: root.codes.map(c => c.kind + ":" + c.text).join("\n"); when: root.visible }
+
+    function copyCode(text, secret) {
+        Quickshell.execDetached(["sh", "-c", secret ? "printf '%s' \"$1\" | wl-copy --sensitive" : "printf '%s' \"$1\" | wl-copy", "sh", text])
+        copied = secret ? "password" : "code"
+        copiedReset.restart()
+    }
 
     function copy(text, what) {
         Quickshell.execDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "sh", text])
@@ -24,7 +39,7 @@ PanelWindow {
 
     screen: Store.screenFor("ocr")
     visible: Store.isOpen("ocr") || motion.leaving
-    onVisibleChanged: if (visible) { copied = "all"; source.reload() }
+    onVisibleChanged: if (visible) { source.reload(); qrSource.reload(); copied = source.text().trim() === "" ? "" : "all" }
     anchors.top: true
     margins.top: Store.barGap
     implicitWidth: Math.min(640, (screen ? screen.width : 800) - 40)
@@ -37,6 +52,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("ocr") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     FileView { id: source; path: root.file; blockLoading: true; printErrors: false }
+    FileView { id: qrSource; path: (Quickshell.env("XDG_RUNTIME_DIR") || "/nonexistent") + "/torus-qr-found.json"; blockLoading: true; printErrors: false }
     Timer { id: copiedReset; interval: 2500; onTriggered: root.copied = "" }
 
     HyprlandFocusGrab {
@@ -55,7 +71,12 @@ PanelWindow {
         transformOrigin: Item.Top
         focus: true
         Keys.onEscapePressed: Store.setOpen("ocr", false)
-        Keys.onReturnPressed: { root.copy(source.text().trim(), "all"); Store.setOpen("ocr", false) }
+        Keys.onReturnPressed: {
+            if (root.empty)
+                return
+            root.copy(source.text().trim(), "all")
+            Store.setOpen("ocr", false)
+        }
         PanelMotion { id: motion; target: ocrFrame; shown: Store.isOpen("ocr") && !Store.moving }
         radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
@@ -80,10 +101,12 @@ PanelWindow {
                     Text {
                         Layout.fillWidth: true
                         elide: Text.ElideRight
-                        text: root.empty ? "No text found in that picture."
+                        text: root.copied === "code" ? "That code is on the clipboard."
+                            : root.copied === "password" ? "The password is on the clipboard, kept out of the history."
+                            : root.empty ? (root.codes.length > 0 ? "No text in it, only the code below." : "No text found in that picture.")
                             : root.copied === "all" ? "All of it is on the clipboard. Click a line to copy only that one."
                             : root.copied === "line" ? "That line is on the clipboard." : "Click a line to copy it."
-                        color: root.copied && !root.empty ? Theme.green : Theme.overlay
+                        color: root.copied !== "" ? Theme.green : Theme.overlay
                         font.family: Theme.fontUi
                         font.pixelSize: Theme.fsSm
                     }
@@ -98,6 +121,13 @@ PanelWindow {
                         Quickshell.execDetached(["torus-launch", "kitty", "-e", "nvim", root.file])
                         Store.setOpen("ocr", false)
                     }
+                }
+            }
+
+            Repeater {
+                model: root.codes
+                QrRow {
+                    onCopied: (text, secret) => root.copyCode(text, secret)
                 }
             }
 
@@ -159,7 +189,7 @@ visible: !root.empty
 
             KeyHints {
                 Layout.fillWidth: true
-                hints: root.empty ? [["Esc", "close"]] : [["↵", "copy all"], ["Tab", "move"], ["Esc", "close"]]
+                hints: root.empty ? (root.codes.length > 0 ? [["Tab", "move"], ["↵", "press"], ["Esc", "close"]] : [["Esc", "close"]]) : [["↵", "copy all"], ["Tab", "move"], ["Esc", "close"]]
             }
         }
     }

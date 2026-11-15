@@ -307,6 +307,7 @@ Singleton {
     property string look: ""
     property string sheetTitle: ""
     property bool ocrEmpty: false
+    property string ocrCodes: ""
     readonly property bool popupsRest: isOpen("center") || isOpen("network") || isOpen("updates") || isOpen("session") || isOpen("ai")
 
     function isOpen(name) {
