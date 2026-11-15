@@ -1472,6 +1472,50 @@ check_look() {
   if [[ -z $bad ]]; then section look ok "Shift+Space in the palette previews an image, text, the first PDF page, a clip, a binary's size and a folder; Up/Down follow, Esc closes only the preview"; else section look fail "$bad"; fi
 }
 
+check_clipplain() {
+  local bad="" raw want got
+  raw=$(printf '  parity-plain-%s \xe2\x80\x9cHello\xe2\x80\x9d it\xe2\x80\x99s\xc2\xa0fine\xe2\x80\x8b   \r\n    if x:\r\n\t\treturn  1  \r\n\r\n' "$$")
+  want=$(printf 'parity-plain-%s "Hello" it'"'"'s fine\n    if x:\n\t\treturn  1' "$$")
+  "${QS[@]}" closeAll > /dev/null
+  printf '%s' "$raw" | wl-copy; sleep 1.5
+  printf 'parity-other-2' | wl-copy; sleep 1
+  "${QS[@]}" recallForget > /dev/null 2>&1
+  "${QS[@]}" clipToggle > /dev/null; sleep 1
+  wtype -d 20 "parity-plain-$$"; sleep 0.8
+  wtype -k Return; sleep 0.8
+  [[ $(wl-paste -n 2> /dev/null | md5sum) == $(printf '%s' "$raw" | md5sum) ]] || bad+="enter-changed "
+  printf 'parity-other' | wl-copy; sleep 1
+  "${QS[@]}" clipToggle > /dev/null; sleep 1
+  wtype -d 20 "parity-plain-$$"; sleep 0.8
+  wtype -M shift -k Return -m shift; sleep 0.8
+  got=$(wl-paste -n 2> /dev/null)
+  [[ $got == "$want" ]] || bad+="plain[$(printf '%s' "$got" | od -An -c | tr -s ' ' | head -c 160)] "
+  [[ $(wl-paste -l 2> /dev/null) != *html* ]] || bad+="types[$(wl-paste -l | tr '\n' ' ')] "
+  [[ $("${QS[@]}" isOpen clip | tail -n 1) == false ]] || bad+="panel-stays "
+  "${QS[@]}" clipToggle > /dev/null; sleep 1
+  wtype -d 20 "parity-plain-$$"; sleep 0.8
+  wtype -M ctrl -k p -m ctrl; sleep 1
+  [[ $("${QS[@]}" clipPinned | tail -n 1) == *"parity-plain-$$"* ]] || bad+="pin-setup "
+  "${QS[@]}" closeAll > /dev/null; printf 'parity-other-3' | wl-copy; sleep 1
+  "${QS[@]}" clipToggle > /dev/null; sleep 1
+  wtype -d 20 "parity-plain-$$"; sleep 0.8
+  wtype -M shift -k Return -m shift; sleep 0.8
+  [[ $(wl-paste -n 2> /dev/null) == "$want" ]] || bad+="pinned-plain "
+  "${QS[@]}" clipToggle > /dev/null; sleep 1
+  wtype -d 20 "parity-plain-$$"; sleep 0.8
+  wtype -M ctrl -k p -m ctrl; sleep 1
+  [[ $("${QS[@]}" clipPinned | tail -n 1) != *"parity-plain-$$"* ]] || bad+="unpin "
+  "${QS[@]}" closeAll > /dev/null
+  magick -size 41x29 xc:'#89b4fa' png:- | wl-copy; sleep 1.5
+  "${QS[@]}" clipToggle > /dev/null; sleep 1
+  wtype -d 20 "41x29"; sleep 0.8
+  wtype -M shift -k Return -m shift; sleep 0.6
+  [[ $("${QS[@]}" isOpen clip | tail -n 1) == true ]] || bad+="image-offered "
+  [[ $(wl-paste -l 2> /dev/null) == *image/png* ]] || bad+="image-replaced "
+  "${QS[@]}" closeAll > /dev/null
+  if [[ -z $bad ]]; then section clipplain ok "Shift+Enter in SUPER+V copies plain text (quotes, spaces, zero width, CRLF, indents kept), Enter copies as is, images are not offered"; else section clipplain fail "$bad"; fi
+}
+
 check_qr() {
   local bad="" r stub=/tmp/parity-qr
   "${QS[@]}" closeAll > /dev/null
@@ -2227,7 +2271,7 @@ pin_json() { hyprctl clients -j | jq -c '[.[] | select(.title | test("^torus-pin
 pins_close() { local i; for i in $("${QS[@]}" pinList | tail -n 1 | tr ';' '\n' | cut -d: -f1); do "${QS[@]}" pinClose "$i" > /dev/null; done; }
 pin_wait() { local _; for _ in $(seq 20); do [[ $(pin_json | jq length) == "$1" ]] && return 0; sleep 0.25; done; return 1; }
 
-check_pins() {
+check_shotpin() {
   local bad="" d=~/Pictures/Screenshots before shot room j id w0 w1
   mkdir -p "$d"; rm -f "$d"/torus-parity-pin-*
   pins_close; "${QS[@]}" closeAll > /dev/null
@@ -2267,7 +2311,7 @@ check_pins() {
   pins_close; pin_wait 0 || bad+="close "
   [[ -n $shot && $shot != "$before" ]] && rm -f "$shot"
   "${QS[@]}" closeAll > /dev/null
-  if [[ -z $bad ]]; then section pins ok "Pin on the island and Ctrl+P in the studio float the picture pinned and unfocused within a third of the screen, zoom resizes, Esc closes, videos and missing files never pin"; else section pins fail "$bad"; fi
+  if [[ -z $bad ]]; then section shotpin ok "Pin on the island and Ctrl+P in the studio float the picture pinned and unfocused within a third of the screen, zoom resizes, Esc closes, videos and missing files never pin"; else section shotpin fail "$bad"; fi
 }
 
 check_notifkeys() {
@@ -3328,8 +3372,9 @@ case ${1:-all} in
   trash) check_trash ;;
   panels) check_panels ;;
   wsmove) check_wsmove ;;
+  clipplain) check_clipplain ;;
   qrscan) check_qrscan ;;
-  pins) check_pins ;;
+  shotpin) check_shotpin ;;
   smart) check_smart ;;
   session) check_session ;;
   qmllog) check_qmllog ;;
@@ -3396,7 +3441,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_pins; check_qrscan; check_wsmove; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipplain; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_shotpin; check_qrscan; check_wsmove; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

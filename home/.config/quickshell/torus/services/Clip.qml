@@ -354,6 +354,22 @@ Singleton {
         Store.setOpen("clip", false)
     }
 
+    function plainable(entry) {
+        return !!entry && entry.kind !== "image" && entry.kind !== "color"
+    }
+
+    function copyPlain(entry) {
+        if (!plainable(entry))
+            return false
+        if (entry.pinned)
+            Quickshell.execDetached(["sh", "-c", "torus-plain < \"$1\" | wl-copy -t text/plain", "sh", pinDir + "/" + entry.file])
+        else
+            Quickshell.execDetached(["sh", "-c", "printf '%s\\n' \"$1\" | cliphist decode | torus-plain | wl-copy -t text/plain", "sh", entry.line])
+        Store.sound("tick")
+        Store.setOpen("clip", false)
+        return true
+    }
+
     function togglePin(entry) {
         if (!entry)
             return

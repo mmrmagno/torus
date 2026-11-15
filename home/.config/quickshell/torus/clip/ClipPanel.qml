@@ -14,7 +14,7 @@ PanelWindow {
 
     screen: Store.screenFor("clip")
     visible: Store.isOpen("clip") || motion.leaving
-    implicitWidth: 900
+    implicitWidth: 980
     implicitHeight: 560
     exclusiveZone: 0
     color: "transparent"
@@ -154,8 +154,8 @@ PanelWindow {
             spacing: Theme.sp7
 
             ColumnLayout {
-                Layout.preferredWidth: 520
-                Layout.maximumWidth: 520
+                Layout.preferredWidth: 600
+                Layout.maximumWidth: 600
                 Layout.fillWidth: false
                 Layout.fillHeight: true
                 spacing: Theme.sp5
@@ -212,7 +212,10 @@ PanelWindow {
                                     list.currentIndex = Math.min(list.count - 1, list.currentIndex + 8)
                                 else if (event.key === Qt.Key_PageUp)
                                     list.currentIndex = Math.max(0, list.currentIndex - 8)
-                                else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && e)
+                                else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && (event.modifiers & Qt.ShiftModifier) && e) {
+                                    if (!Clip.copyPlain(e))
+                                        return
+                                } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && e)
                                     Clip.copy(e)
                                 else if (event.key === Qt.Key_Delete && (e || Clip.markedCount > 0))
                                     root.deleteCurrent()
@@ -479,9 +482,9 @@ PanelWindow {
                     id: footer
                     Layout.fillWidth: true
                     Layout.preferredHeight: 28
-                    spacing: Theme.sp5
+                    spacing: Theme.sp4
                     Repeater {
-                        model: Clip.manage ? [["Space", "select"], ["Del", Clip.markedCount > 0 ? "delete " + Clip.markedCount : "delete"], ["Ctrl M", "done"]] : [["↵", "copy"], ["Ctrl P", "pin"], ["Ctrl Q", "QR"], ["Del", "remove"], ["Tab", "type"]]
+                        model: Clip.manage ? [["Space", "select"], ["Del", Clip.markedCount > 0 ? "delete " + Clip.markedCount : "delete"], ["Ctrl M", "done"]] : [["↵", "copy"]].concat(Clip.plainable(root.current) ? [["Shift ↵", "plain"]] : []).concat([["Ctrl P", "pin"], ["Ctrl Q", "QR"], ["Del", "remove"], ["Tab", "type"]])
                         Row {
                             id: hint
                             required property var modelData
