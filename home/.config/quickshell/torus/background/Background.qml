@@ -46,7 +46,7 @@ PanelWindow {
     }
 
     readonly property var monitor: screen ? Hyprland.monitorFor(screen) : null
-    readonly property bool empty: monitor && monitor.activeWorkspace ? !Hyprland.toplevels.values.some(t => t.workspace === monitor.activeWorkspace) : false
+    readonly property bool empty: monitor && monitor.activeWorkspace ? !Hyprland.toplevels.values.some(t => t.workspace === monitor.activeWorkspace && !Pins.isPin(t)) : false
     readonly property bool breathe: Store.breathing && !donutMode && empty && Theme.motion > 0
 
     Image {

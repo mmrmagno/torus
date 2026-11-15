@@ -19,6 +19,8 @@ assert_eq $'    indented\n    block' "$(plain '\n    indented\n    block  \n')" 
 assert_eq $'first line\n    if x:\n\treturn' "$(plain '  first line\n    if x:\n\treturn')" "a first line indented unlike the rest is trimmed"
 assert_eq "" "$(plain '  \n \t ')" "only whitespace becomes empty"
 assert_eq "ünïcödé ✓" "$(plain 'ünïcödé ✓')" "other unicode untouched"
+assert_eq "café" "$(printf 'caf\xe9' | "$P")" "Latin-1 text is read as such, not dropped"
+assert_eq "x" "$(printf '\xff\xfex' | "$P" | tr -cd x)" "broken bytes never stop the filter"
 big=$(head -c 300000 /dev/zero | tr '\0' x)
 assert_eq 300000 "$(printf '%s' "$big" | "$P" | wc -c)" "large text passes through"
 echo "plain: ok"

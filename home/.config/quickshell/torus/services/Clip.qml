@@ -355,16 +355,16 @@ Singleton {
     }
 
     function plainable(entry) {
-        return !!entry && entry.kind !== "image" && entry.kind !== "color"
+        return !!entry && entry.kind !== "image" && entry.kind !== "color" && !/^\[\[ binary data/.test(entry.text || "")
     }
 
     function copyPlain(entry) {
         if (!plainable(entry))
             return false
         if (entry.pinned)
-            Quickshell.execDetached(["sh", "-c", "torus-plain < \"$1\" | wl-copy -t text/plain", "sh", pinDir + "/" + entry.file])
+            Quickshell.execDetached(["sh", "-c", "out=$(torus-plain < \"$1\") && [ -n \"$out\" ] && printf '%s' \"$out\" | wl-copy -t text/plain", "sh", pinDir + "/" + entry.file])
         else
-            Quickshell.execDetached(["sh", "-c", "printf '%s\\n' \"$1\" | cliphist decode | torus-plain | wl-copy -t text/plain", "sh", entry.line])
+            Quickshell.execDetached(["sh", "-c", "out=$(printf '%s\\n' \"$1\" | cliphist decode | torus-plain) && [ -n \"$out\" ] && printf '%s' \"$out\" | wl-copy -t text/plain", "sh", entry.line])
         Store.sound("tick")
         Store.setOpen("clip", false)
         return true

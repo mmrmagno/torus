@@ -141,7 +141,7 @@ Row {
                             anchors.margins: 8
                             clip: true
                             Repeater {
-                                model: ws.modelData.toplevels.values
+                                model: ws.modelData.toplevels.values.filter(t => !Pins.isPin(t))
                                 Item {
                                     id: peekThumb
                                     required property var modelData

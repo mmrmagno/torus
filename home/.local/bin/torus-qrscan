@@ -9,7 +9,7 @@ scan() {
   xml=$(zbarimg -q --xml -Sdisable -Sqrcode.enable "$1" 2> /dev/null)
   printf '%s' "$xml" | perl -MJSON::PP -MMIME::Base64 -MEncode -0777 -ne '
     my @out;
-    while (m{<data([^>]*)>(.*?)</data>}gs) {
+    while (m{<data([^>]*)>((?:\s|<!\[CDATA\[.*?\]\]>)*)</data>}gs) {
       my ($attr, $raw) = ($1, $2);
       my $t = join "", $raw =~ m{<!\[CDATA\[(.*?)\]\]>}gs;
       $t = decode_base64($t) if $attr =~ /format=.base64/;

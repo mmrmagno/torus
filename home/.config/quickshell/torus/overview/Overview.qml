@@ -5,6 +5,7 @@ import Quickshell.Hyprland
 import Quickshell.Widgets
 import qs
 import qs.components
+import qs.services
 
 PanelWindow {
     id: root
@@ -141,7 +142,7 @@ PanelWindow {
 
             Repeater {
                 model: ScriptModel {
-                    values: Hyprland.toplevels.values.filter(t => t.workspace && t.workspace.monitor === root.monitor && root.workspaces.indexOf(t.workspace.id) >= 0)
+                    values: Hyprland.toplevels.values.filter(t => !Pins.isPin(t) && t.workspace && t.workspace.monitor === root.monitor && root.workspaces.indexOf(t.workspace.id) >= 0)
                 }
 
                 Item {

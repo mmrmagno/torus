@@ -11,7 +11,7 @@ Singleton {
     signal zoomed(int id, int steps)
 
     function pin(path) {
-        if (!/\.(png|jpe?g|webp|bmp)$/i.test(path || ""))
+        if (!/\.(png|jpe?g|webp|bmp|gif|avif)$/i.test(path || ""))
             return false
         made++
         list = list.concat([{ id: made, path: path, screen: Store.focusedScreen }])

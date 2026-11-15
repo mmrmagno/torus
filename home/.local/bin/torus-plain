@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-exec perl -CSD -0777 -pe '
+exec perl -MEncode -0777 -ne '
+  my $t = eval { decode("UTF-8", $_, Encode::FB_CROAK) } // decode("cp1252", $_);
+  $_ = $t;
   s/\r\n?/\n/g;
   tr/\x{2018}\x{2019}\x{201A}\x{201B}/\x27/;
   tr/\x{201C}\x{201D}\x{201E}\x{201F}/"/;
@@ -17,4 +19,5 @@ exec perl -CSD -0777 -pe '
     for my $l (split /\n/) { next if $l =~ /^\s*$/; $block = 0, last if index($l, $ind) != 0 }
     s/\A[ \t]+// unless $block;
   }
+  print encode("UTF-8", $_);
 '

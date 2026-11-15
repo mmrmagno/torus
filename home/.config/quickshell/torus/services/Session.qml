@@ -102,7 +102,7 @@ Singleton {
     }
 
     readonly property real startedAt: Date.now()
-    readonly property int windowCount: Hyprland.toplevels.values.length
+    readonly property int windowCount: Hyprland.toplevels.values.filter(t => !Pins.isPin(t)).length
     onWindowCountChanged: if (Date.now() - startedAt > 90000) autoSave.restart()
 
     Timer {

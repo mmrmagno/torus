@@ -26,7 +26,10 @@ PanelWindow {
     Binding { target: Store; property: "ocrCodes"; value: root.codes.map(c => c.kind + ":" + c.text).join("\n"); when: root.visible }
 
     function copyCode(text, secret) {
-        Quickshell.execDetached(["sh", "-c", secret ? "printf '%s' \"$1\" | wl-copy --sensitive" : "printf '%s' \"$1\" | wl-copy", "sh", text])
+        if (secret)
+            Quickshell.execDetached({ command: ["sh", "-c", "printf '%s' \"$TORUS_SECRET\" | wl-copy --sensitive; h=$(printf '%s' \"$TORUS_SECRET\" | sha256sum); unset TORUS_SECRET; sleep 90; [ \"$(wl-paste -n 2>/dev/null | sha256sum)\" = \"$h\" ] && wl-copy --clear"], environment: { TORUS_SECRET: text } })
+        else
+            Quickshell.execDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "sh", text])
         copied = secret ? "password" : "code"
         copiedReset.restart()
     }
@@ -51,8 +54,8 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: Store.isOpen("ocr") && !Store.moving ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
-    FileView { id: source; path: root.file; blockLoading: true; printErrors: false }
-    FileView { id: qrSource; path: (Quickshell.env("XDG_RUNTIME_DIR") || "/nonexistent") + "/torus-qr-found.json"; blockLoading: true; printErrors: false }
+    FileView { id: source; path: root.file; blockLoading: true; printErrors: false; watchChanges: root.visible; onFileChanged: reload() }
+    FileView { id: qrSource; path: (Quickshell.env("XDG_RUNTIME_DIR") || "/nonexistent") + "/torus-qr-found.json"; blockLoading: true; printErrors: false; watchChanges: root.visible; onFileChanged: reload() }
     Timer { id: copiedReset; interval: 2500; onTriggered: root.copied = "" }
 
     HyprlandFocusGrab {
@@ -102,7 +105,7 @@ PanelWindow {
                         Layout.fillWidth: true
                         elide: Text.ElideRight
                         text: root.copied === "code" ? "That code is on the clipboard."
-                            : root.copied === "password" ? "The password is on the clipboard, kept out of the history."
+                            : root.copied === "password" ? "The password is on the clipboard for 90 s, kept out of the history."
                             : root.empty ? (root.codes.length > 0 ? "No text in it, only the code below." : "No text found in that picture.")
                             : root.copied === "all" ? "All of it is on the clipboard. Click a line to copy only that one."
                             : root.copied === "line" ? "That line is on the clipboard." : "Click a line to copy it."

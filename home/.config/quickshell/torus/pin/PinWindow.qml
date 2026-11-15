@@ -23,6 +23,7 @@ FloatingWindow {
         Hyprland.dispatch('hl.dsp.window.resize({ x = ' + implicitWidth + ', y = ' + implicitHeight + ', window = "title:^' + title + '$" })')
     }
 
+    screen: modelData.screen
     title: "torus-pin-" + modelData.id
     color: "transparent"
     visible: pic.status === Image.Ready

@@ -1898,6 +1898,7 @@ check_wsmove() {
   hyprctl eval 'torus.workspace.swap()' > /dev/null; sleep 0.6
   [[ $(mon_ws "$main") == "$w" ]] || bad+="swap-back "
   hyprctl clients -j | jq -r '.[] | select(.class == "parity-wsmove") | .pid' | xargs -r kill 2> /dev/null
+  [[ -n $bad ]] && bad+="monitors[$(hyprctl monitors -j | jq -c 'map({name, x, ws: .activeWorkspace.id, sp: .specialWorkspace.name, focused})')] "
   if [[ -z $bad ]]; then section wsmove ok "SUPER+Shift+Alt+arrows move workspace $w with its window to the other screen and back, nothing at the edge, SUPER+Shift+Alt+S swaps both screens, the island names it"; else section wsmove fail "$bad"; fi
 }
 
@@ -2049,7 +2050,7 @@ check_rules() {
   "${QS[@]}" paletteRun 0 > /dev/null; sleep 0.4
   "${QS[@]}" paletteQuery "window 7" > /dev/null; sleep 0.4
   r=$("${QS[@]}" paletteResults 2>/dev/null | tail -n 1)
-  [[ $r == "action:Move to workspace 7" ]] || bad+="move-entry[$r] "
+  [[ $r == "action:Move to workspace 7" ]] || bad+="move-entry[$r active=$(hyprctl activewindow -j | jq -c '{class, title}') windows=$(hyprctl clients -j | jq -c 'map(.class)')] "
   "${QS[@]}" paletteRun 0 > /dev/null; sleep 1
   [[ $(hyprctl clients -j | jq -r '.[] | select(.class == "parity.rule") | .workspace.id') == 7 ]] || bad+="not-moved "
   torus-rules remove parity.rule
@@ -2321,8 +2322,13 @@ check_notifkeys() {
   for m in 64 65 72; do
     hyprctl binds -j | jq -e --argjson m $m 'any(.[]; .key == "N" and .modmask == $m and (.description | test("popup")))' > /dev/null || bad+="no-bind[$m] "
   done
-  "${QS[@]}" notifKey newest > /dev/null; "${QS[@]}" notifKey act > /dev/null; sleep 0.4
+  [[ -z $("${QS[@]}" notifKey newest | tail -n 1)$("${QS[@]}" notifKey act | tail -n 1) ]] || bad+="empty-acted "
   [[ $("${QS[@]}" notifCount | tail -n 1) == 0 ]] || bad+="empty-not-empty "
+  "${QS[@]}" centerToggle > /dev/null; sleep 0.5
+  notify-send -u critical -a parity "resting" "behind the center"; sleep 0.8
+  [[ $("${QS[@]}" popupsResting | tail -n 1) == true ]] || bad+="not-resting "
+  [[ -z $("${QS[@]}" notifKey all | tail -n 1) && $("${QS[@]}" popupCount | tail -n 1) == 1 ]] || bad+="resting-dismissed "
+  "${QS[@]}" closeAll > /dev/null; "${QS[@]}" clearNotifs > /dev/null; sleep 0.5
   notify-send -u critical -a parity "older" "first"; sleep 0.5
   notify-send -u critical -a parity "newer" "second"; sleep 1
   [[ $("${QS[@]}" popupSummaries | tail -n 1) == "newer;older" ]] || bad+="setup[$("${QS[@]}" popupSummaries | tail -n 1)] "
@@ -3027,6 +3033,8 @@ check_segv() {
   for _ in $(seq 20); do n1=$(ls "$d"/*.log 2> /dev/null | wc -l); ((n1 > n0)) && break; sleep 0.5; done
   ((n1 > n0)) || bad+="no-log "
   awake
+  sleep 1
+  hyprctl clients -j | jq -r '.[] | select(.class == "org.quickshell" and .title == "quickshell") | .pid' | xargs -r kill 2> /dev/null
   if [[ -z $bad ]]; then section segv ok "a segfault Quickshell restarts in place still leaves a torus crash log and a notification"; else section segv fail "$bad"; fi
 }
 

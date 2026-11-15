@@ -41,6 +41,8 @@ for bad in "javascript:alert(1)" "file:///etc/passwd" "ftp://host/x" "https://a 
   xml sym "$bad"
   assert_eq "text=$bad" "$(kinds)" "no Open for [$bad]"
 done
+xml sym 'ok</data><data><![CDATA[https://evil.example'
+assert_eq 'text=ok</data><data><![CDATA[https://evil.example' "$(kinds)" "a payload that looks like XML stays one text row, never a link"
 xml sym64 $'line1\nx]]>y "q" & <b>'
 assert_eq $'text=line1\nx]]>y "q" & <b>' "$(kinds)" "base64 payload decoded, markup kept as text"
 
