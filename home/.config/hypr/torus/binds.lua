@@ -12,6 +12,51 @@ local function bind(keys, action, description, opts)
 	hl.bind(keys, type(action) == "string" and hl.dsp.exec_cmd(action) or action, o)
 end
 
+local function workspace_to(dir)
+	return function()
+		local from = hl.get_active_monitor()
+		local ws = hl.get_active_workspace()
+		if not from or not ws then
+			return
+		end
+		local there = false
+		for _, m in ipairs(hl.get_monitors()) do
+			if (dir == "l" and m.x < from.x) or (dir == "r" and m.x > from.x) then
+				there = true
+			end
+		end
+		if not there then
+			return
+		end
+		hl.dispatch(hl.dsp.workspace.move({ monitor = dir }))
+		local now = hl.get_active_monitor()
+		if now and now.name ~= from.name and now.name:match("^[%w_.-]+$") then
+			hl.exec_cmd(ipc("workspaceMoved", tostring(ws.id) .. " " .. now.name))
+		end
+	end
+end
+
+local function swap_workspaces()
+	local here = hl.get_active_monitor()
+	if not here or not here.active_workspace then
+		return
+	end
+	local other
+	for _, m in ipairs(hl.get_monitors()) do
+		if m.name ~= here.name and m.active_workspace and (not other or math.abs(m.x - here.x) < math.abs(other.x - here.x)) then
+			other = m
+		end
+	end
+	if not other then
+		return
+	end
+	local a, b = here.active_workspace.id, other.active_workspace.id
+	hl.dispatch(hl.dsp.workspace.swap_monitors({ monitor1 = here.name, monitor2 = other.name }))
+	hl.exec_cmd(ipc("workspacesSwapped", tostring(a) .. " " .. tostring(b)))
+end
+
+torus.workspace = { to = workspace_to, swap = swap_workspaces }
+
 local locked = { locked = true }
 local locked_repeat = { locked = true, repeating = true }
 local repeating = { repeating = true }
@@ -205,6 +250,9 @@ for i = 1, 10 do
 		bind(MOD .. " + SHIFT + " .. k, hl.dsp.window.move({ workspace = tostring(i + 10) }), "[Workspaces|Move window] to workspace " .. (i + 10))
 	end
 end
+bind(MOD .. " + SHIFT + ALT + LEFT", workspace_to("l"), "[Workspaces|Move workspace] to the screen on the left")
+bind(MOD .. " + SHIFT + ALT + RIGHT", workspace_to("r"), "[Workspaces|Move workspace] to the screen on the right")
+bind(MOD .. " + SHIFT + ALT + S", swap_workspaces, "[Workspaces|Move workspace] swap the two screens")
 bind(MOD .. " + CONTROL + RIGHT", hl.dsp.focus({ workspace = "r+1" }), "[Workspaces|Relative] next on this monitor")
 bind(MOD .. " + CONTROL + LEFT", hl.dsp.focus({ workspace = "r-1" }), "[Workspaces|Relative] previous on this monitor")
 bind(MOD .. " + CONTROL + DOWN", hl.dsp.focus({ workspace = "empty" }), "[Workspaces|Navigation] nearest empty workspace")

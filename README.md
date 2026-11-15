@@ -77,6 +77,7 @@ with it. I want a setup I own end to end.
 - Face unlock on the laptop (Howdy, IR camera): the lock looks for me as soon as it locks, a key retries, the password always works. `sudo torus-howdy setup --sudo` turns it on for sudo too, `off` puts everything back.
 - When Howdy looks for my face (the lock, or sudo in a terminal) the island shows a scanning ring, draws a check when it knows me and turns red when it does not.
 - Touchpad: three fingers sideways switch workspaces, four fingers up open the overview, down the dashboard.
+- SUPER+Shift+Alt+Left or Right moves the whole workspace, windows and all, to the screen on that side, and SUPER+Shift+Alt+S swaps what the two screens show. The island says where it went for a second. With one screen, or no screen on that side, nothing happens.
 - kitty tells me when a command over 30 s finishes while I am in another window, with its exit status.
 - A GitHub chip that only shows up when something wants me: review requests, my pull requests with red CI, a failing main branch. `gh ` in SUPER+Space lists them all.
 - After a `git push` in the terminal, torus follows the Actions run for that commit and tells me when CI passed or failed (green or red on the island, Open goes to the run), quiet during DND and games like every notification.

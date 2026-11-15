@@ -1819,6 +1819,44 @@ check_panels() {
   if [[ -z $bad ]]; then section panels ok "network panel sees the wired link, update centre lists updates and arch news [$r], theme studio opens"; else section panels fail "$bad"; fi
 }
 
+ws_mon() { hyprctl workspaces -j | jq -r --argjson w "$1" '.[] | select(.id == $w) | .monitor'; }
+mon_ws() { hyprctl monitors -j | jq -r --arg m "$1" '.[] | select(.name == $m) | .activeWorkspace.id'; }
+
+check_wsmove() {
+  local bad="" main side toward back k w=7 other
+  for k in LEFT RIGHT S; do
+    hyprctl binds -j | jq -e --arg k "$k" 'any(.[]; .key == $k and .modmask == 73 and (.description | test("workspace|screen")))' > /dev/null || bad+="no-bind[$k] "
+  done
+  main=$(hyprctl monitors -j | jq -r '.[] | select(.name != "SIDE") | .name' | head -n 1); side=SIDE
+  if (($(hyprctl monitors -j | jq --arg a "$side" --arg b "$main" '(.[] | select(.name == $a) | .x) < (.[] | select(.name == $b) | .x)'  | grep -c true))); then toward=l back=r; else toward=r back=l; fi
+  "${QS[@]}" closeAll > /dev/null
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = $w }))" > /dev/null
+  hyprctl eval 'hl.exec_cmd("kitty --class parity-wsmove")' > /dev/null
+  for _ in $(seq 50); do hyprctl clients -j | jq -e 'any(.[]; .class == "parity-wsmove")' > /dev/null && break; sleep 0.2; done
+  [[ $(ws_mon $w) == "$main" ]] || bad+="setup[$(ws_mon $w)] "
+  "${QS[@]}" islandFlash osd parity-before > /dev/null
+  hyprctl eval "torus.workspace.to(\"$toward\")()" > /dev/null; sleep 0.6
+  [[ $(ws_mon $w) == "$side" ]] || bad+="move[$(ws_mon $w)] "
+  [[ $(hyprctl clients -j | jq -r '.[] | select(.class == "parity-wsmove") | .workspace.id') == "$w" ]] || bad+="window-left-behind "
+  [[ $("${QS[@]}" islandLabel | tail -n 1) == "osd|Workspace $w → $side" ]] || bad+="island[$("${QS[@]}" islandLabel | tail -n 1)] "
+  "${QS[@]}" islandFlash osd parity-edge > /dev/null
+  hyprctl eval "torus.workspace.to(\"$toward\")()" > /dev/null; sleep 0.5
+  [[ $(ws_mon $w) == "$side" ]] || bad+="edge-moved "
+  [[ $("${QS[@]}" islandLabel | tail -n 1) == *parity-edge ]] || bad+="edge-island[$("${QS[@]}" islandLabel | tail -n 1)] "
+  hyprctl eval "torus.workspace.to(\"$back\")()" > /dev/null; sleep 0.6
+  [[ $(ws_mon $w) == "$main" ]] || bad+="back[$(ws_mon $w)] "
+  other=$(mon_ws "$side")
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null; sleep 0.2
+  hyprctl eval 'torus.workspace.swap()' > /dev/null; sleep 0.6
+  [[ $(mon_ws "$side") == "$w" && $(mon_ws "$main") == "$other" ]] || bad+="swap[$main=$(mon_ws "$main") $side=$(mon_ws "$side")] "
+  [[ $("${QS[@]}" islandLabel | tail -n 1) == "osd|Workspaces $w ⇄ $other" ]] || bad+="swap-island[$("${QS[@]}" islandLabel | tail -n 1)] "
+  hyprctl eval 'torus.workspace.swap()' > /dev/null; sleep 0.6
+  [[ $(mon_ws "$main") == "$w" ]] || bad+="swap-back "
+  hyprctl clients -j | jq -r '.[] | select(.class == "parity-wsmove") | .pid' | xargs -r kill 2> /dev/null
+  if [[ -z $bad ]]; then section wsmove ok "SUPER+Shift+Alt+arrows move workspace $w with its window to the other screen and back, nothing at the edge, SUPER+Shift+Alt+S swaps both screens, the island names it"; else section wsmove fail "$bad"; fi
+}
+
 check_qrscan() {
   local bad="" stub=/tmp/parity-qrscan d=~/Pictures/Screenshots id geo ocr=$XDG_RUNTIME_DIR/torus-ocr.txt keep=""
   rm -rf "$stub"; mkdir -p "$stub" "$d"
@@ -3289,6 +3327,7 @@ case ${1:-all} in
   look) check_look ;;
   trash) check_trash ;;
   panels) check_panels ;;
+  wsmove) check_wsmove ;;
   qrscan) check_qrscan ;;
   pins) check_pins ;;
   smart) check_smart ;;
@@ -3357,7 +3396,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_pins; check_qrscan; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_pins; check_qrscan; check_wsmove; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

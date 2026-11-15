@@ -171,9 +171,21 @@ IpcHandler {
         return Recordings.count
     }
 
+    function islandLabel(): string {
+        return Island.flashKind + "|" + ((Island.flashData || {}).label || "")
+    }
+
     function islandText(): string {
         const d = Island.flashData || {}
         return Island.flashKind + "|" + (d.summary || "") + "|" + (d.body || "")
+    }
+
+    function workspaceMoved(ws: int, screen: string): void {
+        Island.flash("osd", { icon: "󰍺", label: "Workspace " + ws + " → " + screen, value: -1 }, 1000)
+    }
+
+    function workspacesSwapped(a: int, b: int): void {
+        Island.flash("osd", { icon: "󰍺", label: "Workspaces " + a + " ⇄ " + b, value: -1 }, 1000)
     }
 
     function islandFlash(kind: string, label: string): void {
