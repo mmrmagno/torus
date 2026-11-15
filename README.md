@@ -110,6 +110,7 @@ with it. I want a setup I own end to end.
 - The cheat sheet on SUPER+/ reads like a keyboard: every bind as keycaps, `/` and `` ` `` instead of slash and grave, arrows as arrows, and each line says what it does ("resize: left", "theme studio: wallpaper").
 - The logout menu shows its letter keys as keycaps.
 - A notification popup steps aside while the network, updates, session or AI panel is open on its corner, and comes back when I close it.
+- SUPER+N dismisses the newest notification popup, SUPER+Shift+N every popup on screen, and SUPER+Alt+N presses the newest one's first button (Join, Open, Copy code). Dismissed popups stay in the notification center, like ones that timed out.
 - SUPER+Shift+C works without the mouse: arrows pick a capture, Enter opens it, Ctrl+C copies, Ctrl+E edits or cuts, Del twice moves it to the trash.
 - Empty states say what is going on: text from a picture with no text says so, and the AI panel has a Retry button instead of asking me to reopen it.
 - On Latte the tray icons are darkened so they stay visible on the light bar.

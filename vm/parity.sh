@@ -2154,6 +2154,33 @@ check_popuprest() {
   if [[ -z $bad ]]; then section popuprest ok "a popup rests while network, updates, session or AI is open and comes back after"; else section popuprest fail "$bad"; fi
 }
 
+check_notifkeys() {
+  local bad="" out
+  out=$(mktemp)
+  "${QS[@]}" closeAll > /dev/null; "${QS[@]}" clearNotifs > /dev/null; sleep 0.5
+  for m in 64 65 72; do
+    hyprctl binds -j | jq -e --argjson m $m 'any(.[]; .key == "N" and .modmask == $m and (.description | test("popup")))' > /dev/null || bad+="no-bind[$m] "
+  done
+  "${QS[@]}" notifKey newest > /dev/null; "${QS[@]}" notifKey act > /dev/null; sleep 0.4
+  [[ $("${QS[@]}" notifCount | tail -n 1) == 0 ]] || bad+="empty-not-empty "
+  notify-send -u critical -a parity "older" "first"; sleep 0.5
+  notify-send -u critical -a parity "newer" "second"; sleep 1
+  [[ $("${QS[@]}" popupSummaries | tail -n 1) == "newer;older" ]] || bad+="setup[$("${QS[@]}" popupSummaries | tail -n 1)] "
+  "${QS[@]}" notifKey newest > /dev/null; sleep 0.6
+  [[ $("${QS[@]}" popupSummaries | tail -n 1) == older ]] || bad+="newest[$("${QS[@]}" popupSummaries | tail -n 1)] "
+  notify-send -u critical -a parity "third" "again"; sleep 1
+  "${QS[@]}" notifKey all > /dev/null; sleep 0.6
+  [[ $("${QS[@]}" popupCount | tail -n 1) == 0 ]] || bad+="all[$("${QS[@]}" popupSummaries | tail -n 1)] "
+  [[ $("${QS[@]}" notifCount | tail -n 1) == 3 ]] || bad+="center-lost[$("${QS[@]}" notifCount | tail -n 1)] "
+  (timeout 20 notify-send -a parity -A join=Join "call" "starts now" > "$out" 2> /dev/null &); sleep 1
+  "${QS[@]}" notifKey act > /dev/null
+  for _ in $(seq 10); do [[ -s $out ]] && break; sleep 0.3; done
+  [[ $(cat "$out") == join ]] || bad+="action[$(cat "$out")] "
+  [[ $("${QS[@]}" popupCount | tail -n 1) == 0 ]] || bad+="action-popup-stays "
+  rm -f "$out"; "${QS[@]}" clearNotifs > /dev/null
+  if [[ -z $bad ]]; then section notifkeys ok "SUPER+N drops the newest popup, SUPER+Shift+N the rest, the center keeps all, SUPER+Alt+N presses Join"; else section notifkeys fail "$bad"; fi
+}
+
 check_capturekeys() {
   local bad="" d=~/Pictures/Screenshots a b sel st
   "${QS[@]}" recallForget > /dev/null 2>&1
@@ -3238,6 +3265,7 @@ case ${1:-all} in
   scopes) check_scopes ;;
   rules) check_rules ;;
   calendar) check_calendar ;;
+  notifkeys) check_notifkeys ;;
   notify) check_notify ;;
   island) check_island ;;
   widgets) check_widgets ;;
@@ -3249,7 +3277,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

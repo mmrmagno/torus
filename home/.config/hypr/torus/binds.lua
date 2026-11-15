@@ -133,6 +133,9 @@ bind(MOD .. " + SHIFT + V", "qs -c torus ipc call torus clipManage > /dev/null 2
 bind(MOD .. " + I", "qs -c torus ipc call torus aiToggle", "[Launcher|Menus] local AI sidebar")
 bind(MOD .. " + SHIFT + K", "qs -c torus ipc call torus paletteOpen calc > /dev/null 2>&1 || torus-menu calc", "[Launcher|Menus] calculator")
 bind(MOD .. " + SHIFT + slash", "qs -c torus ipc call torus paletteOpen web > /dev/null 2>&1 || torus-menu websearch", "[Launcher|Menus] web search")
+bind(MOD .. " + N", ipc("notifKey", "newest"), "[Utilities|Notifications] dismiss the newest popup")
+bind(MOD .. " + SHIFT + N", ipc("notifKey", "all"), "[Utilities|Notifications] dismiss every popup")
+bind(MOD .. " + ALT + N", ipc("notifKey", "act"), "[Utilities|Notifications] press the newest popup's button")
 bind(MOD .. " + D", ipc("dashboardToggle"), "[Launcher|Shell] dashboard")
 bind(MOD .. " + O", ipc("overviewToggle"), "[Launcher|Shell] workspace overview")
 

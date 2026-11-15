@@ -128,8 +128,10 @@ with tempfile.TemporaryDirectory(prefix="torus-notification-test-") as directory
     (root / "services").mkdir()
     (root / "Store.qml").write_text(STORE)
     real = (source / "services/Notifs.qml").read_text()
-    start = real.index("    function otpOf(text) {")
-    otpof = real[start:real.index("\n    }\n", start) + 6]
+    otpof = ""
+    for name in ("otpOf(text)", "buttonsOf(n)"):
+        start = real.index("    function " + name + " {")
+        otpof += real[start:real.index("\n    }\n", start) + 6] + "\n"
     (root / "services/Notifs.qml").write_text(NOTIFS.replace("OTPOF", otpof))
     (root / "shell.qml").write_text(SHELL)
     runtime = root / "runtime"

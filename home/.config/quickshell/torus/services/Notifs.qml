@@ -236,6 +236,44 @@ Singleton {
         deadlines = d
     }
 
+    function buttonsOf(n) {
+        return n ? n.actions.filter(a => a.identifier !== "default" && a.text.trim() !== "") : []
+    }
+
+    function popupKey(what) {
+        if (Store.popupsRest || popups.length === 0)
+            return ""
+        if (what === "all") {
+            for (const p of popups.slice())
+                dismissPopup(p)
+            return "all"
+        }
+        const n = popups[0]
+        if (what === "newest") {
+            dismissPopup(n)
+            return "newest"
+        }
+        if (what !== "act")
+            return ""
+        const code = otpOf((n.summary || "") + " " + (n.body || ""))
+        const button = buttonsOf(n)[0]
+        const click = n.actions.find(a => a.identifier === "default")
+        let done = ""
+        if (code !== "") {
+            copyOtp(code)
+            done = "code"
+        } else if (button) {
+            button.invoke()
+            done = "action:" + button.identifier
+        } else if (click) {
+            click.invoke()
+            done = "default"
+        }
+        if (done !== "")
+            dismissPopup(n)
+        return done
+    }
+
     function ago(n) {
         const t = arrived[n.id]
         if (!t)

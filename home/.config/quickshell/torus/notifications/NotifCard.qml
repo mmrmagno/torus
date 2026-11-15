@@ -20,7 +20,7 @@ Item {
             notif.dismiss()
     }
     property bool popup: false
-    readonly property var actions: notif ? notif.actions.filter(a => a.identifier !== "default" && a.text.trim() !== "") : []
+    readonly property var actions: Notifs.buttonsOf(notif)
     readonly property var defaultAction: notif ? notif.actions.find(a => a.identifier === "default") : null
     readonly property string code: notif ? Notifs.otpOf((notif.summary || "") + " " + (notif.body || "")) : ""
     readonly property string body: notif ? notif.body.replace(/<img\b[^>]*>/gi, "").trim().replace(/\n/g, "<br>") : ""

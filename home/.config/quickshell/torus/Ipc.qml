@@ -200,8 +200,16 @@ IpcHandler {
         Notifs.clearAll()
     }
 
+    function notifKey(what: string): string {
+        return Notifs.popupKey(what)
+    }
+
     function popupCount(): int {
         return Notifs.popups.length
+    }
+
+    function popupSummaries(): string {
+        return Notifs.popups.map(n => n.summary).join(";")
     }
 
     function clipsState(): string {
