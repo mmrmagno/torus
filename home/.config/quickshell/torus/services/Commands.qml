@@ -23,9 +23,18 @@ Singleton {
             return "armed"
         }
         armedRemove = ""
-        Quickshell.execDetached(["torus-webapp", "remove", item.remove])
-        Island.flash("osd", { icon: "󰆴", label: item.title + " is no longer an app", value: -1 }, 2600)
+        remover.title = item.title
+        remover.command = ["torus-webapp", "remove", item.remove]
+        remover.running = true
         return "removed"
+    }
+
+    Process {
+        id: remover
+        property string title: ""
+        stdout: StdioCollector {
+            onStreamFinished: Island.flash("osd", { icon: "󰆴", label: text.trim() === "ok" ? remover.title + " is no longer an app" : "Could not remove " + remover.title, value: -1 }, 2600)
+        }
     }
     property string lookKind: ""
     signal fill(string text)

@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Widgets
 import qs
 import qs.components
+import "../components/fileuri.mjs" as U
 
 Rectangle {
     id: look
@@ -47,6 +48,7 @@ Rectangle {
         return v.toFixed(v < 10 ? 1 : 0) + " " + u[i]
     }
 
+    readonly property string shown: kind === "image" && picture.status === Image.Error ? "error" : kind
     readonly property var entries: kind === "folder" ? body.split("\n").filter(l => l !== "") : []
     readonly property string caption: {
         if (kind === "folder")
@@ -109,7 +111,7 @@ Rectangle {
                 y: (parent.height - height) / 2
                 width: stage.width
                 height: stage.height
-                source: look.picPath !== "" ? "file://" + look.picPath : ""
+                source: U.uriOf(look.picPath)
                 sourceSize.width: 1600
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true

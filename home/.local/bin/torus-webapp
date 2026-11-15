@@ -36,12 +36,12 @@ clean_name() {
 }
 
 fetch() {
-  curl -fsSL --max-time 6 --max-filesize 2000000 -A "Mozilla/5.0 (X11; Linux x86_64) torus-webapp" "$@" 2> /dev/null
+  curl -fsSL --proto =http,https --proto-redir =http,https --globoff --max-time 6 --max-filesize 2000000 -A "Mozilla/5.0 (X11; Linux x86_64) torus-webapp" "$@" 2> /dev/null
 }
 
 add() {
   local url=$1 name=${2:-} page title slug file icon href base
-  local re='^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~:/?#@!&+,;=%-]*)?$'
+  local re='^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~:/?#@!&+,;=-]*)?$'
   [[ $url =~ $re ]] || { echo bad-url; return; }
   command -v chromium > /dev/null || { echo no-chromium; return; }
   mkdir -p "$apps" "$icons"
@@ -50,7 +50,7 @@ add() {
   done < <(compgen -G "$apps/torus-webapp-*.desktop")
   page=$(fetch "$url" | head -c 400000)
   if [[ -z $name ]]; then
-    title=$(printf '%s' "$page" | tr '\n' ' ' | sed -n 's/.*<title[^>]*>\([^<]*\)<\/title>.*/\1/Ip' | head -1)
+    title=$(printf '%s' "$page" | tr '\n' ' ' | grep -oiE -m1 '<title[^>]*>[^<]*' | head -1 | sed -E 's/^<title[^>]*>//I')
     title=$(clean_name "$(printf '%s' "$title" | sed -e 's/ \(|\|–\|—\|·\|:\|-\) .*//')")
     ((${#title} >= 2 && ${#title} <= 24)) && name=$title || name=$(host_name "$url")
   fi
@@ -59,7 +59,11 @@ add() {
   slug=$(slugify "$name")
   [[ -n $slug ]] || slug=app
   file=$apps/torus-webapp-$slug.desktop
-  [[ -e $file ]] && { echo "exists $name"; return; }
+  local n=2 stem=$slug base_name=$name
+  while [[ -e $file ]]; do
+    slug=$stem-$n name="$base_name $n" file=$apps/torus-webapp-$stem-$n.desktop
+    n=$((n + 1))
+  done
   base=${url%%\?*}
   base=${base%%#*}
   [[ ${base#*://} == */* ]] && base=${base%/*}
@@ -72,7 +76,17 @@ add() {
     *) href=$base/$href ;;
   esac
   icon=web-browser
-  if fetch "$href" -o "$icons/$slug.raw" && magick "$icons/$slug.raw[0]" -resize 128x128 "$icons/$slug.png" 2> /dev/null; then
+  local coder=""
+  if fetch "$href" -o "$icons/$slug.raw"; then
+    case $(file -b --mime-type -- "$icons/$slug.raw" 2> /dev/null) in
+      image/png) coder=PNG ;;
+      image/jpeg) coder=JPEG ;;
+      image/webp) coder=WEBP ;;
+      image/gif) coder=GIF ;;
+      image/x-icon | image/vnd.microsoft.icon) coder=ICO ;;
+    esac
+  fi
+  if [[ -n $coder ]] && magick "$coder:$icons/$slug.raw[0]" -resize 128x128 "PNG:$icons/$slug.png" 2> /dev/null; then
     icon=$icons/$slug.png
   fi
   rm -f "$icons/$slug.raw"
@@ -80,8 +94,8 @@ add() {
     echo "[Desktop Entry]"
     echo "Type=Application"
     echo "Name=$name"
-    echo "Comment=${url//%/%%} as an app"
-    echo "Exec=chromium \"--user-data-dir=$profile\" --no-first-run --ozone-platform-hint=auto \"--app=${url//%/%%}\""
+    echo "Comment=$url as an app"
+    echo "Exec=chromium \"--user-data-dir=$profile\" --no-first-run --ozone-platform-hint=auto \"--app=$url\""
     echo "Icon=$icon"
     echo "StartupWMClass=$(wmclass "$url")"
     echo "Categories=Network;WebBrowser;"

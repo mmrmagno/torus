@@ -14,6 +14,8 @@ PanelWindow {
     readonly property bool lookOn: Commands.lookOn
     readonly property string lookPath: lookOn && selected && selected.path ? selected.path : ""
 
+    property real typedAt: 0
+
     function toggleLook() {
         if (lookOn || (selected && selected.path))
             Commands.lookOn = !lookOn
@@ -56,7 +58,7 @@ PanelWindow {
             target: frame
             shown: Store.isOpen("palette")
         }
-        readonly property real want: root.lookOn ? root.implicitHeight : 28 + 48 + 24 + 20 + 3 * Theme.sp4 + (list.count === 0 ? 96 : Math.min(list.contentHeight, 400))
+        readonly property real want: root.lookPath !== "" ? root.implicitHeight : 28 + 48 + 24 + 20 + 3 * Theme.sp4 + (list.count === 0 ? 96 : Math.min(list.contentHeight, 400))
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -109,6 +111,7 @@ PanelWindow {
                         onTextChanged: {
                             Commands.query = text
                             Commands.armedRemove = ""
+                            root.typedAt = Date.now()
                             list.currentIndex = 0
                         }
                         Keys.onPressed: event => {
@@ -118,7 +121,7 @@ PanelWindow {
                                 Commands.lookOn = false
                             else if (event.key === Qt.Key_Escape)
                                 Store.setOpen("palette", false)
-                            else if (event.key === Qt.Key_Space && (event.modifiers & Qt.ShiftModifier) && (root.lookOn || (root.selected && root.selected.path)))
+                            else if (event.key === Qt.Key_Space && (event.modifiers & Qt.ShiftModifier) && (root.lookOn || (root.selected && root.selected.path && Date.now() - root.typedAt > 400)))
                                 root.toggleLook()
                             else if (event.key === Qt.Key_Down) {
                                 Commands.armedRemove = ""
@@ -394,7 +397,7 @@ PanelWindow {
             anchors.topMargin: 14 + 48 + Theme.sp4
             z: 10
             path: root.lookPath
-            onKindChanged: Commands.lookKind = kind
+            onShownChanged: Commands.lookKind = shown
         }
     }
 }

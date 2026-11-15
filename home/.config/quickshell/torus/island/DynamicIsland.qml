@@ -7,6 +7,7 @@ import Quickshell.Widgets
 import qs
 import qs.components
 import qs.services
+import "../components/fileuri.mjs" as U
 
 PanelWindow {
     id: root
@@ -349,7 +350,7 @@ PanelWindow {
             spacing: Theme.sp6
             readonly property string path: root.shotData.path || ""
 
-            HoverHandler { onHoveredChanged: Island.hold(hovered) }
+            HoverHandler { onHoveredChanged: if (!shotDrag.dragging) Island.hold(hovered) }
 
             ClippingRectangle {
                 Layout.preferredWidth: 112
@@ -358,7 +359,7 @@ PanelWindow {
                 color: Theme.crust
                 Image {
                     anchors.fill: parent
-                    source: shotRow.path ? "file://" + shotRow.path : ""
+                    source: U.uriOf(shotRow.path)
                     sourceSize.width: 256
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true

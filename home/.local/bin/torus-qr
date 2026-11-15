@@ -2,7 +2,7 @@
 set -uo pipefail
 
 max=2000
-run=${XDG_RUNTIME_DIR:-/tmp}
+run=${XDG_RUNTIME_DIR:-}
 
 esc() { printf '%s' "$1" | sed -e 's/[\;,:"]/\\&/g'; }
 
@@ -10,6 +10,7 @@ encode() {
   local text=$1 out
   command -v qrencode > /dev/null || { echo missing; return; }
   [[ -n $text ]] || { echo empty; return; }
+  [[ -n $run && -d $run ]] || { echo error; return; }
   (($(printf '%s' "$text" | LC_ALL=C wc -c) <= max)) || { echo too-long; return; }
   rm -f "$run"/torus-qr-*.png
   out=$run/torus-qr-$$.png

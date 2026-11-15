@@ -46,4 +46,5 @@ grep -q -- '-s -g 802-11-wireless-security.psk' "$STUB_LOG" || fail "wifi: passw
 mkdir -p "$F/bare"
 for c in bash env sed wc rm; do ln -s "$(command -v "$c")" "$F/bare/$c"; done
 assert_eq "missing" "$(PATH=$F/bare "$Q" text -- hi)" "qrencode missing"
+assert_eq "error" "$(env -u XDG_RUNTIME_DIR "$Q" text -- hi)" "no runtime dir: no code written to /tmp"
 echo "qr: ok"

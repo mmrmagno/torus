@@ -1388,9 +1388,9 @@ check_shotwindow() {
   want=$(hyprctl clients -j | jq -r '.[] | select(.class == "parity-shotwin") | "\(.size[0])x\(.size[1])"')
   printf '#!/usr/bin/env bash\ncat > %s/boxes\ngrep -m1 " %s$" %s/boxes | cut -d" " -f1,2\n' "$stub" "$addr" "$stub" > "$stub/slurp"
   chmod +x "$stub/slurp"
-  before=$(ls ~/Pictures/Screenshots/torus-*.png 2> /dev/null | sort | tail -n 1)
+  before=$(ls -t ~/Pictures/Screenshots/torus-*.png 2> /dev/null | head -n 1)
   PATH=$stub:$PATH torus-shot s; sleep 0.8
-  f=$(ls ~/Pictures/Screenshots/torus-*.png 2> /dev/null | sort | tail -n 1)
+  f=$(ls -t ~/Pictures/Screenshots/torus-*.png 2> /dev/null | head -n 1)
   [[ -n $f && $f != "$before" ]] || bad+="no-file "
   grep -q " $addr$" "$stub/boxes" || bad+="window-not-offered[$(tr '\n' '|' < "$stub/boxes")] "
   [[ -n $f && $f != "$before" ]] && got=$(magick identify -format '%wx%h' "$f" 2> /dev/null)
@@ -1442,7 +1442,7 @@ check_zoom() {
 check_look() {
   local bad="" d=~/parity-look seen="" r
   rm -rf "$d"; mkdir -p "$d/folder/inner"; touch "$d/folder/a.txt"
-  magick -size 640x360 gradient:'#89b4fa-#cba6f7' "$d/a-picture.png"
+  magick -size 640x360 gradient:'#89b4fa-#cba6f7' "$d/a-picture #1.png"
   printf '# Notes\nline two\n' > "$d/b-notes.md"
   magick -size 400x300 xc:white -fill black -draw 'rectangle 40,40 200,120' "$d/c-doc.pdf" 2> /dev/null
   ffmpeg -loglevel error -f lavfi -i testsrc=size=320x180:rate=10 -t 1 -pix_fmt yuv420p "$d/d-clip.mp4" 2> /dev/null
@@ -1462,6 +1462,11 @@ check_look() {
   [[ $("${QS[@]}" isOpen palette | tail -n 1) == false ]] || bad+="second-esc "
   "${QS[@]}" paletteQuery "~/parity-look/" > /dev/null; sleep 1.2
   [[ $("${QS[@]}" paletteLook | tail -n 1) == off ]] || bad+="reopens-with-look "
+  "${QS[@]}" closeAll > /dev/null; sleep 0.4
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.6
+  wtype "~/parity-look/B"; wtype -M shift -k space -m shift; sleep 1
+  r="$("${QS[@]}" paletteLook | tail -n 1)"
+  [[ $r == off ]] || bad+="shift-space-while-typing-opened-the-look[$r] "
   "${QS[@]}" closeAll > /dev/null
   rm -rf "$d" "$XDG_RUNTIME_DIR"/torus-look-*.png
   if [[ -z $bad ]]; then section look ok "Shift+Space in the palette previews an image, text, the first PDF page, a clip, a binary's size and a folder; Up/Down follow, Esc closes only the preview"; else section look fail "$bad"; fi
@@ -1522,6 +1527,9 @@ check_draw() {
   "${QS[@]}" drawStroke line 400 600 900 600 > /dev/null; sleep 0.6
   grim -o Virtual-1 /tmp/parity-draw1.png; px1=$(px /tmp/parity-draw1.png 650 600)
   [[ ${px1,,} == "${color,,}" ]] || bad+="stroke[$px1!=$color] "
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ monitor = "SIDE" }))' > /dev/null; sleep 2.5
+  [[ $("${QS[@]}" drawState | tail -n 1) == open:1:0:Virtual-1:* ]] || bad+="moved-to-the-other-screen[$("${QS[@]}" drawState | tail -n 1)] "
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ monitor = "Virtual-1" }))' > /dev/null; sleep 0.5
   wtype -k 2; sleep 0.3
   [[ $("${QS[@]}" drawState | tail -n 1) == open:1:1:* ]] || bad+="pen-2 "
   wtype -M ctrl -k z -m ctrl; sleep 0.6
@@ -2967,6 +2975,7 @@ check_meetjoin() {
   meeting_is "idle" 70 || bad+="call-end-not-noticed[$("${QS[@]}" meetingState)] "
   [[ $("${QS[@]}" dnd) == false ]] || bad+="dnd-not-restored "
   pw_drop parity-mic
+  pkill -f "[c]hromium https://meet.google.com/abc-defg-hij" 2> /dev/null
   if [[ -z $bad ]]; then section meetjoin ok "Join opens only Meet/Teams/Zoom links, holds notifications at once, ends when the call releases the mic"; else section meetjoin fail "$bad"; fi
 }
 

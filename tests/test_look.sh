@@ -33,4 +33,10 @@ if command -v pdftoppm > /dev/null && command -v magick > /dev/null; then
     [[ $(head -1 <<< "$out") == pdf && -s $(sed -n 2p <<< "$out") ]] || fail "pdf: first page rendered, got [$out]"
   }
 fi
+out=$(env -u XDG_RUNTIME_DIR "$L" "$F/note.md"); out=${out%%$'\n'*}
+assert_eq "text" "$out" "text works without a runtime dir"
+if command -v pdftoppm > /dev/null && [[ -e $F/doc.pdf ]]; then
+  out=$(env -u XDG_RUNTIME_DIR "$L" "$F/doc.pdf"); out=${out%%$'\n'*}
+  assert_eq "other" "$out" "no runtime dir: a pdf is never rendered into /tmp"
+fi
 echo "look: ok"

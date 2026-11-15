@@ -163,7 +163,7 @@ Singleton {
     property var screenOf: ({})
     property var pendingScreen: null
 
-    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games", "homelab"].concat(Feel.list("stay"))
+    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games", "homelab", "draw"].concat(Feel.list("stay"))
     readonly property var exclusive: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games"]
     property var activeScreen: null
     property bool moving: false

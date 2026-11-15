@@ -15,7 +15,8 @@ case $mime in
   image/*) echo image ;;
   video/*) echo video ;;
   application/pdf)
-    run=${XDG_RUNTIME_DIR:-/tmp}
+    run=${XDG_RUNTIME_DIR:-}
+    [[ -n $run && -d $run ]] || { info; exit 0; }
     rm -f "$run"/torus-look-*.png
     out=$run/torus-look-$$
     if pdftoppm -f 1 -l 1 -png -scale-to 1400 -singlefile -- "$p" "$out" 2> /dev/null; then

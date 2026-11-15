@@ -15,13 +15,16 @@ out="" url=""
 while [[ $# -gt 0 ]]; do case $1 in -o) out=$2; shift ;; -*) [[ $1 == --max-time || $1 == --max-filesize || $1 == -A ]] && shift ;; *) url=$1 ;; esac; shift; done
 [[ -n $out ]] && exec > "$out"
 case $url in
-  https://linear.app/) printf '<html><head>\n<title>Linear – Plan and build products</title>\n<link rel="icon" href="/static/icon.png"></head></html>' ;;
-  https://linear.app/static/icon.png) printf 'PNG' ;;
+  https://linear.app/) printf '<html><head>\n<title>Linear – Plan and build products</title>\n<link rel="icon" href="/static/icon.png"></head><body><svg><title>Close</title></svg></body></html>' ;;
+  https://linear.app/static/icon.png) printf '\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\1\0\0\0\1\x08\x02\0\0\0\x90wS\xde\0\0\0\x0cIDATx\x9cc\xf8\xff\xff?\0\x05\xfe\x02\xfe\xa7\x35\x81\x84\0\0\0\0IEND\xaeB`\x82' ;;
+  https://hostile.test/) printf '<title>Hostile</title><link rel=icon href=/x.png>' ;;
+  https://hostile.test/x.png) printf '%%!PS-Adobe-3.0\n%%%%BoundingBox: 0 0 1 1\n(owned) print\n' ;;
+  https://grafana.other.test/) printf '<title>Grafana</title>' ;;
   https://app.slack.com/client) printf '<title>Slack</title>' ;;
   https://grafana.lab.test/) printf "<title>Grafana</title><link rel='shortcut icon' href='img/fav.png'>" ;;
-  https://grafana.lab.test/img/fav.png) printf 'PNG' ;;
+  https://grafana.lab.test/img/fav.png) printf '\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\1\0\0\0\1\x08\x02\0\0\0\x90wS\xde\0\0\0\x0cIDATx\x9cc\xf8\xff\xff?\0\x05\xfe\x02\xfe\xa7\x35\x81\x84\0\0\0\0IEND\xaeB`\x82' ;;
   https://bare.test/) printf '<title>Bare</title><link rel=icon href=/i.png>' ;;
-  https://bare.test/i.png) printf 'PNG' ;;
+  https://bare.test/i.png) printf '\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\1\0\0\0\1\x08\x02\0\0\0\x90wS\xde\0\0\0\x0cIDATx\x9cc\xf8\xff\xff?\0\x05\xfe\x02\xfe\xa7\x35\x81\x84\0\0\0\0IEND\xaeB`\x82' ;;
   https://notion.so/) exit 22 ;;
   https://example.org/*) printf '<title>A very long title that goes on and on forever</title>' ;;
   *) exit 22 ;;
@@ -29,7 +32,7 @@ esac
 S
 cat > "$F/bin/magick" <<'S'
 #!/usr/bin/env bash
-src=${1%\[0\]}; [[ $(cat "$src") == PNG ]] || exit 1; for a; do out=$a; done; cp "$src" "$out"
+echo "magick $*" >> "$STUB_LOG"; src=${1#*:}; src=${src%\[0\]}; for a; do out=${a#PNG:}; done; cp "$src" "$out"
 S
 chmod +x "$F/bin/"*
 W=$REPO/home/.local/bin/torus-webapp
@@ -42,6 +45,7 @@ grep -qx 'Exec=chromium "--user-data-dir='"$XDG_DATA_HOME"'/torus/webapps" --no-
 grep -qx 'StartupWMClass=chrome-linear.app__-Default' "$d" || fail "wm class matches chromium on wayland: $(grep WMClass "$d")"
 grep -qx "Icon=$XDG_DATA_HOME/torus/webapp-icons/linear.png" "$d" || fail "icon from the page's link rel=icon: $(grep Icon= "$d")"
 grep -q 'curl .*https://linear.app/static/icon.png' "$STUB_LOG" || fail "relative icon resolved against the host"
+grep -q 'curl .*--proto =http,https --proto-redir =http,https --globoff' "$STUB_LOG" || fail "curl limited to http(s), no globbing"
 assert_eq "exists Linear" "$("$W" add https://linear.app/)" "same url twice is refused"
 
 assert_eq "ok Slack" "$("$W" add 'https://app.slack.com/client')" "slack"
@@ -52,8 +56,15 @@ grep -q '^Icon=.*/grafana.png$' "$A/torus-webapp-grafana.desktop" || fail "singl
 assert_eq "ok Bare" "$("$W" add https://bare.test/)" "unquoted attributes"
 grep -q '^Icon=.*/bare.png$' "$A/torus-webapp-bare.desktop" || fail "unquoted icon"
 assert_eq "ok Notion" "$("$W" add https://notion.so/)" "page not reachable: name from the host"
-assert_eq "ok Example" "$("$W" add 'https://example.org/a?b=1&c=%20')" "a long title falls back to the host"
-grep -q -- '--app=https://example.org/a?b=1&c=%%20"$' "$A/torus-webapp-example.desktop" || fail "percent doubled in Exec"
+assert_eq "ok Example" "$("$W" add 'https://example.org/a?b=1&c=2')" "a long title falls back to the host"
+grep -q -- '--app=https://example.org/a?b=1&c=2"$' "$A/torus-webapp-example.desktop" || fail "query kept as is in Exec"
+assert_eq "bad-url" "$("$W" add 'https://example.org/a?c=%20')" "a percent is refused: launchers disagree on %% inside quotes"
+assert_eq "ok Hostile" "$("$W" add https://hostile.test/)" "hostile icon"
+grep -qx 'Icon=web-browser' "$A/torus-webapp-hostile.desktop" || fail "a PostScript icon never reaches magick"
+grep -q 'magick .*hostile' "$STUB_LOG" && fail "magick ran on a non-image icon"
+grep -q 'magick PNG:' "$STUB_LOG" || fail "magick gets the coder from the sniffed type, not from the content"
+assert_eq "ok Grafana 2" "$("$W" add https://grafana.other.test/)" "same name, other site: numbered"
+assert_file "$A/torus-webapp-grafana-2.desktop"
 assert_eq "ok Work tracker" "$("$W" add https://linear.app/team 'Work tracker')" "a given name wins"
 
 for bad in 'https://x.org/"; rm -rf ~' 'https://x.org/$(id)' 'javascript:alert(1)' 'https://x.org/a b' 'file:///etc/passwd' 'https://x.org/`id`'; do
