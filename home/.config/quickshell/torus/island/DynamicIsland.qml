@@ -59,7 +59,7 @@ PanelWindow {
 
     anchors.top: true
     margins.top: narrow ? Store.barGap - 4 : (Store.barPreset === "compact" ? 3 : 4)
-    implicitWidth: 480
+    implicitWidth: 560
     implicitHeight: 104
     exclusionMode: ExclusionMode.Ignore
     color: "transparent"

@@ -49,7 +49,7 @@ Rectangle {
             spacing: 0
             Text {
                 Layout.fillWidth: true
-                text: row.modelData.text || ""
+                text: (row.modelData.text || "").replace(/\s+/g, " ").trim()
                 textFormat: Text.PlainText
                 elide: Text.ElideMiddle
                 maximumLineCount: 1
