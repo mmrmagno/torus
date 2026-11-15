@@ -1608,6 +1608,21 @@ check_dragout() {
   if [[ -z $bad ]]; then section dragout ok "the island screenshot offers itself as a file drag (text/uri-list, encoded), only while it shows; vm/drag-out.sh drops it, a capture and a clip into an app for real"; else section dragout fail "$bad"; fi
 }
 
+check_artquant() {
+  local bad="" pid t0 n
+  t0=$(date '+%Y-%m-%d %H:%M:%S')
+  "${QS[@]}" closeAll > /dev/null
+  python3 "$REPO/vm/mpris-fake.py" "https://127.0.0.1:9/parity-cover.jpg" & pid=$!
+  sleep 2
+  "${QS[@]}" dashboardToggle > /dev/null; sleep 1.5
+  "${QS[@]}" centerToggle > /dev/null; sleep 1.5
+  "${QS[@]}" closeAll > /dev/null
+  kill "$pid" 2> /dev/null; wait "$pid" 2> /dev/null
+  n=$(journalctl --user -u torus-shell --since "$t0" --no-pager -o cat | grep -cE "colorquantizer|No file name specified")
+  ((n == 0)) || bad+="warnings[$n] "
+  if [[ -z $bad ]]; then section artquant ok "a player whose cover is a web link (Spotify) leaves no color quantizer warnings in the log"; else section artquant fail "$bad"; fi
+}
+
 check_trash() {
   local bad="" d=~/Pictures/Screenshots f what
   mkdir -p "$d"
@@ -3136,6 +3151,7 @@ case ${1:-all} in
   draw) check_draw ;;
   webapp) check_webapp ;;
   dragout) check_dragout ;;
+  artquant) check_artquant ;;
   dashboard) check_dashboard ;;
   donut) check_donut ;;
   spin) check_spin ;;
@@ -3233,7 +3249,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

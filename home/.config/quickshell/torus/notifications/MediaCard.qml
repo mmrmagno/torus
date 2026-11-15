@@ -22,7 +22,7 @@ ClippingRectangle {
 
     ColorQuantizer {
         id: quant
-        source: root.art
+        source: /^https?:\/\//.test(root.art) ? (root.art === DonutClock.artUrl ? DonutClock.artLocal : "") : root.art
         depth: 1
         rescaleSize: 64
     }
