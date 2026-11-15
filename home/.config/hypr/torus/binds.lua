@@ -19,19 +19,19 @@ local function workspace_to(dir)
 		if not from or not ws then
 			return
 		end
-		local there = false
+		local to
 		for _, m in ipairs(hl.get_monitors()) do
-			if (dir == "l" and m.x < from.x) or (dir == "r" and m.x > from.x) then
-				there = true
+			if (dir == "l" and m.x < from.x and (not to or m.x > to.x)) or (dir == "r" and m.x > from.x and (not to or m.x < to.x)) then
+				to = m
 			end
 		end
-		if not there then
+		if not to or not to.name:match("^[%w_.-]+$") then
 			return
 		end
-		hl.dispatch(hl.dsp.workspace.move({ monitor = dir }))
+		hl.dispatch(hl.dsp.workspace.move({ monitor = to.name }))
 		local now = hl.get_active_monitor()
-		if now and now.name ~= from.name and now.name:match("^[%w_.-]+$") then
-			hl.exec_cmd(ipc("workspaceMoved", tostring(ws.id) .. " " .. now.name))
+		if now and now.name == to.name then
+			hl.exec_cmd(ipc("workspaceMoved", tostring(ws.id) .. " " .. to.name))
 		end
 	end
 end

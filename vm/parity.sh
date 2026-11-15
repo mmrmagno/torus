@@ -1867,13 +1867,14 @@ ws_mon() { hyprctl workspaces -j | jq -r --argjson w "$1" '.[] | select(.id == $
 mon_ws() { hyprctl monitors -j | jq -r --arg m "$1" '.[] | select(.name == $m) | .activeWorkspace.id'; }
 
 check_wsmove() {
-  local bad="" main side toward back k w=7 other
+  local bad="" main side toward back k w=7 other gx
   for k in LEFT RIGHT S; do
     hyprctl binds -j | jq -e --arg k "$k" 'any(.[]; .key == $k and .modmask == 73 and (.description | test("workspace|screen")))' > /dev/null || bad+="no-bind[$k] "
   done
   main=$(hyprctl monitors -j | jq -r '.[] | select(.name != "SIDE") | .name' | head -n 1); side=SIDE
   if (($(hyprctl monitors -j | jq --arg a "$side" --arg b "$main" '(.[] | select(.name == $a) | .x) < (.[] | select(.name == $b) | .x)'  | grep -c true))); then toward=l back=r; else toward=r back=l; fi
   "${QS[@]}" closeAll > /dev/null
+  local home; home=$(mon_ws "$main")
   hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
   hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = $w }))" > /dev/null
   hyprctl eval 'hl.exec_cmd("kitty --class parity-wsmove")' > /dev/null
@@ -1897,9 +1898,19 @@ check_wsmove() {
   [[ $("${QS[@]}" islandLabel | tail -n 1) == "osd|Workspaces $w ⇄ $other" ]] || bad+="swap-island[$("${QS[@]}" islandLabel | tail -n 1)] "
   hyprctl eval 'torus.workspace.swap()' > /dev/null; sleep 0.6
   [[ $(mon_ws "$main") == "$w" ]] || bad+="swap-back "
+  local mx; mx=$(hyprctl monitors -j | jq -r --arg m "$main" '.[] | select(.name == $m) | .x')
+  if [[ $toward == l ]]; then gx=$((mx + 1700)); else gx=$((mx - 1700)); fi
+  hyprctl eval "hl.monitor({ output = \"$main\", position = \"${gx}x0\" })" > /dev/null; sleep 1
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null; sleep 0.2
+  hyprctl eval "torus.workspace.to(\"$toward\")()" > /dev/null; sleep 0.6
+  [[ $(ws_mon $w) == "$side" ]] || bad+="gap[$(hyprctl monitors -j | jq -c 'map({name, x})')] "
+  hyprctl eval "torus.workspace.to(\"$back\")()" > /dev/null; sleep 0.6
+  [[ $(ws_mon $w) == "$main" ]] || bad+="gap-back "
+  hyprctl eval "hl.monitor({ output = \"$main\", position = \"${mx}x0\" })" > /dev/null; sleep 1
   hyprctl clients -j | jq -r '.[] | select(.class == "parity-wsmove") | .pid' | xargs -r kill 2> /dev/null
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = ${home:-1} }))" > /dev/null
   [[ -n $bad ]] && bad+="monitors[$(hyprctl monitors -j | jq -c 'map({name, x, ws: .activeWorkspace.id, sp: .specialWorkspace.name, focused})')] "
-  if [[ -z $bad ]]; then section wsmove ok "SUPER+Shift+Alt+arrows move workspace $w with its window to the other screen and back, nothing at the edge, SUPER+Shift+Alt+S swaps both screens, the island names it"; else section wsmove fail "$bad"; fi
+  if [[ -z $bad ]]; then section wsmove ok "SUPER+Shift+Alt+arrows move workspace $w with its window to the other screen and back, nothing at the edge, a gap between the screens is fine, SUPER+Shift+Alt+S swaps both screens, the island names it"; else section wsmove fail "$bad"; fi
 }
 
 check_qrscan() {
