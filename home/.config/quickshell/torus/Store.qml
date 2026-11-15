@@ -42,6 +42,7 @@ Singleton {
     property bool gamemode: false
     property var altTabber: null
     property var rulerView: null
+    property var drawView: null
     property string rulerShot: ""
     property string pendingCut: ""
     property string rulerLast: ""

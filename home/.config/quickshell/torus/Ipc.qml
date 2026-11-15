@@ -826,6 +826,24 @@ IpcHandler {
         return JSON.stringify({ jobs: BrowserDownloads.list.map(j => j.name + ":" + j.size), last: BrowserDownloads.last })
     }
 
+    function drawToggle(): void {
+        Store.toggle("draw")
+    }
+
+    function drawStroke(kind: string, x1: int, y1: int, x2: int, y2: int): string {
+        const d = Store.drawView
+        if (!d || !Store.isOpen("draw"))
+            return "closed"
+        const a = Qt.point(x1, y1), b = Qt.point(x2, y2)
+        d.commit(kind === "line" ? { kind: "line", color: String(d.pens[d.pen]), pts: [a, Qt.point((x1 + x2) / 2, (y1 + y2) / 2), b] } : { kind: kind, color: String(d.pens[d.pen]), a: a, b: b })
+        return String(d.strokes.length)
+    }
+
+    function drawState(): string {
+        const d = Store.drawView
+        return d && Store.isOpen("draw") ? "open:" + d.strokes.length + ":" + d.pen + ":" + d.screen.name + ":" + String(d.pens[d.pen]) : "closed"
+    }
+
     function rulerShow(path: string): void {
         Store.rulerShot = path
         Store.setOpen("ruler", true)

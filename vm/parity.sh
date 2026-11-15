@@ -1508,6 +1508,46 @@ S
   if [[ -z $bad ]]; then section qr ok "Ctrl+Q in SUPER+V shows the entry as a QR code that decodes back to it, Esc closes only the code, too long says so; the Wi-Fi code decodes to WIFI:T:WPA with escaping"; else section qr fail "$bad"; fi
 }
 
+check_draw() {
+  local bad="" st mon color px0 px1 px2 r
+  px() { python3 -c "from PIL import Image; im = Image.open('$1').convert('RGB'); print('#%02x%02x%02x' % im.getpixel(($2, $3)))" 2> /dev/null; }
+  "${QS[@]}" closeAll > /dev/null
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ monitor = "Virtual-1" }))' > /dev/null; sleep 0.4
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "9" }))' > /dev/null 2>&1; sleep 0.6
+  grim -o Virtual-1 /tmp/parity-draw0.png; px0=$(px /tmp/parity-draw0.png 640 600)
+  "${QS[@]}" drawToggle > /dev/null; sleep 0.8
+  st=$("${QS[@]}" drawState | tail -n 1)
+  IFS=: read -r _ _ _ mon color <<<"$st"
+  [[ $st == open:0:0:Virtual-1:* ]] || bad+="open[$st] "
+  "${QS[@]}" drawStroke line 400 600 900 600 > /dev/null; sleep 0.6
+  grim -o Virtual-1 /tmp/parity-draw1.png; px1=$(px /tmp/parity-draw1.png 650 600)
+  [[ ${px1,,} == "${color,,}" ]] || bad+="stroke[$px1!=$color] "
+  wtype -k 2; sleep 0.3
+  [[ $("${QS[@]}" drawState | tail -n 1) == open:1:1:* ]] || bad+="pen-2 "
+  wtype -M ctrl -k z -m ctrl; sleep 0.6
+  [[ $("${QS[@]}" drawState | tail -n 1) == open:0:* ]] || bad+="undo "
+  grim -o Virtual-1 /tmp/parity-draw2.png; px2=$(px /tmp/parity-draw2.png 650 600)
+  [[ $px2 != "$px1" ]] || bad+="undo-left-the-stroke "
+  "${QS[@]}" drawStroke box 300 300 700 500 > /dev/null
+  wtype -k Escape; sleep 0.5
+  [[ $("${QS[@]}" drawState | tail -n 1) == closed ]] || bad+="esc "
+  "${QS[@]}" drawToggle > /dev/null; sleep 0.6
+  [[ $("${QS[@]}" drawState | tail -n 1) == open:0:0:* ]] || bad+="reopen-not-wiped "
+  "${QS[@]}" drawStroke box 300 300 700 500 > /dev/null
+  hyprctl eval 'hl.exec_cmd("torus-lock")' > /dev/null
+  if locked_is true; then
+    [[ $("${QS[@]}" drawState | tail -n 1) == closed ]] || bad+="lock-kept-drawing "
+    type_pw "$LOCK_PW"
+    locked_is false || bad+="unlock "
+  else
+    bad+="no-lock "
+  fi
+  "${QS[@]}" closeAll > /dev/null
+  hyprctl eval 'hl.dispatch(hl.dsp.focus({ workspace = "1" }))' > /dev/null 2>&1
+  rm -f /tmp/parity-draw*.png
+  if [[ -z $bad ]]; then section draw ok "SUPER+Shift+D draws over the screen in the accent color, 1-4 pick a color, Ctrl+Z takes a stroke back, Esc and the lock wipe it"; else section draw fail "$bad"; fi
+}
+
 check_trash() {
   local bad="" d=~/Pictures/Screenshots f what
   mkdir -p "$d"
@@ -3032,6 +3072,7 @@ case ${1:-all} in
   lock) check_lock ;;
   look) check_look ;;
   qr) check_qr ;;
+  draw) check_draw ;;
   dashboard) check_dashboard ;;
   donut) check_donut ;;
   spin) check_spin ;;
@@ -3129,7 +3170,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

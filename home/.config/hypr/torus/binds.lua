@@ -167,6 +167,7 @@ bind(MOD .. " + CTRL + S", "torus-shot sc", "[Utilities] OCR to clipboard")
 bind(MOD .. " + SHIFT + R", "torus-record toggle", "[Utilities] start or stop recording")
 bind(MOD .. " + ALT + R", "torus-record replay-save", "[Utilities] save replay")
 bind(MOD .. " + SHIFT + M", "torus-ruler", "[Utilities] measure an area, copies WxH")
+bind(MOD .. " + SHIFT + D", ipc("drawToggle"), "[Utilities] draw on the screen")
 bind(MOD .. " + U", "vpnup", "[Utilities] start vpn connection")
 bind(MOD .. " + Y", "clipscrub", "[Utilities] censor current clipboard")
 

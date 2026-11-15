@@ -25,6 +25,7 @@ import qs.network
 import qs.updates
 import qs.ocr
 import qs.ruler
+import qs.draw
 import qs.processes
 import qs.spire
 
@@ -68,6 +69,7 @@ ShellRoot {
     SessionPanel {}
     OcrPanel {}
     Ruler {}
+    Draw {}
     ProcPanel {}
     ThemeStudio {}
     CaptureStudio {}
