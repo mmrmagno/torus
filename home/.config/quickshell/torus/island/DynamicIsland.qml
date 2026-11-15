@@ -353,6 +353,7 @@ PanelWindow {
             HoverHandler { onHoveredChanged: if (!shotDrag.dragging) Island.hold(hovered) }
 
             ClippingRectangle {
+                id: shotThumb
                 Layout.preferredWidth: 112
                 Layout.preferredHeight: 63
                 radius: Theme.radius
@@ -369,6 +370,7 @@ PanelWindow {
                     id: shotDrag
                     anchors.fill: parent
                     path: shotRow.path
+                    picture: shotThumb
                     onDraggingChanged: Island.hold(dragging)
                 }
             }

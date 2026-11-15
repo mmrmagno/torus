@@ -155,6 +155,7 @@ Rectangle {
         id: tileDrag
         anchors.fill: picFrame
         path: tile.path
+        picture: picFrame
     }
 
     Row {
