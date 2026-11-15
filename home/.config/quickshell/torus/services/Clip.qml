@@ -19,6 +19,9 @@ Singleton {
     property int limit: 50
     property int matches: 0
     property bool manage: false
+    property bool qrOn: false
+    property string qrStatus: ""
+    property string qrPng: ""
     property var marked: ({})
     property int markedCount: 0
     property string armed: ""

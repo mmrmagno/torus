@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+max=2000
+run=${XDG_RUNTIME_DIR:-/tmp}
+
+esc() { printf '%s' "$1" | sed -e 's/[\;,:"]/\\&/g'; }
+
+encode() {
+  local text=$1 out
+  command -v qrencode > /dev/null || { echo missing; return; }
+  [[ -n $text ]] || { echo empty; return; }
+  (($(printf '%s' "$text" | LC_ALL=C wc -c) <= max)) || { echo too-long; return; }
+  rm -f "$run"/torus-qr-*.png
+  out=$run/torus-qr-$$.png
+  if printf '%s' "$text" | qrencode -o "$out" -s 10 -m 2 -l M 2> /dev/null; then echo "ok $out"; else echo error; fi
+}
+
+wifi() {
+  local ssid=$1 uuid type found="" mgmt psk kind
+  [[ -n $ssid ]] || { echo empty; return; }
+  while IFS=: read -r uuid type; do
+    [[ $type == 802-11-wireless ]] || continue
+    [[ $(nmcli -g 802-11-wireless.ssid connection show "$uuid" 2> /dev/null) == "$ssid" ]] && { found=$uuid; break; }
+  done < <(nmcli -g UUID,TYPE connection show --active 2> /dev/null)
+  [[ -n $found ]] || { echo not-connected; return; }
+  mgmt=$(nmcli -g 802-11-wireless-security.key-mgmt connection show "$found" 2> /dev/null)
+  case $mgmt in
+    "") echo "$(encode "WIFI:T:nopass;S:$(esc "$ssid");;")"; return ;;
+    none) kind=WEP psk=$(nmcli -s -g 802-11-wireless-security.wep-key0 connection show "$found" 2> /dev/null) ;;
+    *) kind=WPA psk=$(nmcli -s -g 802-11-wireless-security.psk connection show "$found" 2> /dev/null) ;;
+  esac
+  [[ -n $psk ]] || { echo no-password; return; }
+  encode "WIFI:T:$kind;S:$(esc "$ssid");P:$(esc "$psk");;"
+}
+
+case ${1:-} in
+  text) [[ ${2:-} == -- ]] && shift; encode "${2:-}" ;;
+  wifi) [[ ${2:-} == -- ]] && shift; wifi "${2:-}" ;;
+  *) echo "usage: torus-qr text|wifi [--] <text|ssid>" >&2; exit 2 ;;
+esac

@@ -68,6 +68,24 @@ IpcHandler {
         return Object.keys(Store.widgetsOn).filter(k => Store.widgetsOn[k]).sort().join(" ")
     }
 
+    function clipQr(on: bool): string {
+        Clip.qrOn = on
+        return Clip.qrStatus
+    }
+
+    function clipQrState(): string {
+        return Clip.qrOn ? Clip.qrStatus + " " + Clip.qrPng : "off"
+    }
+
+    function wifiQr(ssid: string): string {
+        Wifi.qrSsid = ssid
+        return Wifi.qrStatus
+    }
+
+    function wifiQrState(): string {
+        return Wifi.qrSsid !== "" ? Wifi.qrStatus : "off"
+    }
+
     function clipToggle(): void {
         Store.toggle("clip")
     }

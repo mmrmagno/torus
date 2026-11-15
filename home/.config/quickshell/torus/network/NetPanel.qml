@@ -24,6 +24,16 @@ PanelWindow {
         }
     }
 
+    function toggleQr() {
+        if (Wifi.qrSsid !== "") {
+            Wifi.qrSsid = ""
+            return
+        }
+        const n = Wifi.networks.find(x => x.active)
+        if (n)
+            Wifi.qrSsid = n.ssid
+    }
+
     function bars(s) {
         return s >= 75 ? "󰤨" : s >= 50 ? "󰤥" : s >= 25 ? "󰤢" : "󰤟"
     }
@@ -128,12 +138,19 @@ PanelWindow {
         Connections {
             target: root
             function onVisibleChanged() {
+                Wifi.qrSsid = ""
                 if (root.visible)
                     netFrame.forceActiveFocus()
             }
         }
         focus: true
-        Keys.onEscapePressed: Store.setOpen("network", false)
+        Keys.onEscapePressed: Wifi.qrSsid !== "" ? Wifi.qrSsid = "" : Store.setOpen("network", false)
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Q && (event.modifiers & Qt.ControlModifier)) {
+                root.toggleQr()
+                event.accepted = true
+            }
+        }
         PanelMotion {
             id: motion
             target: netFrame
@@ -142,7 +159,7 @@ PanelWindow {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
+        height: Math.min(Math.max(body.implicitHeight, Wifi.qrSsid !== "" ? 380 : 0) + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.TopRight
         radius: Theme.rPanel
@@ -226,6 +243,15 @@ PanelWindow {
                                 Text { text: root.bars(net.modelData.signal); color: net.modelData.active ? Theme.accent : Theme.subtext; font.family: Theme.fontMono; font.pixelSize: Theme.fsXl }
                                 Text { text: net.modelData.ssid; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsBase; elide: Text.ElideRight; Layout.fillWidth: true }
                                 Text { visible: net.modelData.secure; text: "󰌾"; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd }
+                                SmallButton {
+                                    id: qrButton
+                                    visible: net.modelData.active
+                                    label: "󰐲 QR"
+                                    onClicked: {
+                                        Wifi.qrSsid = net.modelData.ssid
+                                        netFrame.forceActiveFocus()
+                                    }
+                                }
                                 Text {
                                     text: Wifi.busySsid === net.modelData.ssid ? "connecting…" : (net.modelData.active ? "connected" : (Wifi.failedSsid === net.modelData.ssid ? "failed" : ""))
                                     color: Wifi.failedSsid === net.modelData.ssid ? Theme.red : Theme.subtext
@@ -234,7 +260,13 @@ PanelWindow {
                                 }
                             }
                             HoverHandler { id: netHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: net.activate() }
+                            TapHandler {
+                                onTapped: (point, button) => {
+                                    if (qrButton.visible && qrButton.contains(qrButton.mapFromItem(netRow, point.position)))
+                                        return
+                                    net.activate()
+                                }
+                            }
                         }
 
                         Rectangle {
@@ -331,13 +363,24 @@ PanelWindow {
 
         ScrollFade { flick: scroller }
 
+        QrCode {
+            id: wifiQr
+            anchors.fill: scroller
+            z: 5
+            visible: Wifi.qrSsid !== ""
+            mode: "wifi"
+            payload: Wifi.qrSsid
+            caption: "Scan to join " + Wifi.qrSsid + ". The password stays inside the code."
+            onStatusChanged: Wifi.qrStatus = status
+        }
+
         KeyHints {
             id: hintBar
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.margins: 16
-            hints: [["Tab", "move"], ["↵", "press"], ["Esc", "close"]]
+            hints: [["Tab", "move"], ["↵", "press"]].concat(Wifi.networks.some(x => x.active) ? [["Ctrl Q", "Wi-Fi QR"]] : []).concat([["Esc", Wifi.qrSsid !== "" ? "back" : "close"]])
         }
     }
 }

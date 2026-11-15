@@ -12,6 +12,8 @@ Singleton {
     property string busySsid: ""
     property string failedSsid: ""
     property string wired: ""
+    property string qrSsid: ""
+    property string qrStatus: ""
 
     function refresh(rescan) {
         if (scan.running)

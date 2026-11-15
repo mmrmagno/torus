@@ -97,6 +97,7 @@ PanelWindow {
     onVisibleChanged: if (visible) {
         openStart = Date.now()
         moved = false
+        Clip.qrOn = false
         if (!Store.recalls("clip"))
             Clip.kindFilter = "all"
         search.text = ""
@@ -191,8 +192,12 @@ PanelWindow {
                                     root.moved = true
                                 const ctrl = event.modifiers & Qt.ControlModifier
                                 const e = root.current
-                                if (event.key === Qt.Key_Escape)
+                                if (event.key === Qt.Key_Escape && Clip.qrOn)
+                                    Clip.qrOn = false
+                                else if (event.key === Qt.Key_Escape)
                                     Store.setOpen("clip", false)
+                                else if (event.key === Qt.Key_Q && ctrl && (Clip.qrOn || (e && e.kind !== "image")))
+                                    Clip.qrOn = !Clip.qrOn
                                 else if (event.key === Qt.Key_Down && ctrl && e && e.pinned)
                                     { Clip.movePin(list.currentIndex, list.currentIndex + 1); list.currentIndex = Math.min(list.currentIndex + 1, Clip.pins.length - 1) }
                                 else if (event.key === Qt.Key_Up && ctrl && e && e.pinned)
@@ -476,7 +481,7 @@ PanelWindow {
                     Layout.preferredHeight: 28
                     spacing: Theme.sp5
                     Repeater {
-                        model: Clip.manage ? [["Space", "select"], ["Del", Clip.markedCount > 0 ? "delete " + Clip.markedCount : "delete"], ["Ctrl M", "done"]] : [["↵", "copy"], ["Ctrl P", "pin"], ["Del", "remove"], ["Tab", "type"]]
+                        model: Clip.manage ? [["Space", "select"], ["Del", Clip.markedCount > 0 ? "delete " + Clip.markedCount : "delete"], ["Ctrl M", "done"]] : [["↵", "copy"], ["Ctrl P", "pin"], ["Ctrl Q", "QR"], ["Del", "remove"], ["Tab", "type"]]
                         Row {
                             id: hint
                             required property var modelData
@@ -534,12 +539,30 @@ PanelWindow {
                     spacing: Theme.sp5
                     visible: preview.e !== null
 
-                    Text {
-                        text: preview.e ? (preview.e.pinned ? "PINNED · " : "") + (preview.e.kind || "text").toUpperCase() + (preview.e.kind === "text" || preview.e.kind === "code" ? "  ·  " + root.fullText.length + " chars" : "") : ""
-                        color: Theme.overlay
-                        font.family: Theme.fontUi
-                        font.pixelSize: Theme.fsXs
-                        font.letterSpacing: 1.2
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 24
+                        spacing: Theme.sp4
+                        Text {
+                            Layout.fillWidth: true
+                            text: preview.e ? (preview.e.pinned ? "PINNED · " : "") + (preview.e.kind || "text").toUpperCase() + (preview.e.kind === "text" || preview.e.kind === "code" ? "  ·  " + root.fullText.length + " chars" : "") : ""
+                            color: Theme.overlay
+                            font.family: Theme.fontUi
+                            font.pixelSize: Theme.fsXs
+                            font.letterSpacing: 1.2
+                            elide: Text.ElideRight
+                        }
+                        PanelButton {
+                            visible: preview.e !== null && preview.e.kind !== "image"
+                            implicitHeight: 24
+                            icon: "󰐲"
+                            label: "QR"
+                            active: Clip.qrOn
+                            onClicked: {
+                                Clip.qrOn = !Clip.qrOn
+                                search.forceActiveFocus()
+                            }
+                        }
                     }
 
                     Image {
@@ -602,6 +625,19 @@ PanelWindow {
                     }
 
                     Item { Layout.fillHeight: true; visible: preview.e !== null && (preview.e.kind === "color" || preview.e.kind === "link") }
+                }
+
+                QrCode {
+                    id: clipQr
+                    anchors.fill: parent
+                    anchors.topMargin: 14 + 24 + Theme.sp5
+                    anchors.margins: 14
+                    z: 5
+                    visible: Clip.qrOn && preview.e !== null && preview.e.kind !== "image"
+                    payload: visible ? root.fullText : ""
+                    caption: "Scan it with a phone camera. Nothing leaves this computer."
+                    onStatusChanged: Clip.qrStatus = status
+                    onPngChanged: Clip.qrPng = png
                 }
             }
         }
