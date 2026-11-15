@@ -44,6 +44,7 @@ PanelWindow {
     Binding { target: root; property: "osdData"; value: Island.flashData; when: root.mode === "osd"; restoreMode: Binding.RestoreNone }
     Binding { target: root; property: "noteData"; value: Island.flashData; when: root.mode === "notification"; restoreMode: Binding.RestoreNone }
     Binding { target: root; property: "shotData"; value: Island.flashData; when: root.mode === "shot"; restoreMode: Binding.RestoreNone }
+    Binding { target: Island; property: "dragUri"; value: shotDrag.uri; when: root.focused && root.mode === "shot"; restoreMode: Binding.RestoreNone }
     property var trashData: ({})
     Binding { target: root; property: "trashData"; value: Island.flashData; when: root.mode === "trash"; restoreMode: Binding.RestoreNone }
 
@@ -362,6 +363,12 @@ PanelWindow {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: false
+                }
+                FileDrag {
+                    id: shotDrag
+                    anchors.fill: parent
+                    path: shotRow.path
+                    onDraggingChanged: Island.hold(dragging)
                 }
             }
 

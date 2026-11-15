@@ -644,6 +644,10 @@ IpcHandler {
         Island.flash("shot", { path: path }, 6000)
     }
 
+    function islandDragUri(): string {
+        return Island.state === "shot" ? Island.dragUri : ""
+    }
+
     function screenshotAct(what: string): bool {
         return Island.shotAct(what)
     }

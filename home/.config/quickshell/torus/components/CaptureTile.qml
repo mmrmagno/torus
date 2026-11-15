@@ -151,6 +151,11 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onClicked: tile.opened()
     }
+    FileDrag {
+        id: tileDrag
+        anchors.fill: picFrame
+        path: tile.path
+    }
 
     Row {
         id: actionRow

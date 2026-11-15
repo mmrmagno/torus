@@ -23,6 +23,7 @@ Singleton {
     }
 
     property string flashKind: ""
+    property string dragUri: ""
     property var flashData: ({})
     property bool armed: false
     property bool recording: false
