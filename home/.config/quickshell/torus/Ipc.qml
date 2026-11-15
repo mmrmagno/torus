@@ -400,6 +400,10 @@ IpcHandler {
         return r ? [Commands.enterLabel(r), r.ctrl ? r.ctrl.label : "", r.alt ? r.alt.label : ""].join("|") : ""
     }
 
+    function paletteLook(): string {
+        return Commands.lookOn ? Commands.lookKind : "off"
+    }
+
     function paletteSub(index: int): string {
         const r = Commands.results[index]
         return r ? r.sub || "" : ""

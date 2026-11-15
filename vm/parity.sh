@@ -1439,6 +1439,34 @@ check_zoom() {
   if [[ -z $bad ]]; then section zoom ok "SUPER+Ctrl+scroll steps 1.5x 2x 3x 4x with a pill, SUPER+Ctrl+Z toggles 2x, a reload and the lock put it back to 1x"; else section zoom fail "$bad"; fi
 }
 
+check_look() {
+  local bad="" d=~/parity-look seen="" r
+  rm -rf "$d"; mkdir -p "$d/folder/inner"; touch "$d/folder/a.txt"
+  magick -size 640x360 gradient:'#89b4fa-#cba6f7' "$d/a-picture.png"
+  printf '# Notes\nline two\n' > "$d/b-notes.md"
+  magick -size 400x300 xc:white -fill black -draw 'rectangle 40,40 200,120' "$d/c-doc.pdf" 2> /dev/null
+  ffmpeg -loglevel error -f lavfi -i testsrc=size=320x180:rate=10 -t 1 -pix_fmt yuv420p "$d/d-clip.mp4" 2> /dev/null
+  head -c 2048 /dev/urandom > "$d/e-blob.bin"
+  "${QS[@]}" closeAll > /dev/null
+  "${QS[@]}" paletteQuery "~/parity-look/" > /dev/null; sleep 1.5
+  wtype -M shift -k space -m shift; sleep 1.2
+  for _ in 1 2 3 4 5 6; do
+    seen+="$("${QS[@]}" paletteLook | tail -n 1) "
+    wtype -k Down; sleep 1
+  done
+  [[ $seen == "image text pdf video other folder " ]] || bad+="kinds[$seen] "
+  wtype -k Escape; sleep 0.5
+  r="$("${QS[@]}" paletteLook | tail -n 1) $("${QS[@]}" isOpen palette | tail -n 1)"
+  [[ $r == "off true" ]] || bad+="esc-closes-only-the-look[$r] "
+  wtype -k Escape; sleep 0.5
+  [[ $("${QS[@]}" isOpen palette | tail -n 1) == false ]] || bad+="second-esc "
+  "${QS[@]}" paletteQuery "~/parity-look/" > /dev/null; sleep 1.2
+  [[ $("${QS[@]}" paletteLook | tail -n 1) == off ]] || bad+="reopens-with-look "
+  "${QS[@]}" closeAll > /dev/null
+  rm -rf "$d" "$XDG_RUNTIME_DIR"/torus-look-*.png
+  if [[ -z $bad ]]; then section look ok "Shift+Space in the palette previews an image, text, the first PDF page, a clip, a binary's size and a folder; Up/Down follow, Esc closes only the preview"; else section look fail "$bad"; fi
+}
+
 check_trash() {
   local bad="" d=~/Pictures/Screenshots f what
   mkdir -p "$d"
@@ -2991,6 +3019,7 @@ case ${1:-all} in
   shot) check_shot ;;
   shotwindow) check_shotwindow ;;
   zoom) check_zoom ;;
+  look) check_look ;;
   trash) check_trash ;;
   panels) check_panels ;;
   pins) check_pins ;;
@@ -3058,7 +3087,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_lock; check_spin; check_night; check_palette; check_palette2; check_look; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

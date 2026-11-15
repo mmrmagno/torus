@@ -12,6 +12,8 @@ Singleton {
     property string query: ""
     property string tabScope: "all"
     property string pendingScope: ""
+    property bool lookOn: false
+    property string lookKind: ""
     signal fill(string text)
     property var frec: ({})
     readonly property string home: Quickshell.env("HOME")

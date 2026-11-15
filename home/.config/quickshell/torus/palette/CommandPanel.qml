@@ -11,6 +11,13 @@ PanelWindow {
     id: root
 
     readonly property var selected: Commands.results[list.currentIndex] || null
+    readonly property bool lookOn: Commands.lookOn
+    readonly property string lookPath: lookOn && selected && selected.path ? selected.path : ""
+
+    function toggleLook() {
+        if (lookOn || (selected && selected.path))
+            Commands.lookOn = !lookOn
+    }
 
     screen: Store.screenFor("palette")
     visible: Store.isOpen("palette") || motion.leaving
@@ -23,6 +30,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: Store.isOpen("palette") ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     onVisibleChanged: if (visible) {
+        Commands.lookOn = false
         Commands.snapshot()
         search.text = ""
         Commands.query = ""
@@ -48,7 +56,7 @@ PanelWindow {
             target: frame
             shown: Store.isOpen("palette")
         }
-        readonly property real want: 28 + 48 + 24 + 20 + 3 * Theme.sp4 + (list.count === 0 ? 96 : Math.min(list.contentHeight, 400))
+        readonly property real want: root.lookOn ? root.implicitHeight : 28 + 48 + 24 + 20 + 3 * Theme.sp4 + (list.count === 0 ? 96 : Math.min(list.contentHeight, 400))
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -105,8 +113,12 @@ PanelWindow {
                         Keys.onPressed: event => {
                             const ctrl = event.modifiers & Qt.ControlModifier
                             const alt = event.modifiers & Qt.AltModifier
-                            if (event.key === Qt.Key_Escape)
+                            if (event.key === Qt.Key_Escape && root.lookOn)
+                                Commands.lookOn = false
+                            else if (event.key === Qt.Key_Escape)
                                 Store.setOpen("palette", false)
+                            else if (event.key === Qt.Key_Space && (event.modifiers & Qt.ShiftModifier) && (root.lookOn || (root.selected && root.selected.path)))
+                                root.toggleLook()
                             else if (event.key === Qt.Key_Down)
                                 list.incrementCurrentIndex()
                             else if (event.key === Qt.Key_Up)
@@ -185,6 +197,7 @@ PanelWindow {
                 id: list
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                opacity: root.lookPath !== "" ? 0 : 1
                 clip: true
                 spacing: Theme.sp2
                 model: Commands.results
@@ -214,6 +227,7 @@ PanelWindow {
                     }
 
                     Rectangle {
+                        id: tile
                         width: row.width
                         height: row.compact ? 40 : 52
                         radius: Theme.rCard
@@ -279,6 +293,23 @@ PanelWindow {
                             }
 
                             Rectangle {
+                                id: eye
+                                visible: !!row.modelData.path && (hover.hovered || (row.ListView.isCurrentItem && root.lookOn))
+                                Layout.preferredWidth: 26
+                                Layout.preferredHeight: 26
+                                radius: 8
+                                color: eyeHover.hovered ? Theme.surface1 : "transparent"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰈈"
+                                    color: Theme.accent
+                                    font.family: Theme.fontMono
+                                    font.pixelSize: Theme.fsLg
+                                }
+                                HoverHandler { id: eyeHover }
+                            }
+
+                            Rectangle {
                                 Layout.preferredHeight: 20
                                 Layout.preferredWidth: kind.implicitWidth + 14
                                 radius: Theme.radius
@@ -295,7 +326,17 @@ PanelWindow {
                         }
 
                         HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: Commands.run(row.modelData) }
+                        TapHandler {
+                            onTapped: (point, button) => {
+                                if (eye.visible && eye.contains(eye.mapFromItem(tile, point.position))) {
+                                    list.currentIndex = row.index
+                                    root.toggleLook()
+                                    search.forceActiveFocus()
+                                    return
+                                }
+                                Commands.run(row.modelData)
+                            }
+                        }
                     }
                 }
 
@@ -318,7 +359,7 @@ PanelWindow {
                 spacing: Theme.sp6
 
                 Repeater {
-                    model: root.selected ? [["↵", Commands.enterLabel(root.selected)], ["Ctrl ↵", root.selected.ctrl ? root.selected.ctrl.label : ""], ["Alt ↵", root.selected.alt ? root.selected.alt.label : ""], ["Alt Shift ↵", root.selected.layout ? root.selected.layout.label : ""]].filter(k => k[1] !== "") : []
+                    model: root.selected ? [["↵", Commands.enterLabel(root.selected)], ["Shift Space", root.selected.path ? "look" : ""], ["Ctrl ↵", root.selected.ctrl ? root.selected.ctrl.label : ""], ["Alt ↵", root.selected.alt ? root.selected.alt.label : ""], ["Alt Shift ↵", root.selected.layout ? root.selected.layout.label : ""]].filter(k => k[1] !== "") : []
                     Row {
                         id: keyHint
                         required property var modelData
@@ -339,6 +380,16 @@ PanelWindow {
                     Text { text: "help"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
                 }
             }
+        }
+
+        FileLook {
+            id: fileLook
+            anchors.fill: parent
+            anchors.margins: 14
+            anchors.topMargin: 14 + 48 + Theme.sp4
+            z: 10
+            path: root.lookPath
+            onKindChanged: Commands.lookKind = kind
         }
     }
 }

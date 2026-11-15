@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+p=${1:-}
+[[ -n $p && -e $p && -r $p ]] || { echo error; exit 0; }
+if [[ -d $p ]]; then
+  [[ -x $p ]] || { echo error; exit 0; }
+  echo folder
+  ls -1Ap --group-directories-first -- "$p" 2> /dev/null | head -n 300
+  exit 0
+fi
+info() { echo other; stat -c '%s %Y' -- "$p"; }
+mime=$(file -b --mime-type -- "$p" 2> /dev/null)
+case $mime in
+  image/*) echo image ;;
+  video/*) echo video ;;
+  application/pdf)
+    run=${XDG_RUNTIME_DIR:-/tmp}
+    rm -f "$run"/torus-look-*.png
+    out=$run/torus-look-$$
+    if pdftoppm -f 1 -l 1 -png -scale-to 1400 -singlefile -- "$p" "$out" 2> /dev/null; then
+      echo pdf
+      echo "$out.png"
+    else
+      info
+    fi
+    ;;
+  text/* | inode/x-empty | application/json | application/javascript | application/xml | application/x-shellscript | application/toml | application/x-yaml | application/x-ndjson | application/sql)
+    echo text
+    head -c 65536 -- "$p" | head -n 400 | tr -d '\000'
+    ;;
+  *) info ;;
+esac
