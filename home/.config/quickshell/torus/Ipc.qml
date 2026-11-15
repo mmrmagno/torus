@@ -418,6 +418,15 @@ IpcHandler {
         return r ? [Commands.enterLabel(r), r.ctrl ? r.ctrl.label : "", r.alt ? r.alt.label : ""].join("|") : ""
     }
 
+    function paletteRemove(index: int): string {
+        return Commands.removeApp(Commands.results[index])
+    }
+
+    function paletteChip(index: int): string {
+        const r = Commands.results[index]
+        return r ? (r.chip || r.kind) + "|" + (r.remove || "") : ""
+    }
+
     function paletteLook(): string {
         return Commands.lookOn ? Commands.lookKind : "off"
     }

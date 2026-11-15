@@ -13,6 +13,20 @@ Singleton {
     property string tabScope: "all"
     property string pendingScope: ""
     property bool lookOn: false
+    property string armedRemove: ""
+
+    function removeApp(item) {
+        if (!item || !item.remove)
+            return "none"
+        if (armedRemove !== item.id) {
+            armedRemove = item.id
+            return "armed"
+        }
+        armedRemove = ""
+        Quickshell.execDetached(["torus-webapp", "remove", item.remove])
+        Island.flash("osd", { icon: "󰆴", label: item.title + " is no longer an app", value: -1 }, 2600)
+        return "removed"
+    }
     property string lookKind: ""
     signal fill(string text)
     property var frec: ({})

@@ -67,3 +67,4 @@ ddcutil
 qt6-multimedia-ffmpeg
 poppler
 qrencode
+chromium

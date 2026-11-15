@@ -17,7 +17,8 @@ Provider {
             if (e.noDisplay)
                 continue
             const entry = e
-            a.push({ id: "app:" + e.id, kind: "app", title: e.name, sub: e.genericName || e.comment || "", keys: (e.keywords || []).join(" "), icon: Quickshell.iconPath(e.icon, true), enter: "launch", act: () => Quickshell.execDetached(["torus-launch", "--dir", entry.workingDirectory || Quickshell.env("HOME")].concat(entry.runInTerminal ? ["kitty", "-e"] : [], entry.command)) })
+            const web = String(e.id).startsWith("torus-webapp-")
+            a.push({ id: "app:" + e.id, kind: "app", chip: web ? "web app" : "", remove: web ? String(e.id).replace(/^torus-webapp-/, "").replace(/\.desktop$/, "") : "", title: e.name, sub: e.genericName || e.comment || "", keys: (e.keywords || []).join(" "), icon: Quickshell.iconPath(e.icon, true), enter: "launch", act: () => Quickshell.execDetached(["torus-launch", "--dir", entry.workingDirectory || Quickshell.env("HOME")].concat(entry.runInTerminal ? ["kitty", "-e"] : [], entry.command)) })
         }
         a.sort((x, y) => x.title.localeCompare(y.title))
         items = a

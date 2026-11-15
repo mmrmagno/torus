@@ -108,6 +108,7 @@ PanelWindow {
                         clip: true
                         onTextChanged: {
                             Commands.query = text
+                            Commands.armedRemove = ""
                             list.currentIndex = 0
                         }
                         Keys.onPressed: event => {
@@ -119,10 +120,14 @@ PanelWindow {
                                 Store.setOpen("palette", false)
                             else if (event.key === Qt.Key_Space && (event.modifiers & Qt.ShiftModifier) && (root.lookOn || (root.selected && root.selected.path)))
                                 root.toggleLook()
-                            else if (event.key === Qt.Key_Down)
+                            else if (event.key === Qt.Key_Down) {
+                                Commands.armedRemove = ""
                                 list.incrementCurrentIndex()
-                            else if (event.key === Qt.Key_Up)
+                            } else if (event.key === Qt.Key_Up) {
+                                Commands.armedRemove = ""
                                 list.decrementCurrentIndex()
+                            } else if (event.key === Qt.Key_Delete && ctrl && root.selected && root.selected.remove)
+                                Commands.removeApp(root.selected)
                             else if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier)))
                                 Commands.cycleScope(-1)
                             else if (event.key === Qt.Key_Tab)
@@ -359,7 +364,7 @@ PanelWindow {
                 spacing: Theme.sp6
 
                 Repeater {
-                    model: root.selected ? [["↵", Commands.enterLabel(root.selected)], ["Shift Space", root.selected.path ? "look" : ""], ["Ctrl ↵", root.selected.ctrl ? root.selected.ctrl.label : ""], ["Alt ↵", root.selected.alt ? root.selected.alt.label : ""], ["Alt Shift ↵", root.selected.layout ? root.selected.layout.label : ""]].filter(k => k[1] !== "") : []
+                    model: root.selected ? [["↵", Commands.enterLabel(root.selected)], ["Shift Space", root.selected.path ? "look" : ""], ["Ctrl Del", root.selected.remove ? (Commands.armedRemove === root.selected.id ? "again to remove" : "remove app") : ""], ["Ctrl ↵", root.selected.ctrl ? root.selected.ctrl.label : ""], ["Alt ↵", root.selected.alt ? root.selected.alt.label : ""], ["Alt Shift ↵", root.selected.layout ? root.selected.layout.label : ""]].filter(k => k[1] !== "") : []
                     Row {
                         id: keyHint
                         required property var modelData

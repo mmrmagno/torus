@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.services
 import "../route.mjs" as R
 
 Provider {
@@ -30,7 +31,7 @@ Provider {
     function results(term, scoped) {
         const url = R.detect(term).url
         if (url !== "")
-            return [{ id: "url", kind: "url", glyph: "󰖟", title: url, sub: "open in the browser", enter: "open", act: () => Quickshell.execDetached(["torus-launch", "xdg-open", url]), ctrl: { label: "copy link", act: () => Quickshell.execDetached(["wl-copy", "--", url]) } }]
+            return [{ id: "url", kind: "url", glyph: "󰖟", title: url, sub: "open in the browser", enter: "open", act: () => Quickshell.execDetached(["torus-launch", "xdg-open", url]), ctrl: { label: "copy link", act: () => Quickshell.execDetached(["wl-copy", "--", url]) }, alt: { label: "make it an app", act: () => root.makeApp(url) } }]
         if (!scoped)
             return []
         const q = term.trim()
@@ -38,6 +39,29 @@ Provider {
                 if (q !== "")
                     Quickshell.execDetached(["torus-launch", "xdg-open", e.url.replace("%s", encodeURIComponent(q))])
             } }))
+    }
+
+    function makeApp(url) {
+        if (maker.running)
+            return
+        maker.command = ["torus-webapp", "add", url]
+        maker.running = true
+    }
+
+    Process {
+        id: maker
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const t = text.trim()
+                const name = t.replace(/^(ok|exists) /, "")
+                const said = t.startsWith("ok ") ? name + " is an app now, SUPER+Space finds it"
+                    : t.startsWith("exists ") ? name + " is already an app"
+                    : t === "bad-url" ? "Only plain http and https links can become apps"
+                    : t === "no-chromium" ? "Web apps need chromium installed"
+                    : "Could not make the app"
+                Island.flash("osd", { icon: "󰖟", label: said, value: -1 }, 3200)
+            }
+        }
     }
 
     FileView {

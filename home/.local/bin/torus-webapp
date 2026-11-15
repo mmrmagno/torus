@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+data=${XDG_DATA_HOME:-$HOME/.local/share}
+apps=$data/applications
+icons=$data/torus/webapp-icons
+profile=$data/torus/webapps
+
+wmclass() {
+  local rest=${1#*://} host path
+  host=${rest%%/*}
+  host=${host%%:*}
+  [[ $rest == */* ]] && path=/${rest#*/} || path=/
+  path=${path%%\?*}
+  path=${path%%#*}
+  printf 'chrome-%s_%s-Default' "$host" "${path//\//_}"
+}
+
+slugify() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9]\+/-/g' -e 's/^-//' -e 's/-$//' | cut -c1-40
+}
+
+host_name() {
+  local h=${1#*://}
+  h=${h%%/*}
+  h=${h%%:*}
+  h=${h#www.}
+  h=${h#app.}
+  h=${h#web.}
+  h=${h%%.*}
+  printf '%s' "${h^}"
+}
+
+clean_name() {
+  printf '%s' "$1" | tr -d '\r\n\t' | sed -e 's/&amp;/\&/g' -e 's/[^A-Za-z0-9 ._+&()-]//g' -e 's/^ *//' -e 's/ *$//' | cut -c1-40
+}
+
+fetch() {
+  curl -fsSL --max-time 6 --max-filesize 2000000 -A "Mozilla/5.0 (X11; Linux x86_64) torus-webapp" "$@" 2> /dev/null
+}
+
+add() {
+  local url=$1 name=${2:-} page title slug file icon href base
+  local re='^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~:/?#@!&+,;=%-]*)?$'
+  [[ $url =~ $re ]] || { echo bad-url; return; }
+  command -v chromium > /dev/null || { echo no-chromium; return; }
+  mkdir -p "$apps" "$icons"
+  while IFS= read -r file; do
+    [[ $(sed -n 's/^X-Torus-WebApp=//p' "$file") == "$url" ]] && { echo "exists $(sed -n 's/^Name=//p' "$file")"; return; }
+  done < <(compgen -G "$apps/torus-webapp-*.desktop")
+  page=$(fetch "$url" | head -c 400000)
+  if [[ -z $name ]]; then
+    title=$(printf '%s' "$page" | tr '\n' ' ' | sed -n 's/.*<title[^>]*>\([^<]*\)<\/title>.*/\1/Ip' | head -1)
+    title=$(clean_name "$(printf '%s' "$title" | sed -e 's/ \(|\|–\|—\|·\|:\|-\) .*//')")
+    ((${#title} >= 2 && ${#title} <= 24)) && name=$title || name=$(host_name "$url")
+  fi
+  name=$(clean_name "$name")
+  [[ -n $name ]] || name=$(host_name "$url")
+  slug=$(slugify "$name")
+  [[ -n $slug ]] || slug=app
+  file=$apps/torus-webapp-$slug.desktop
+  [[ -e $file ]] && { echo "exists $name"; return; }
+  base=${url%%\?*}
+  base=${base%%#*}
+  [[ ${base#*://} == */* ]] && base=${base%/*}
+  href=$(printf '%s' "$page" | tr '\n' ' ' | grep -oiE "<link[^>]+rel=[\"']?[^\"'>]*icon[^>]*>" | head -1 | grep -oiE "href=(\"[^\"]+\"|'[^']+'|[^ >\"']+)" | head -1 | sed -E "s/^href=//I; s/^[\"']//; s/[\"']$//")
+  case $href in
+    "") href=${url%%://*}://$(printf '%s' "${url#*://}" | cut -d/ -f1)/favicon.ico ;;
+    http*://*) ;;
+    //*) href=${url%%://*}:$href ;;
+    /*) href=${url%%://*}://$(printf '%s' "${url#*://}" | cut -d/ -f1)$href ;;
+    *) href=$base/$href ;;
+  esac
+  icon=web-browser
+  if fetch "$href" -o "$icons/$slug.raw" && magick "$icons/$slug.raw[0]" -resize 128x128 "$icons/$slug.png" 2> /dev/null; then
+    icon=$icons/$slug.png
+  fi
+  rm -f "$icons/$slug.raw"
+  {
+    echo "[Desktop Entry]"
+    echo "Type=Application"
+    echo "Name=$name"
+    echo "Comment=${url//%/%%} as an app"
+    echo "Exec=chromium \"--user-data-dir=$profile\" --no-first-run --ozone-platform-hint=auto \"--app=${url//%/%%}\""
+    echo "Icon=$icon"
+    echo "StartupWMClass=$(wmclass "$url")"
+    echo "Categories=Network;WebBrowser;"
+    echo "X-Torus-WebApp=$url"
+  } > "$file.tmp" && mv "$file.tmp" "$file"
+  echo "ok $name"
+}
+
+remove() {
+  local slug=${1:-} file
+  [[ $slug =~ ^[a-z0-9-]+$ ]] || { echo bad-name; return; }
+  file=$apps/torus-webapp-$slug.desktop
+  [[ -e $file ]] || { echo missing; return; }
+  rm -f "$file" "$icons/$slug.png"
+  echo ok
+}
+
+case ${1:-} in
+  add) add "${2:-}" "${3:-}" ;;
+  remove) remove "${2:-}" ;;
+  wmclass) wmclass "${2:-}"; echo ;;
+  *) echo "usage: torus-webapp add <url> [name] | remove <slug>" >&2; exit 2 ;;
+esac
