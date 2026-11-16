@@ -12,6 +12,7 @@ done
 cat > "$F/bin/zbarimg" <<'S'
 #!/usr/bin/env bash
 echo "zbarimg $*" >> "$STUB_LOG"
+[[ " $* " == *" --raw "* ]] && { [[ -n ${STUB_RAW:-} ]] && printf '%s' "$STUB_RAW"; exit 0; }
 [[ -s $STUB_XML ]] || { printf "<barcodes>\n</barcodes>\n"; exit 4; }
 cat "$STUB_XML"
 S
@@ -43,6 +44,12 @@ for bad in "javascript:alert(1)" "file:///etc/passwd" "ftp://host/x" "https://a 
 done
 xml sym 'ok</data><data><![CDATA[https://evil.example'
 assert_eq 'text=ok</data><data><![CDATA[https://evil.example' "$(kinds)" "a payload that looks like XML stays one text row, never a link"
+xml sym 'WIFI:T:WPA;S:M羹ller;P:gr羹ezi;;'
+r=$(STUB_RAW='WIFI:T:WPA;S:Müller;P:grüezi;;' "$Q" "$F/pic.png")
+assert_eq 'Müller|grüezi' "$(jq -r '.[0] | .ssid + "|" + .password' <<<"$r")" "one code: the exact bytes win over zbar's encoding guess"
+printf '%s' "$r" | iconv -f utf-8 -t utf-8 > /dev/null || fail "output is valid UTF-8"
+r=$(STUB_RAW=$(printf 'caf\xe9') "$Q" "$F/pic.png")
+assert_eq "café" "$(jq -r '.[0].text' <<<"$r")" "Latin-1 bytes are read as such"
 xml sym64 $'line1\nx]]>y "q" & <b>'
 assert_eq $'text=line1\nx]]>y "q" & <b>' "$(kinds)" "base64 payload decoded, markup kept as text"
 

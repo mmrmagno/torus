@@ -5,15 +5,19 @@ found=${XDG_RUNTIME_DIR:-}/torus-qr-found.json
 
 scan() {
   command -v zbarimg > /dev/null || { echo '[]'; return 0; }
-  local xml
+  local xml one=""
   xml=$(zbarimg -q --xml -Sdisable -Sqrcode.enable "$1" 2> /dev/null)
-  printf '%s' "$xml" | perl -MJSON::PP -MMIME::Base64 -MEncode -0777 -ne '
+  if [[ $(grep -o '<data' <<< "$xml" | wc -l) == 1 ]]; then
+    one=$(zbarimg -q --raw -Sbinary -Sdisable -Sqrcode.enable "$1" 2> /dev/null | base64 -w0)
+  fi
+  printf '%s' "$xml" | TORUS_QR_ONE=$one perl -MJSON::PP -MMIME::Base64 -MEncode -0777 -ne '
     my @out;
     while (m{<data([^>]*)>((?:\s|<!\[CDATA\[.*?\]\]>)*)</data>}gs) {
       my ($attr, $raw) = ($1, $2);
       my $t = join "", $raw =~ m{<!\[CDATA\[(.*?)\]\]>}gs;
       $t = decode_base64($t) if $attr =~ /format=.base64/;
-      $t = eval { decode("UTF-8", $t, Encode::FB_CROAK) } // next;
+      $t = decode_base64($ENV{TORUS_QR_ONE}) if $ENV{TORUS_QR_ONE} ne "";
+      $t = eval { decode("UTF-8", $t, Encode::FB_CROAK) } // decode("cp1252", $t);
       next if $t eq "" || length($t) > 4000;
       my $s = $t; $s =~ s/^\s+|\s+$//g;
       if ($s =~ m{^https?://[^\s<>"]+$}i) {
@@ -45,7 +49,7 @@ scan() {
         push @out, { kind => "text", text => $t };
       }
     }
-    print JSON::PP->new->canonical->encode(\@out), "\n";
+    print JSON::PP->new->utf8->canonical->encode(\@out), "\n";
   ' 2> /dev/null || echo '[]'
 }
 
