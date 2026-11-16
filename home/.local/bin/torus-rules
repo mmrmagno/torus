@@ -21,7 +21,7 @@ render() {
         tile) props="tile = true" ;;
         workspace) props="workspace = \"$value\"" ;;
         monitor) props="monitor = \"$value\"" ;;
-        opacity) props="opacity = \"0.92 0.85 1\"" ;;
+        opacity) props="opacity = torus.opacity(0.92, 0.85)" ;;
         cursor) props="confine_pointer = true" ;;
         *) continue ;;
       esac
@@ -56,8 +56,11 @@ case ${1:-list} in
   list)
     cat "$db"
     ;;
+  render)
+    render
+    ;;
   *)
-    echo "usage: torus-rules add CLASS KIND [VALUE] | remove CLASS | list" >&2
+    echo "usage: torus-rules add CLASS KIND [VALUE] | remove CLASS | list | render" >&2
     exit 2
     ;;
 esac

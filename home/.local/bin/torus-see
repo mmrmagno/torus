@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+v=${1:-}
+if ! [[ $v =~ ^[0-9]+(\.[0-9]+)?$ ]] || ! awk -v v="$v" 'BEGIN { exit !(v >= 0 && v <= 1.5) }'; then
+  echo "usage: torus-see 0..1.5   (0 solid, 1 the torus default, 1.5 glassy)" >&2
+  exit 2
+fi
+state=${XDG_STATE_HOME:-$HOME/.local/state}/torus
+bin=$(dirname "$(readlink -f "$0")")
+mkdir -p "$state"
+if [[ -s $state/rules.tsv ]]; then
+  printf '%s\n' "$v" > "$state/see-through.tmp" && mv "$state/see-through.tmp" "$state/see-through"
+  "$bin/torus-rules" render
+else
+  printf '%s\n' "$v" | "$bin/torus-reload" write "$state/see-through"
+fi

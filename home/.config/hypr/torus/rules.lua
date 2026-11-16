@@ -127,8 +127,8 @@ hl.window_rule({
 })
 
 local opacity = {
-	{ "0.90 0.90 1", { "firefox", "zen", "brave-browser", "com\\.github\\.rafostar\\.Clapper" } },
-	{ "0.80 0.80 1", {
+	{ { 0.90, 0.90 }, { "firefox", "zen", "brave-browser", "com\\.github\\.rafostar\\.Clapper" } },
+	{ { 0.80, 0.80 }, {
 		"code-oss",
 		"[Cc]ode",
 		"code-url-handler",
@@ -159,7 +159,7 @@ local opacity = {
 		"io\\.missioncenter\\.MissionCenter",
 		"io\\.github\\.flattool\\.Warehouse",
 	} },
-	{ "0.80 0.70 1", {
+	{ { 0.80, 0.70 }, {
 		"org\\.pulseaudio\\.pavucontrol",
 		"blueman-manager",
 		"nm-applet",
@@ -167,21 +167,21 @@ local opacity = {
 		"hyprpolkitagent",
 		"org\\.freedesktop\\.impl\\.portal\\.desktop\\.(gtk|hyprland)",
 	} },
-	{ "0.70 0.70 1", { "[Ss]team", "steamwebhelper", "[Ss]potify" } },
-	{ "1.00 1.00 1", { "blender" } },
+	{ { 0.70, 0.70 }, { "[Ss]team", "steamwebhelper", "[Ss]potify" } },
+	{ { 1.00, 1.00 }, { "blender" } },
 }
 for i, rule in ipairs(opacity) do
 	hl.window_rule({
 		name = "torus_opacity_" .. i,
 		match = { class = any(rule[2]) },
-		opacity = rule[1],
+		opacity = torus.opacity(rule[1][1], rule[1][2]),
 	})
 end
 
 hl.window_rule({
 	name = "torus_spotify_title_opacity",
 	match = { initial_title = "^(Spotify Free|Spotify Premium)$" },
-	opacity = "0.70 0.70 1",
+	opacity = torus.opacity(0.70, 0.70),
 })
 
 hl.window_rule({

@@ -255,6 +255,7 @@ fi
 if ((!dry_run)) && [[ $home == "$HOME" ]]; then
   "$REPO/home/.local/bin/torus" setup
   "$REPO/home/.local/bin/torus-gsi" install --quiet || true
+  [[ -s $HOME/.local/state/torus/rules.tsv ]] && "$REPO/home/.local/bin/torus-rules" render > /dev/null 2>&1
   hyprctl monitors > /dev/null 2>&1 && "$REPO/home/.local/bin/torus-reload" || true
   "$REPO/home/.local/bin/torus-doctor" --reload-shell "$( ((newshell)) && echo --restart)" > /dev/null 2>&1 || true
 fi

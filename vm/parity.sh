@@ -2326,6 +2326,32 @@ check_shotpin() {
   if [[ -z $bad ]]; then section shotpin ok "Pin on the island and Ctrl+P in the studio float the picture pinned and unfocused within a third of the screen, zoom resizes, Esc closes, videos and missing files never pin"; else section shotpin fail "$bad"; fi
 }
 
+see_kitty() { hyprctl getprop "address:$1" opacity 2> /dev/null; }
+see_global() { hyprctl getoption decoration:active_opacity -j | jq -r '.float * 100 | round'; }
+
+check_seethrough() {
+  local bad="" a keep rules
+  keep=$(cat ~/.local/state/torus/see-through 2> /dev/null)
+  rules=$(mktemp); cp ~/.local/state/torus/rules.tsv "$rules" 2> /dev/null
+  hyprctl eval 'hl.exec_cmd("kitty --title parity-see")' > /dev/null
+  for _ in $(seq 50); do a=$(hyprctl clients -j | jq -r '.[] | select(.title == "parity-see") | .address'); [[ -n $a ]] && break; sleep 0.2; done
+  "${QS[@]}" feelSet windows 1 > /dev/null; sleep 1.5
+  [[ $(see_global) == 90 && $(see_kitty "$a") == 0.8 ]] || bad+="default[$(see_global) $(see_kitty "$a")] "
+  "${QS[@]}" feelSet windows 0 > /dev/null; sleep 1.5
+  [[ $(see_global) == 100 && $(see_kitty "$a") == 1 ]] || bad+="solid[$(see_global) $(see_kitty "$a")] "
+  "${QS[@]}" feelSet windows 1.5 > /dev/null; sleep 1.5
+  [[ $(see_global) == 85 && $(see_kitty "$a") == 0.7 ]] || bad+="glassy[$(see_global) $(see_kitty "$a")] "
+  torus-rules add kitty opacity > /dev/null; sleep 1
+  [[ $(see_kitty "$a") == 0.88 ]] || bad+="own-rule-scaled[$(see_kitty "$a")] "
+  torus-rules remove kitty > /dev/null
+  [[ -s $rules ]] && cp "$rules" ~/.local/state/torus/rules.tsv && torus-rules render > /dev/null
+  "${QS[@]}" feelSet windows "${keep:-1}" > /dev/null; sleep 1.5
+  [[ -z $(hyprctl configerrors 2>&1 | grep -v '^\s*$') ]] || bad+="configerrors "
+  hyprctl clients -j | jq -r '.[] | select(.title == "parity-see") | .pid' | xargs -r kill 2> /dev/null
+  rm -f "$rules"
+  if [[ -z $bad ]]; then section seethrough ok "Windows see-through in the theme studio: 1 keeps today's look, 0 makes every window solid, 1.5 glassier, own palette rules scale along, live"; else section seethrough fail "$bad"; fi
+}
+
 check_notifkeys() {
   local bad="" out
   out=$(mktemp)
@@ -3448,6 +3474,7 @@ case ${1:-all} in
   rules) check_rules ;;
   calendar) check_calendar ;;
   pins) check_pins ;;
+  seethrough) check_seethrough ;;
   notifkeys) check_notifkeys ;;
   notify) check_notify ;;
   island) check_island ;;
@@ -3460,7 +3487,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipplain; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_quicklook; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_shotpin; check_qrscan; check_wsmove; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipplain; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_quicklook; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_shotpin; check_qrscan; check_wsmove; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_seethrough; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

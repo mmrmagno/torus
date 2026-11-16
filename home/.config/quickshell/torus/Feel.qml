@@ -17,7 +17,8 @@ Singleton {
         "islandSeconds": 1.6,
         "textScale": 1,
         "radius": 1,
-        "glass": 1
+        "glass": 1,
+        "windows": 1
     })
     readonly property var panels: ["dashboard", "network", "updates", "center", "theme", "capture", "session", "ocr", "processes"]
     readonly property var soundEvents: ["open", "lock", "notify", "device", "tick", "record", "delete", "error"]
@@ -32,6 +33,13 @@ Singleton {
     readonly property real textScale: Math.max(0.85, Math.min(1.3, num("textScale")))
     readonly property real radius: Math.max(0, Math.min(1.6, num("radius")))
     readonly property real glass: Math.max(0, Math.min(2, num("glass")))
+    readonly property real windows: Math.max(0, Math.min(1.5, num("windows")))
+
+    Timer {
+        id: seeLater
+        interval: 350
+        onTriggered: Quickshell.execDetached(["torus-see", root.windows.toFixed(2)])
+    }
 
     function num(k) {
         const v = Number(s[k])
@@ -69,6 +77,8 @@ Singleton {
         n[k] = v
         s = n
         file.setText(JSON.stringify(n, null, 1) + "\n")
+        if (k === "windows")
+            seeLater.restart()
     }
 
     function toggleIn(k, item, on) {
@@ -79,6 +89,8 @@ Singleton {
     }
 
     function reset() {
+        if (windows !== defaults.windows)
+            seeLater.restart()
         s = defaults
         file.setText(JSON.stringify(defaults, null, 1) + "\n")
     }

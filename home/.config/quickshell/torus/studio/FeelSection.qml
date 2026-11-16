@@ -51,6 +51,9 @@ ColumnLayout {
         Text { text: "Glass"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
         ValueSlider { from: 0; to: 2; step: 0.1; value: Feel.glass; suffix: "×"; onMoved: v => Feel.set("glass", v) }
 
+        Text { text: "Windows see-through"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
+        ValueSlider { from: 0; to: 1.5; step: 0.1; value: Feel.windows; suffix: "×"; onMoved: v => Feel.set("windows", v) }
+
         Text { text: "On battery"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
         RowLayout {
             spacing: Theme.sp4
