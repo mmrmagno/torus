@@ -41,4 +41,8 @@ if command -v lua > /dev/null; then
   echo junk > "$F/state/torus/see-through"
   assert_eq $'0.900 0.750\n0.800 0.700 1' "$(look)" "a broken file falls back to the default"
 fi
+reload_at=$(grep -n 'bin/torus-reload" || true' "$REPO/install.sh" | cut -d: -f1)
+render_at=$(grep -n 'torus-rules" render' "$REPO/install.sh" | cut -d: -f1)
+[[ -n $reload_at && -n $render_at ]] || fail "install.sh reloads and renders the rules"
+((render_at > reload_at)) || fail "install renders the rules after Hyprland loaded the new look (torus.opacity), not before"
 echo "see: ok"
