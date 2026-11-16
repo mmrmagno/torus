@@ -52,7 +52,11 @@ local function swap_workspaces()
 	end
 	local a, b = here.active_workspace.id, other.active_workspace.id
 	hl.dispatch(hl.dsp.workspace.swap_monitors({ monitor1 = here.name, monitor2 = other.name }))
-	hl.exec_cmd(ipc("workspacesSwapped", tostring(a) .. " " .. tostring(b)))
+	for _, m in ipairs(hl.get_monitors()) do
+		if m.name == here.name and m.active_workspace and m.active_workspace.id == b then
+			hl.exec_cmd(ipc("workspacesSwapped", tostring(a) .. " " .. tostring(b)))
+		end
+	end
 end
 
 torus.workspace = { to = workspace_to, swap = swap_workspaces }
@@ -252,7 +256,7 @@ for i = 1, 10 do
 end
 bind(MOD .. " + SHIFT + ALT + LEFT", workspace_to("l"), "[Workspaces|Move workspace] to the screen on the left")
 bind(MOD .. " + SHIFT + ALT + RIGHT", workspace_to("r"), "[Workspaces|Move workspace] to the screen on the right")
-bind(MOD .. " + SHIFT + ALT + S", swap_workspaces, "[Workspaces|Move workspace] swap the two screens")
+bind(MOD .. " + SHIFT + ALT + S", swap_workspaces, "[Workspaces|Move workspace] swap with the nearest screen")
 bind(MOD .. " + CONTROL + RIGHT", hl.dsp.focus({ workspace = "r+1" }), "[Workspaces|Relative] next on this monitor")
 bind(MOD .. " + CONTROL + LEFT", hl.dsp.focus({ workspace = "r-1" }), "[Workspaces|Relative] previous on this monitor")
 bind(MOD .. " + CONTROL + DOWN", hl.dsp.focus({ workspace = "empty" }), "[Workspaces|Navigation] nearest empty workspace")

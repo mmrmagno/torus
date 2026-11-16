@@ -26,11 +26,12 @@ PanelWindow {
     Binding { target: Store; property: "ocrCodes"; value: root.codes.map(c => c.kind + ":" + c.text).join("\n"); when: root.visible }
 
     function copyCode(text, secret) {
-        if (secret)
-            Quickshell.execDetached({ command: ["sh", "-c", "printf '%s' \"$TORUS_SECRET\" | wl-copy --sensitive; h=$(printf '%s' \"$TORUS_SECRET\" | sha256sum); unset TORUS_SECRET; sleep 90; [ \"$(wl-paste -n 2>/dev/null | sha256sum)\" = \"$h\" ] && wl-copy --clear"], environment: { TORUS_SECRET: text } })
-        else
-            Quickshell.execDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "sh", text])
-        copied = secret ? "password" : "code"
+        if (!secret) {
+            copy(text, "code")
+            return
+        }
+        Quickshell.execDetached({ command: ["sh", "-c", "printf '%s' \"$TORUS_SECRET\" | wl-copy --sensitive; h=$(printf '%s' \"$TORUS_SECRET\" | sha256sum); unset TORUS_SECRET; sleep 90; [ \"$(wl-paste -n 2>/dev/null | sha256sum)\" = \"$h\" ] && wl-copy --clear"], environment: { TORUS_SECRET: text } })
+        copied = "password"
         copiedReset.restart()
     }
 

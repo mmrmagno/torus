@@ -73,8 +73,6 @@ Rectangle {
             icon: "󰏌"
             implicitHeight: 30
             onClicked: {
-                if (!row.link)
-                    return
                 Quickshell.execDetached(["torus-launch", "xdg-open", row.modelData.text])
                 Store.setOpen("ocr", false)
             }

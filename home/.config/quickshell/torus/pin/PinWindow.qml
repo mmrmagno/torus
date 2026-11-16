@@ -17,6 +17,8 @@ FloatingWindow {
     property real zoom: 1
 
     function zoomBy(steps) {
+        if (steps === 0)
+            return
         const lo = 64 / (natW * fit)
         const hi = Math.min(roomW / (natW * fit), roomH / (natH * fit))
         zoom = Math.max(lo, Math.min(hi, zoom * Math.pow(1.1, steps)))
