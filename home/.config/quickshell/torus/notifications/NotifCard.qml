@@ -44,7 +44,6 @@ Item {
 
     HoverHandler { id: hover }
 
-    readonly property bool fresh: notif && Notifs.lastAway > 0 && (Notifs.arrived[notif.id] || 0) >= Notifs.lastAway
     property real swipe: 0
     Behavior on swipe { enabled: !drag.active && !wheelReset.running; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
 
@@ -138,16 +137,6 @@ Item {
         border.color: card.notif && card.notif.urgency === NotificationUrgency.Critical ? Theme.red : Qt.alpha(Theme.accent, 0.5)
         transform: Translate { x: card.swipe }
         opacity: 1 - Math.min(0.8, Math.abs(card.swipe) / width)
-
-        Rectangle {
-            visible: card.fresh
-            x: 6
-            y: 8
-            width: 6
-            height: 6
-            radius: 3
-            color: Theme.accent
-        }
 
         RowLayout {
             id: layout

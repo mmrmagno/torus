@@ -127,13 +127,13 @@ hl.window_rule({
 })
 
 local opacity = {
-	{ { 0.90, 0.90 }, { "firefox", "zen", "brave-browser", "com\\.github\\.rafostar\\.Clapper" } },
+	{ { 0.92, 0.85 }, { "kitty", "zen", "app\\.zen_browser\\.zen" } },
+	{ { 0.90, 0.90 }, { "firefox", "brave-browser", "com\\.github\\.rafostar\\.Clapper" } },
 	{ { 0.80, 0.80 }, {
 		"code-oss",
 		"[Cc]ode",
 		"code-url-handler",
 		"code-insiders-url-handler",
-		"kitty",
 		"org\\.kde\\.dolphin",
 		"org\\.kde\\.ark",
 		"nwg-look",

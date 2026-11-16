@@ -2330,26 +2330,36 @@ see_kitty() { hyprctl getprop "address:$1" opacity 2> /dev/null; }
 see_global() { hyprctl getoption decoration:active_opacity -j | jq -r '.float * 100 | round'; }
 
 check_seethrough() {
-  local bad="" a keep rules
+  local bad="" a o keep rules
   keep=$(cat ~/.local/state/torus/see-through 2> /dev/null)
   rules=$(mktemp); cp ~/.local/state/torus/rules.tsv "$rules" 2> /dev/null
   hyprctl eval 'hl.exec_cmd("kitty --title parity-see")' > /dev/null
-  for _ in $(seq 50); do a=$(hyprctl clients -j | jq -r '.[] | select(.title == "parity-see") | .address'); [[ -n $a ]] && break; sleep 0.2; done
+  hyprctl eval 'hl.exec_cmd("kitty --class parity-seeown --title parity-seeown")' > /dev/null
+  for _ in $(seq 50); do
+    a=$(hyprctl clients -j | jq -r '.[] | select(.title == "parity-see") | .address')
+    o=$(hyprctl clients -j | jq -r '.[] | select(.title == "parity-seeown") | .address')
+    [[ -n $a && -n $o ]] && break; sleep 0.2
+  done
   "${QS[@]}" feelSet windows 1 > /dev/null; sleep 1.5
-  [[ $(see_global) == 90 && $(see_kitty "$a") == 0.8 ]] || bad+="default[$(see_global) $(see_kitty "$a")] "
+  [[ $(see_global) == 90 && $(see_kitty "$a") == 0.92 ]] || bad+="default[$(see_global) $(see_kitty "$a")] "
   "${QS[@]}" feelSet windows 0 > /dev/null; sleep 1.5
   [[ $(see_global) == 100 && $(see_kitty "$a") == 1 ]] || bad+="solid[$(see_global) $(see_kitty "$a")] "
   "${QS[@]}" feelSet windows 1.5 > /dev/null; sleep 1.5
-  [[ $(see_global) == 85 && $(see_kitty "$a") == 0.7 ]] || bad+="glassy[$(see_global) $(see_kitty "$a")] "
-  torus-rules add kitty opacity > /dev/null; sleep 1
-  [[ $(see_kitty "$a") == 0.88 ]] || bad+="own-rule-scaled[$(see_kitty "$a")] "
-  torus-rules remove kitty > /dev/null
+  [[ $(see_global) == 85 && $(see_kitty "$a") == 0.88 ]] || bad+="glassy[$(see_global) $(see_kitty "$a")] "
+  torus-rules add parity-seeown opacity > /dev/null; sleep 1
+  [[ $(see_kitty "$o") == 0.88 ]] || bad+="own-rule-scaled[$(see_kitty "$o")] "
+  torus-rules remove parity-seeown > /dev/null
   [[ -s $rules ]] && cp "$rules" ~/.local/state/torus/rules.tsv && torus-rules render > /dev/null
+  "${QS[@]}" feelSet windows 1 > /dev/null; sleep 1.5
+  torus-calm on > /dev/null; sleep 0.5
+  [[ $(see_global) == 95 ]] || bad+="calm-not-more-solid[$(see_global)] "
+  torus-calm off > /dev/null; sleep 1
+  [[ $(see_global) == 90 ]] || bad+="calm-off[$(see_global)] "
   "${QS[@]}" feelSet windows "${keep:-1}" > /dev/null; sleep 1.5
   [[ -z $(hyprctl configerrors 2>&1 | grep -v '^\s*$') ]] || bad+="configerrors "
-  hyprctl clients -j | jq -r '.[] | select(.title == "parity-see") | .pid' | xargs -r kill 2> /dev/null
+  hyprctl clients -j | jq -r '.[] | select(.title == "parity-see" or .title == "parity-seeown") | .pid' | xargs -r kill 2> /dev/null
   rm -f "$rules"
-  if [[ -z $bad ]]; then section seethrough ok "Windows see-through in the theme studio: 1 keeps today's look, 0 makes every window solid, 1.5 glassier, own palette rules scale along, live"; else section seethrough fail "$bad"; fi
+  if [[ -z $bad ]]; then section seethrough ok "Windows see-through: 1 is the torus look (kitty 0.92), 0 solid, 1.5 glassier, own palette rules scale along, battery calm makes windows more solid, live"; else section seethrough fail "$bad"; fi
 }
 
 check_notifkeys() {
