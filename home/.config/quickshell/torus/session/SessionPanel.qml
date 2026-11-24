@@ -69,12 +69,13 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: sessFrame
+            name: "session"
             shown: Store.isOpen("session") && !Store.moving
         }
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
+        height: Math.min(body.implicitHeight + 37 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.TopRight
         radius: Theme.rPanel
@@ -119,6 +120,8 @@ PanelWindow {
                         spacing: 1
                         Text { text: "Session restore"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsLg; font.weight: Font.DemiBold }
                         Text {
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
                             text: Session.on ? "On: your windows reopen after a reboot" : "Off: nothing reopens after a reboot"
                             color: Session.on ? Theme.green : Theme.peach
                             font.family: Theme.fontUi
@@ -167,13 +170,8 @@ PanelWindow {
                     }
                 }
 
-                Text {
-                    text: "Comes back  ·  " + Session.keep.length
-                    color: Theme.overlay
-                    font.family: Theme.fontUi
-                    font.pixelSize: Theme.fsSm
-                    font.letterSpacing: 1.2
-                    font.capitalization: Font.AllUppercase
+                SectionTitle {
+                    text: "Comes back " + Session.keep.length
                     Layout.topMargin: 4
                 }
 
@@ -194,14 +192,9 @@ PanelWindow {
                     }
                 }
 
-                Text {
+                SectionTitle {
                     visible: Session.lost.length > 0
-                    text: "Won't come back  ·  " + Session.lost.length
-                    color: Theme.overlay
-                    font.family: Theme.fontUi
-                    font.pixelSize: Theme.fsSm
-                    font.letterSpacing: 1.2
-                    font.capitalization: Font.AllUppercase
+                    text: "Won't come back " + Session.lost.length
                     Layout.topMargin: 6
                 }
 
@@ -217,7 +210,7 @@ PanelWindow {
 
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.surface1; Layout.topMargin: 6; Layout.bottomMargin: 2 }
 
-                Text { text: "Good to know"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
+                SectionTitle { text: "Good to know" }
 
                 Repeater {
                     model: [
@@ -316,7 +309,7 @@ PanelWindow {
             color: actHover.hovered ? Theme.accent : Theme.surface1
             Text { id: actText; anchors.centerIn: parent; text: row.actionLabel; color: actHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
             HoverHandler { id: actHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: row.action() }
+            Tap { onTapped: row.action() }
         }
 
         HoverHandler { id: rowHover }

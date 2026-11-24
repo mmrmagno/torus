@@ -56,6 +56,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: frame
+            name: "palette"
             shown: Store.isOpen("palette")
         }
         readonly property real want: root.lookPath !== "" ? root.implicitHeight : 28 + 48 + 24 + 20 + 3 * Theme.sp4 + (list.count === 0 ? 96 : Math.min(list.contentHeight, 400))
@@ -158,6 +159,7 @@ PanelWindow {
 
             ListView {
                 id: scopeBar
+                enabled: root.lookPath === ""
                 Layout.fillWidth: true
                 Layout.preferredHeight: 24
                 orientation: ListView.Horizontal
@@ -197,12 +199,13 @@ PanelWindow {
                         }
                     }
                     HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: { Commands.setScope(chip.modelData.key); search.forceActiveFocus() } }
+                    Tap { onTapped: { Commands.setScope(chip.modelData.key); search.forceActiveFocus() } }
                 }
             }
 
             ListView {
                 id: list
+                enabled: root.lookPath === ""
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 opacity: root.lookPath !== "" ? 0 : 1
@@ -334,9 +337,10 @@ PanelWindow {
                         }
 
                         HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler {
+                        Tap {
+                            quiet: eyeHover.hovered
                             onTapped: (point, button) => {
-                                if (eye.visible && eye.contains(eye.mapFromItem(tile, point.position))) {
+                                if (Store.over(eye, tile, point.position)) {
                                     list.currentIndex = row.index
                                     root.toggleLook()
                                     search.forceActiveFocus()

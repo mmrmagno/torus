@@ -346,14 +346,24 @@ Item {
     }
 
     ColumnLayout {
+        enabled: lib.look === ""
         anchors.fill: parent
         spacing: Theme.sp5
 
         Flow {
             Layout.fillWidth: true
             spacing: Theme.sp3
+            Picker {
+                visible: lib.games.length > 4
+                implicitHeight: 26
+                activeFocusOnTab: false
+                host: lib
+                options: [{ value: "", label: "All games" }].concat(lib.games.map(g => ({ value: g.id, label: g.name })))
+                current: lib.game
+                onPicked: value => { lib.placing = false; lib.game = value; grid.currentIndex = 0 }
+            }
             Repeater {
-                model: [{ id: "", name: "All games" }].concat(lib.games)
+                model: lib.games.length > 4 ? [] : [{ id: "", name: "All games" }].concat(lib.games)
                 Rectangle {
                     id: chip
                     required property var modelData
@@ -365,7 +375,7 @@ Item {
                     Behavior on color { ColorAnimation { duration: Theme.durFast } }
                     Text { id: chipText; anchors.centerIn: parent; text: chip.modelData.name; color: chip.on ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
                     HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: { lib.placing = false; lib.game = chip.modelData.id; grid.currentIndex = 0 } }
+                    Tap { onTapped: { lib.placing = false; lib.game = chip.modelData.id; grid.currentIndex = 0 } }
                 }
             }
             Rectangle {
@@ -375,7 +385,7 @@ Item {
                 color: lib.starredOnly ? Theme.yellow : (starHover.hovered ? Theme.surface1 : Theme.surface0)
                 Text { id: starText; anchors.centerIn: parent; text: "★ Favorites"; color: lib.starredOnly ? Theme.crust : Theme.yellow; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
                 HoverHandler { id: starHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: { lib.placing = false; lib.starredOnly = !lib.starredOnly; grid.currentIndex = 0 } }
+                Tap { onTapped: { lib.placing = false; lib.starredOnly = !lib.starredOnly; grid.currentIndex = 0 } }
             }
             Segmented {
                 options: ["new", "size"]
@@ -516,7 +526,7 @@ Item {
                 activeFocusOnTab: false
                 onClicked: lib.trashMarked()
             }
-            Text { text: lib.shown.length + " of " + lib.clips.length; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+            Text { text: lib.shown.length + " of " + lib.clips.length; color: Theme.overlay; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsSm }
         }
     }
 

@@ -63,17 +63,19 @@ Column {
             Keys.onSpacePressed: go()
             FocusRing { on: todayBtn.activeFocus; baseRadius: todayBtn.radius }
             HoverHandler { id: todayHover; cursorShape: todayBtn.away ? Qt.PointingHandCursor : Qt.ArrowCursor }
-            TapHandler { onTapped: todayBtn.go() }
+            Tap { quiet: !todayBtn.away; onTapped: todayBtn.go() }
         }
         Item { width: 6; height: 1 }
         Text {
             id: prevMonth
             text: "󰅁"
-            color: Theme.accent
+            color: prevHover.hovered ? Theme.lavender : Theme.accent
             font.family: Theme.fontMono
             font.pixelSize: Theme.fsXl
             width: 30
+            height: 24
             horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
             function go() { root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() - 1, 1) }
             activeFocusOnTab: true
             onActiveFocusChanged: if (activeFocus) Store.focusLabel = "previous month"
@@ -81,17 +83,19 @@ Column {
             Keys.onEnterPressed: go()
             Keys.onSpacePressed: go()
             FocusRing { on: prevMonth.activeFocus; pad: 0 }
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: prevMonth.go() }
+            HoverHandler { id: prevHover; cursorShape: Qt.PointingHandCursor }
+            Tap { onTapped: prevMonth.go() }
         }
         Text {
             id: nextMonth
             text: "󰅂"
-            color: Theme.accent
+            color: nextHover.hovered ? Theme.lavender : Theme.accent
             font.family: Theme.fontMono
             font.pixelSize: Theme.fsXl
             width: 30
+            height: 24
             horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
             function go() { root.shown = new Date(root.shown.getFullYear(), root.shown.getMonth() + 1, 1) }
             activeFocusOnTab: true
             onActiveFocusChanged: if (activeFocus) Store.focusLabel = "next month"
@@ -99,8 +103,8 @@ Column {
             Keys.onEnterPressed: go()
             Keys.onSpacePressed: go()
             FocusRing { on: nextMonth.activeFocus; pad: 0 }
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: nextMonth.go() }
+            HoverHandler { id: nextHover; cursorShape: Qt.PointingHandCursor }
+            Tap { onTapped: nextMonth.go() }
         }
     }
 
@@ -130,6 +134,7 @@ Column {
                     text: cell.modelData > 0 ? cell.modelData : ""
                     color: cell.isToday ? Theme.crust : Theme.text
                     font.family: Theme.fontUi
+                    font.features: ({ "tnum": 1 })
                     font.pixelSize: Theme.fsMd
                 }
                 Rectangle {
@@ -142,8 +147,8 @@ Column {
                     radius: 2
                     color: cell.isToday ? Theme.crust : Theme.peach
                 }
-                HoverHandler { id: cellHover }
-                TapHandler { onTapped: if (cell.modelData > 0) root.picked = cell.day }
+                HoverHandler { id: cellHover; cursorShape: cell.modelData > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor }
+                Tap { quiet: cell.modelData <= 0; onTapped: if (cell.modelData > 0) root.picked = cell.day }
             }
         }
     }

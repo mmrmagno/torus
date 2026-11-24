@@ -27,9 +27,9 @@ Item {
                 height: 6
                 radius: 3
                 color: Theme.accent
-                opacity: 0.25
+                opacity: Theme.motion > 0 ? 0.25 : 0.7
                 SequentialAnimation on opacity {
-                    running: dots.visible && root.visible
+                    running: dots.visible && root.visible && Theme.motion > 0
                     loops: Animation.Infinite
                     PauseAnimation { duration: dot.index * 160 }
                     NumberAnimation { to: 1; duration: 320; easing.type: Easing.OutCubic }

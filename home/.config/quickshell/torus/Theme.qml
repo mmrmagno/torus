@@ -22,7 +22,10 @@ Singleton {
     readonly property int fsTitle: Math.round(18 * Feel.textScale)
     readonly property int fsHead: Math.round(26 * Feel.textScale)
     readonly property int fsDisplay: Math.round(56 * Feel.textScale)
+    readonly property int fsHuge: Math.round(84 * Feel.textScale)
     readonly property int icon: 15
+    readonly property int iconLg: 22
+    readonly property int iconXl: 40
 
     readonly property int sp1: 2
     readonly property int sp2: 4
@@ -45,6 +48,8 @@ Singleton {
     readonly property int durFast: Math.round(140 * motion)
     readonly property int durMed: Math.round(200 * motion)
     readonly property int durSlow: Math.round(320 * motion)
+    readonly property int durEnter: Math.round(260 * motion)
+    readonly property int durExit: Math.round(180 * motion)
     readonly property string flavour: c.flavour || "mocha"
     readonly property bool dark: c.dark !== false
     readonly property color shadow: c.shadow || "#cc11111b"
@@ -62,10 +67,25 @@ Singleton {
         return c[name] || fallback[name] || fallback.text
     }
 
+    function light(hex) {
+        const n = [1, 3, 5].map(i => parseInt(String(hex).slice(-7).substr(i, 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
+        return 0.2126 * n[0] + 0.7152 * n[1] + 0.0722 * n[2]
+    }
+
+    function contrast(a, b) {
+        const x = light(a), y = light(b)
+        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+    }
+
+    // the quietest grey of the flavor that can still be read on a panel
+    function readable(names, least) {
+        return col(names.find(n => contrast(col(n), col("mantle")) >= least) || names[names.length - 1])
+    }
+
     readonly property color accent: col("accent")
     readonly property color text: col("text")
-    readonly property color subtext: col("subtext0")
-    readonly property color overlay: col("overlay0")
+    readonly property color subtext: readable(["subtext0", "subtext1", "text"], 4.5)
+    readonly property color overlay: readable(["overlay0", "overlay1", "overlay2", "subtext0", "subtext1"], 3.9)
     readonly property color base: col("base")
     readonly property color mantle: col("mantle")
     readonly property color crust: col("crust")

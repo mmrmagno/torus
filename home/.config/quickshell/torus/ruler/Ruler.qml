@@ -42,7 +42,7 @@ PanelWindow {
     function copy(text, what) {
         Quickshell.execDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "sh", text])
         Store.rulerLast = what + ":" + text
-        Island.flash("osd", { icon: what === "color" ? "󰏘" : "󰆾", label: text + "  ·  copied", value: -1 }, 2200)
+        Island.flash("osd", { icon: what === "color" ? "󰏘" : "󰆾", label: text + " copied", value: -1 }, 2200)
     }
 
     function finish() {
@@ -183,7 +183,7 @@ PanelWindow {
             Text {
                 id: measureText
                 anchors.centerIn: parent
-                text: root.lineMode ? Math.round(root.dist) + " px  ·  " + Math.round(root.angle) + "°  (" + root.pw + " × " + root.ph + ")" : root.pw + " × " + root.ph
+                text: root.lineMode ? Math.round(root.dist) + " px  " + Math.round(root.angle) + "°  (" + root.pw + " × " + root.ph + ")" : root.pw + " × " + root.ph
                 color: Theme.text
                 font.family: Theme.fontMono
                 font.pixelSize: Theme.fsSm
@@ -207,7 +207,7 @@ PanelWindow {
                 Rectangle { width: 16; height: 16; radius: 4; color: root.hex || "transparent"; border.width: 1; border.color: Qt.alpha(Theme.text, 0.3); anchors.verticalCenter: parent.verticalCenter }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.hex === "" ? "" : root.hex + "  rgb(" + root.rgb(root.hex).join(", ") + ")  ·  C copies"
+                    text: root.hex === "" ? "" : root.hex + "  rgb(" + root.rgb(root.hex).join(", ") + ")  C copies"
                     color: Theme.text
                     font.family: Theme.fontMono
                     font.pixelSize: Theme.fsSm

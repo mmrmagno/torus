@@ -20,6 +20,7 @@ import qs.overview
 import qs.switcher
 import qs.cheatsheet
 import qs.games
+import qs.music
 import qs.palette
 import qs.network
 import qs.updates
@@ -29,6 +30,7 @@ import qs.draw
 import qs.pin
 import qs.processes
 import qs.spire
+import qs.fly
 
 ShellRoot {
     Component.onCompleted: {
@@ -86,10 +88,12 @@ ShellRoot {
     ClipPanel {}
     CommandPanel {}
     GameHub {}
+    MusicPanel {}
     SpireHub {}
     NetPanel {}
     UpdatesPanel {}
     AiPanel {}
+    Fly {}
     Polkit {}
     Lock {}
     Ipc {}

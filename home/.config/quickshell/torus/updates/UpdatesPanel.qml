@@ -53,12 +53,13 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: updFrame
+            name: "updates"
             shown: Store.isOpen("updates") && !Store.moving
         }
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
+        height: Math.min(body.implicitHeight + 37 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.TopRight
         radius: Theme.rPanel
@@ -91,6 +92,7 @@ PanelWindow {
                         text: Updates.checking ? "Checking for updates…" : (Updates.count > 0 ? Updates.count + (Updates.count === 1 ? " update" : " updates") : "Everything is up to date")
                         color: Theme.text
                         font.family: Theme.fontUi
+                        font.features: ({ "tnum": 1 })
                         font.pixelSize: Theme.fsLg
                         font.weight: Font.DemiBold
                     }
@@ -102,7 +104,7 @@ PanelWindow {
                         color: upHover.hovered ? Theme.green : Theme.accent
                         Text { id: upText; anchors.centerIn: parent; text: "Update now"; color: Theme.crust; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd; font.weight: Font.DemiBold }
                         HoverHandler { id: upHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: { Store.setOpen("updates", false); Updates.update() } }
+                        Tap { onTapped: { Store.setOpen("updates", false); Updates.update() } }
                     }
                 }
 
@@ -159,7 +161,7 @@ PanelWindow {
                     Layout.fillWidth: true
                     visible: Updates.torusInstalled !== null
                     spacing: Theme.sp4
-                    Text { Layout.fillWidth: true; text: "torus"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
+                    SectionTitle { Layout.fillWidth: true; text: "torus" }
                     Text {
                         visible: Updates.torus.length === 0
                         text: Updates.torusInstalled ? "up to date at " + Updates.torusInstalled.hash : ""
@@ -202,7 +204,7 @@ PanelWindow {
 
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.surface1; Layout.topMargin: 4; Layout.bottomMargin: 4; visible: Updates.torusInstalled !== null }
 
-                Text { text: "Arch news"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
+                SectionTitle { text: "Arch news" }
 
                 Repeater {
                     model: Updates.news
@@ -230,7 +232,7 @@ PanelWindow {
                             }
                         }
                         HoverHandler { id: newsHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: Quickshell.execDetached(["torus-launch", "xdg-open", item.modelData.link]) }
+                        Tap { onTapped: Quickshell.execDetached(["torus-launch", "xdg-open", item.modelData.link]) }
                     }
                 }
             }

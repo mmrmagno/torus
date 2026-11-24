@@ -5,6 +5,7 @@ Item {
     id: root
 
     property var audio: null
+    property real most: 1.5
     readonly property real value: audio ? audio.volume : 0
     readonly property bool muted: audio ? audio.muted : false
 
@@ -30,7 +31,7 @@ Item {
             height: parent.height
             radius: Theme.rXs
             color: root.muted ? Theme.overlay : (root.value > 1 ? Theme.peach : Theme.accent)
-            Behavior on width { NumberAnimation { duration: 90 } }
+            Behavior on width { NumberAnimation { duration: 90 * Theme.motion } }
         }
     }
 
@@ -62,7 +63,7 @@ Item {
         onReleased: Store.sound("tick")
         onWheel: wheel => {
             if (root.audio)
-                root.audio.volume = Math.max(0, Math.min(1.5, root.audio.volume + (wheel.angleDelta.y > 0 ? 0.05 : -0.05)))
+                root.audio.volume = Math.max(0, Math.min(root.most, root.audio.volume + (wheel.angleDelta.y > 0 ? 0.05 : -0.05)))
             Store.sound("tick")
         }
     }

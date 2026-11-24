@@ -45,6 +45,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: parent
+            name: "logout"
             shown: Store.isOpen("logout")
         }
         anchors.fill: parent
@@ -103,7 +104,7 @@ PanelWindow {
                             text: parent.parent.modelData.icon
                             color: Theme.accent
                             font.family: Theme.fontMono
-                            font.pixelSize: 40
+                            font.pixelSize: Theme.iconXl
                         }
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -119,7 +120,7 @@ PanelWindow {
                     }
 
                     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) root.selected = parent.index }
-                    TapHandler { onTapped: root.run(parent.modelData) }
+                    Tap { onTapped: root.run(parent.modelData) }
                 }
             }
         }

@@ -34,5 +34,5 @@ Rectangle {
 
     FocusRing { on: root.activeFocus; baseRadius: root.radius }
     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-    TapHandler { onTapped: root.toggled(!root.checked) }
+    Tap { onTapped: root.toggled(!root.checked) }
 }

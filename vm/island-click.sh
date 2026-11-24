@@ -3,9 +3,10 @@ set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 qmp=${1:-$HOME/vms/torus/dev.qmp}
 vm() { "$here/torus-vm" ssh 'export XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 HYPRLAND_INSTANCE_SIGNATURE=$(ls -t /run/user/1000/hypr | head -1); export PATH=$HOME/.local/bin:$PATH; '"$*"; }
-click() { python3 "$here/qmp-mouse.py" "$qmp" 3840 1440 "$(($1 - 10)),20" "$1,18" click; }
+click() { python3 "$here/qmp-mouse.py" "$qmp" "$w" "$h" "$((side + $1 - 10)),$((top + 20))" "$((side + $1)),$((top + 18))" click; }
 bad=""
 vm 'hyprctl eval "hl.monitor({ output = \"SIDE\", mode = \"2560x1440\", position = \"1280x0\", scale = 1, transform = 0 })" > /dev/null; sleep 2'
+read -r w h side top < <(vm 'hyprctl monitors -j | jq -r "(map(.x) | min) as \$x | (map(.y) | min) as \$y | [(map(.x + (if .transform % 2 == 1 then .height else .width end)) | max) - \$x, (map(.y + (if .transform % 2 == 1 then .width else .height end)) | max) - \$y, (.[] | select(.name == \"SIDE\") | .x - \$x, .y - \$y)] | @tsv"')
 for round in 1 2 3; do
   vm 'Q="qs -c torus ipc call torus"; $Q closeAll; $Q barToggle; sleep 1; $Q barToggle; sleep 2' > /dev/null
   click 1280

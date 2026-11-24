@@ -6,6 +6,7 @@ import Quickshell.Widgets
 import Quickshell.Services.Mpris
 import Quickshell.Services.UPower
 import qs
+import qs.components
 import qs.background
 import qs.services
 
@@ -18,8 +19,9 @@ Item {
 
     focus: true
     property bool entered: false
-    opacity: lock.fading || !entered ? 0 : 1
-    scale: lock.fading ? 1.04 : (entered ? 1 : 0.97)
+    readonly property bool leaving: lock.fading && !(lock.dissolving && shot.status === Image.Ready)
+    opacity: leaving || !entered ? 0 : 1
+    scale: leaving ? 1.04 : (entered ? 1 : 0.97)
     Behavior on opacity { NumberAnimation { duration: lock.fading ? 180 : 260; easing.type: lock.fading ? Easing.InCubic : Easing.OutCubic } }
     Behavior on scale { NumberAnimation { duration: lock.fading ? 200 : 320; easing.type: lock.fading ? Easing.InCubic : Easing.OutCubic } }
     Component.onCompleted: {
@@ -56,10 +58,9 @@ Item {
         id: shot
         anchors.fill: parent
         visible: false
-        cache: false
         asynchronous: true
         fillMode: Image.PreserveAspectCrop
-        source: root.screen && Store.locked ? "file://" + root.lock.dir + "/" + root.screen.name + ".png" : ""
+        source: root.screen && Store.locked ? root.lock.shotUrl(root.screen) : ""
     }
 
     MultiEffect {
@@ -86,6 +87,10 @@ Item {
     ColumnLayout {
         anchors.centerIn: parent
         spacing: 14
+        opacity: root.lock.fading ? 0 : 1
+        scale: root.lock.fading ? 1.04 : 1
+        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.InCubic } }
+        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.InCubic } }
 
         DonutView {
             id: lockDonut
@@ -108,6 +113,7 @@ Item {
                 text: Qt.formatDateTime(clock.date, "HH:mm")
                 color: Theme.text
                 font.family: Theme.fontUi
+                font.features: ({ "tnum": 1 })
                 font.pixelSize: Math.round(root.side * 0.09)
                 font.weight: Font.Bold
             }
@@ -120,9 +126,9 @@ Item {
                 font.pixelSize: Math.round(root.side * 0.025)
                 Behavior on text {
                     SequentialAnimation {
-                        NumberAnimation { target: secs; property: "opacity"; to: 0.35; duration: 120 }
+                        NumberAnimation { target: secs; property: "opacity"; to: 0.35; duration: 120 * Theme.motion }
                         PropertyAction {}
-                        NumberAnimation { target: secs; property: "opacity"; to: 1; duration: 260 }
+                        NumberAnimation { target: secs; property: "opacity"; to: 1; duration: 260 * Theme.motion }
                     }
                 }
             }
@@ -133,6 +139,7 @@ Item {
             text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
             color: Theme.subtext
             font.family: Theme.fontUi
+            font.features: ({ "tnum": 1 })
             font.pixelSize: Theme.fsXl
         }
 
@@ -143,7 +150,7 @@ Item {
                 spacing: Theme.sp3
                 visible: Weather.ok
                 Text { text: Weather.icon; color: Theme.yellow; font.family: Theme.fontMono; font.pixelSize: Theme.icon; anchors.verticalCenter: parent.verticalCenter }
-                Text { text: Weather.temp; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsBase; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: Weather.temp; color: Theme.subtext; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsBase; anchors.verticalCenter: parent.verticalCenter }
             }
             Row {
                 spacing: Theme.sp3
@@ -155,7 +162,7 @@ Item {
                 spacing: Theme.sp3
                 visible: root.hasBattery
                 Text { text: root.hasBattery && root.battery.state === UPowerDeviceState.Charging ? "󰂄" : "󰁹"; color: root.hasBattery && root.battery.percentage < 0.2 ? Theme.red : Theme.green; font.family: Theme.fontMono; font.pixelSize: Theme.icon; anchors.verticalCenter: parent.verticalCenter }
-                Text { text: root.hasBattery ? Math.round(root.battery.percentage * 100) + "%" + (root.battery.state === UPowerDeviceState.Charging ? " charging" : "") : ""; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsBase; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: root.hasBattery ? Math.round(root.battery.percentage * 100) + "%" + (root.battery.state === UPowerDeviceState.Charging ? " charging" : "") : ""; color: Theme.subtext; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsBase; anchors.verticalCenter: parent.verticalCenter }
             }
         }
 
@@ -200,7 +207,7 @@ Item {
                 opacity: 0
                 // inside an animation `parent` is the whole lock screen, not this glow: hiding it blanked the screen
                 SequentialAnimation on opacity {
-                    running: root.lock.busy
+                    running: root.lock.busy && Theme.motion > 0
                     loops: Animation.Infinite
                     NumberAnimation { to: 1; duration: 420; easing.type: Easing.InOutSine }
                     NumberAnimation { to: 0.15; duration: 420; easing.type: Easing.InOutSine }
@@ -213,7 +220,7 @@ Item {
                 spacing: Theme.sp3
                 visible: root.lock.buffer.length > 0
                 Repeater {
-                    model: Math.min(root.lock.buffer.length, 24)
+                    model: Math.min(root.lock.buffer.length, 20)
                     Rectangle {
                         width: 9
                         height: 9
@@ -226,7 +233,7 @@ Item {
             Text {
                 anchors.centerIn: parent
                 visible: root.lock.buffer.length === 0
-                text: root.lock.busy ? "checking" : (Island.caps ? "password  ·  caps lock on" : "password")
+                text: root.lock.busy ? "checking" : (Island.caps ? "password, caps lock on" : "password")
                 color: Theme.overlay
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fsLg
@@ -236,10 +243,10 @@ Item {
 
             SequentialAnimation {
                 id: shake
-                NumberAnimation { target: nudge; property: "x"; to: 18; duration: 50 }
-                NumberAnimation { target: nudge; property: "x"; to: -18; duration: 80 }
-                NumberAnimation { target: nudge; property: "x"; to: 9; duration: 70 }
-                NumberAnimation { target: nudge; property: "x"; to: 0; duration: 60 }
+                NumberAnimation { target: nudge; property: "x"; to: 18; duration: 50 * Theme.motion }
+                NumberAnimation { target: nudge; property: "x"; to: -18; duration: 80 * Theme.motion }
+                NumberAnimation { target: nudge; property: "x"; to: 9; duration: 70 * Theme.motion }
+                NumberAnimation { target: nudge; property: "x"; to: 0; duration: 60 * Theme.motion }
             }
 
             Connections {
@@ -254,7 +261,7 @@ Item {
         Text {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredHeight: 18
-            text: root.lock.message !== "" ? root.lock.message + (Island.caps ? "  ·  Caps Lock is on" : "") : (Island.caps ? "󰪛  Caps Lock is on" : (root.lock.face === "looking" ? "󰄀  looking for you" : (root.lock.face === "missed" ? "󰄀  not recognized, type your password or press a key to retry" : "")))
+            text: root.lock.message !== "" ? root.lock.message + (Island.caps ? ", Caps Lock is on" : "") : (Island.caps ? "󰪛  Caps Lock is on" : (root.lock.face === "looking" ? "󰄀  looking for you" : (root.lock.face === "missed" ? "󰄀  not recognized, type your password or press a key to retry" : "")))
             color: root.lock.message !== "" ? Theme.red : (Island.caps ? Theme.peach : Theme.subtext)
             font.family: Theme.fontUi
             font.pixelSize: Theme.fsBase
@@ -313,7 +320,7 @@ Item {
                             font.pixelSize: Theme.icon
                         }
                         HoverHandler { id: mediaHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: if (nowPlaying.player) nowPlaying.player[mediaBtn.modelData[1]]() }
+                        Tap { onTapped: if (nowPlaying.player) nowPlaying.player[mediaBtn.modelData[1]]() }
                     }
                 }
             }
@@ -321,6 +328,8 @@ Item {
 }
 
     Row {
+        opacity: root.lock.fading ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.InCubic } }
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.margins: 32

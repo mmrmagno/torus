@@ -11,7 +11,7 @@ Item {
     property bool living: false
     readonly property real load: Math.max(0, Math.min(1, SysStats.cpu / 100))
     property real spin: living && live ? 0.6 + 1.6 * load : 1
-    Behavior on spin { NumberAnimation { duration: 1500; easing.type: Easing.InOutSine } }
+    Behavior on spin { NumberAnimation { duration: 1500 * Theme.motion; easing.type: Easing.InOutSine } }
     property real kick: 0
     property real peakKick: 0
     property real peakBank: 0
@@ -53,19 +53,19 @@ Item {
     }
     property int bankDir: 1
 
-    NumberAnimation { id: wobble; target: view; property: "kick"; from: 1; to: 0; duration: 900; easing.type: Easing.OutCubic }
+    NumberAnimation { id: wobble; target: view; property: "kick"; from: 1; to: 0; duration: 900 * Theme.motion; easing.type: Easing.OutCubic }
 
     SequentialAnimation {
         id: bankAnim
-        NumberAnimation { target: view; property: "bank"; to: 9 * view.bankDir; duration: 260; easing.type: Easing.OutCubic }
-        NumberAnimation { target: view; property: "bank"; to: 0; duration: 700; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
+        NumberAnimation { target: view; property: "bank"; to: 9 * view.bankDir; duration: 260 * Theme.motion; easing.type: Easing.OutCubic }
+        NumberAnimation { target: view; property: "bank"; to: 0; duration: 700 * Theme.motion; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
     }
 
     rotation: view.bank
     property real breath: 0
     scale: 1 + breath * 0.018
     SequentialAnimation on breath {
-        running: view.calm && view.live && view.visible
+        running: view.calm && view.live && view.visible && Theme.motion > 0
         loops: Animation.Infinite
         NumberAnimation { from: 0; to: 1; duration: 3200; easing.type: Easing.InOutSine }
         NumberAnimation { from: 1; to: 0; duration: 3200; easing.type: Easing.InOutSine }

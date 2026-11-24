@@ -79,7 +79,7 @@ PanelWindow {
             anchors.leftMargin: 14
             anchors.rightMargin: 10
             spacing: Theme.sp5
-            Text { text: live.glyph; color: live.tint; font.family: Theme.fontMono; font.pixelSize: 20 }
+            Text { text: live.glyph; color: live.tint; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2
@@ -112,6 +112,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: parent
+            name: "center"
             shown: Store.isOpen("center") && !Store.moving
         }
         anchors.fill: parent
@@ -199,15 +200,17 @@ PanelWindow {
                         text: "While you were away (since " + Qt.formatTime(new Date(Notifs.lastAway), "HH:mm") + "): " + parent.parent.fresh + " new"
                         color: Theme.text
                         font.family: Theme.fontUi
+                        font.features: ({ "tnum": 1 })
                         font.pixelSize: Theme.fsMd
                         elide: Text.ElideRight
                     }
                     Text {
                         text: "󰅖"
-                        color: Theme.overlay
+                        color: awayHover.hovered ? Theme.red : Theme.overlay
                         font.family: Theme.fontMono
                         font.pixelSize: Theme.fsLg
-                        TapHandler { onTapped: Notifs.lastAway = 0 }
+                        HoverHandler { id: awayHover; margin: 6; cursorShape: Qt.PointingHandCursor }
+                        Tap { reach: 6; onTapped: Notifs.lastAway = 0 }
                     }
                 }
             }
@@ -217,7 +220,7 @@ PanelWindow {
             LiveCard {
                 visible: Timers.running
                 glyph: Timers.stopwatch ? "󱎫" : "󰔛"
-                title: (Timers.stopwatch ? "Stopwatch" : "Timer") + (Timers.label ? "  ·  " + Timers.label : "")
+                title: (Timers.stopwatch ? "Stopwatch" : "Timer") + (Timers.label ? " for " + Timers.label : "")
                 value: Timers.text + (Timers.paused ? "  paused" : "")
                 progress: Timers.stopwatch ? -1 : Timers.progress
                 tint: Theme.peach
@@ -227,7 +230,7 @@ PanelWindow {
             LiveCard {
                 visible: Focus.running
                 glyph: "󰔟"
-                title: "Focus  ·  notifications held"
+                title: "Focus, notifications held"
                 value: String(Math.floor(Focus.left / 60)).padStart(2, "0") + ":" + String(Focus.left % 60).padStart(2, "0")
                 progress: Focus.progress
                 tint: Theme.accent
@@ -237,10 +240,10 @@ PanelWindow {
             Flow {
                 Layout.fillWidth: true
                 spacing: Theme.sp3
-                PanelButton { icon: "󰖩"; label: "Network"; onClicked: { Store.setOpen("center", false); Store.setOpen("network", true) } }
+                PanelButton { id: netBtn; icon: "󰖩"; label: "Network"; onClicked: { Store.setOpen("center", false); Store.openFrom("network", netBtn) } }
                 PanelButton { icon: "󰖔"; label: "Night light"; active: NightLight.on; onClicked: NightLight.toggle() }
-                PanelButton { icon: "󰔛"; label: "Timer"; onClicked: { Store.setOpen("center", false); Store.setOpen("palette", true); Commands.fill("t ") } }
-                PanelButton { icon: "󰐥"; label: "Session"; onClicked: { Store.setOpen("center", false); Store.setOpen("logout", true) } }
+                PanelButton { id: timerBtn; icon: "󰔛"; label: "Timer"; onClicked: { Store.setOpen("center", false); Store.openFrom("palette", timerBtn); Commands.fill("t ") } }
+                PanelButton { id: powerBtn; icon: "󰐥"; label: "Session"; onClicked: { Store.setOpen("center", false); Store.openFrom("logout", powerBtn) } }
             }
 
             ListView {
@@ -272,8 +275,8 @@ PanelWindow {
                     visible: list.count === 0
                     text: Notifs.filter !== "" ? "nothing matches" : "󰂜  all caught up"
                     color: Theme.overlay
-                    font.family: Theme.fontMono
-                    font.pixelSize: Theme.fsLg
+                    font.family: Theme.fontUi
+                    font.pixelSize: Theme.fsMd
                 }
             }
 

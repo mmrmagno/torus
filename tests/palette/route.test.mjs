@@ -7,13 +7,13 @@ const P = [
     { key: "recent", prefix: "r " }, { key: "kb", prefix: "?" }, { key: "ai", prefix: "!" },
     { key: "emoji", prefix: ":" }, { key: "colors", prefix: "#" }, { key: "timer", prefix: "t " },
     { key: "pass", prefix: "p " }, { key: "notifs", prefix: "n " }, { key: "projects", prefix: "d " },
-    { key: "ssh", prefix: "s " }
+    { key: "ssh", prefix: "s " }, { key: "music", prefix: "m " }
 ]
 
 test("every prefix routes to its scope with the rest as term", () => {
     const cases = [
         ["=2*21", "calc", "2*21"], ["/parity-needle", "files", "parity-needle"], ["/", "files", ""],
-        ["r  notes ", "recent", "notes"], ["?parity needle", "kb", "parity needle"], ["?", "kb", ""],
+        ["r  notes ", "recent", "notes"], ["?parity needle", "kb", "parity needle"], ["?", "kb", ""], ["m bjork debut", "music", "bjork debut"],
         ["!why", "ai", "why"], [":grinning", "emoji", "grinning"], ["#ff8800", "colors", "ff8800"],
         ["t 5", "timer", "5"], ["t ", "timer", ""], ["p git", "pass", "git"], ["n discord", "notifs", "discord"],
         ["d torus", "projects", "torus"], ["s dock", "ssh", "dock"],
@@ -74,7 +74,7 @@ test("score keeps the old weights", () => {
 test("rank orders by score, frecency and kind, drops misses", () => {
     const now = 1e12
     const items = [
-        { id: "app:a", kind: "app", title: "Alacritty" }, { id: "w", kind: "window", title: "kitty", sub: "kitty · workspace 1" },
+        { id: "app:a", kind: "app", title: "Alacritty" }, { id: "w", kind: "window", title: "kitty", sub: "kitty on workspace 1" },
         { id: "app:k", kind: "app", title: "kitty" }, { id: "a:x", kind: "action", title: "Lock screen", keys: "kitty" }
     ]
     const r = R.rank(items, "kitt", {}, now)

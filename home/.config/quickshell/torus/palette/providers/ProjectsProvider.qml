@@ -32,7 +32,7 @@ Provider {
                 const short = path.startsWith(root.home + "/") ? "~" + path.slice(root.home.length) : path
                 const r = {
                     id: "d:" + path, kind: "project", glyph: "󰊢", title: path.split("/").pop(),
-                    sub: short + "  ·  " + branch + (dirty === "0" ? "" : "  ·  " + dirty + " changed"), keys: short + " " + branch,
+                    sub: short + " on " + branch + (dirty === "0" ? "" : ", " + dirty + " changed"), keys: short + " " + branch,
                     enter: "terminal", act: () => Quickshell.execDetached(["torus-launch", "kitty", "--directory", path]),
                     ctrl: { label: "nvim", act: () => Quickshell.execDetached(["torus-launch", "kitty", "--directory", path, "nvim", "."]) }
                 }

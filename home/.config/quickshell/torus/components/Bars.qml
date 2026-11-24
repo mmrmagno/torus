@@ -32,7 +32,7 @@ Row {
             anchors.bottom: parent.bottom
             color: root.tint
             opacity: 0.55 + v * 0.45
-            Behavior on height { NumberAnimation { duration: 60 } }
+            Behavior on height { NumberAnimation { duration: 60 * Theme.motion } }
         }
     }
 }

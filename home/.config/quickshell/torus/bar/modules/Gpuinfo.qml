@@ -10,7 +10,9 @@ Chip {
     readonly property string busy: SysStats.gpuBusy >= 0 ? SysStats.gpuBusy + "%" : "--"
     icon: "󰢮"
     iconColor: !Store.gamemode || heat < 85 ? Theme.accent : heat >= 95 ? Theme.red : Theme.peach
-    label: (Play.buffering ? "● REC  " : "") + (Store.gamemode ? busy + " · " + (heat >= 0 ? heat + "°" : "--") : (showTemp ? (SysStats.gpuTemp >= 0 ? SysStats.gpuTemp + "°C" : "--") : busy))
+    label: (Play.buffering ? "● REC  " : "") + (Store.gamemode ? busy : (showTemp ? (SysStats.gpuTemp >= 0 ? SysStats.gpuTemp + "°C" : "--") : busy))
+    dim: Store.gamemode ? (heat >= 0 ? heat + "°" : "--") : ""
+    widest: "100%"
     tip: Play.buffering ? "Replay buffer running for " + (Play.session.name || "the game") + ", SUPER+ALT+R saves the last " + (Play.session.replay_secs || 60) + " s" : ""
     onClicked: showTemp = !showTemp
     card: Component { GpuCard {} }

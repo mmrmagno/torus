@@ -16,7 +16,7 @@ stub pkill 'exit 0'
 stub powerprofilesctl 'exit 0'
 stub gpu-screen-recorder 'exit 0'
 stub setsid 'echo "setsid $*" >> "$LOG"'
-stub journalctl '[[ -n ${STUB_VCN:-} ]] && echo "amdgpu 0000:03:00.0: ring vcn_unified_1 timeout, signaled seq=1, emitted seq=2"; exit 0'
+stub journalctl '[[ -n ${STUB_VCN:-} ]] && echo "amdgpu 0000:03:00.0: ring vcn_unified_1 timeout, signaled seq=1, emitted seq=2"; [[ -n ${STUB_RESET:-} && $* == *"GPU reset begin"* ]] && echo "amdgpu 0000:03:00.0: GPU reset begin!. Source:  1"; exit 0'
 cp "$REPO/home/.local/bin/torus-play" "$REPO/home/.local/bin/torus-play-saved" "$F/sh/"
 P=$F/sh/torus-play
 
@@ -71,7 +71,7 @@ mkdir -p "$F/Videos"
 ffmpeg -v error -f lavfi -i color=c=red:s=64x48:d=2 -c:v libx264 "$F/Videos/Replay_x.mp4"
 dest=$("$P" saved "$F/Videos/Replay_x.mp4")
 [[ $dest == "$F/Videos/Clips/counter-strike-2/counter-strike-2-"*.mp4 && -f $dest ]] || fail "clip filed by game: $dest"
-grep -q "islandFlash notification Clip saved · Counter-Strike 2 · 120 s" "$LOG" || fail "island says the clip is saved"
+grep -q "islandFlash notification Clip saved: Counter-Strike 2, 120 s" "$LOG" || fail "island says the clip is saved"
 out=$("$P" clips 730)
 [[ $(cut -f1 <<< "$out") == "$dest" && -s $(cut -f3 <<< "$out") ]] || fail "clips listed with a thumbnail: $out"
 
@@ -84,7 +84,8 @@ touch "$log"
 "$P" end --closed
 r=$("$P" recap)
 assert_eq "105:198:50:78:1" "$(jq -r '"\(.minutes):\(.fps_avg):\(.fps_low1):\(.gpu_temp_max):\(.clips)"' <<< "$r")" "recap numbers"
-assert_eq "Counter-Strike 2: played 1 h 45 · average 198 FPS · 1 % low 50 · GPU max 78 °C · 1 clip saved" "$(jq -r .text <<< "$r")" "recap text"
+assert_eq "Counter-Strike 2: played 1 h 45, average 198 FPS, 1 % low 50, GPU max 78 °C, 1 clip saved" "$(jq -r .text <<< "$r")" "recap text"
+grep -q "islandRecap Counter-Strike 2 played 1 h 45, average 198 FPS" "$LOG" || fail "the island gets the recap, the game as its title: $(cat "$LOG")"
 grep -q "pkill -INT -f gpu-screen-recorder .*-r " "$LOG" || fail "the buffer stops with the game"
 [[ ! -e $F/state/torus/play-session.json && ! -e $F/state/torus/mangohud-log ]] || fail "session cleaned up"
 printf 'cs2\n' > "$F/proc/4242/comm"
@@ -102,4 +103,14 @@ STUB_VCN=1 "$P" start steam_app_730
 grep -qE '^(setsid -f )?gpu-screen-recorder' "$LOG" && fail "after an encoder hang this boot the replay buffer must not start: $(cat "$LOG")"
 grep -q 'islandFlash notification Replay buffer off until a reboot' "$LOG" || fail "and the island says why: $(cat "$LOG")"
 assert_eq "false" "$("$P" status | jq -r .replay)" "session recorded without a replay buffer"
+rm -f "$F/state/torus/play-session.json"; : > "$LOG"
+STUB_RESET=1 "$P" start steam_app_730
+grep -qE '^(setsid -f )?gpu-screen-recorder' "$LOG" && fail "after any GPU reset this boot the replay buffer must not start (it took the session down on 11-13 and 11-15): $(cat "$LOG")"
+grep -q 'islandFlash notification Replay buffer off until a reboot' "$LOG" || fail "and the island says why: $(cat "$LOG")"
+rm -f "$F/state/torus/play-session.json" "$F/stopped"; : > "$LOG"
+stub pgrep '[[ -e $HOME/stopped ]] && exit 1; echo "999 gpu-screen-recorder -w portal -f 60 -r 60 -o x"'
+stub pkill '[[ $* == *gpu-screen-recorder* ]] && touch "$HOME/stopped"; exit 0'
+STUB_RESET=1 "$P" start steam_app_730
+grep -qE '^(setsid -f )?gpu-screen-recorder' "$LOG" && fail "a plain replay buffer running must not skip the check: $(cat "$LOG")"
+[[ -e $F/stopped ]] || fail "and that buffer stops too"
 echo "play: ok"

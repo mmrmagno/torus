@@ -20,7 +20,7 @@ Singleton {
         if (h.length === 1)
             Island.flash("notification", h[0], 5000)
         else
-            Island.flash("notification", { summary: "Steam finished while you played", body: h.map(n => n.summary).join(" · "), app: "Steam", icon: "steam", image: "", cat: "steam" }, 8000)
+            Island.flash("notification", { summary: "Steam finished while you played", body: h.map(n => n.summary).join(", "), app: "Steam", icon: "steam", image: "", cat: "steam" }, 8000)
     }
 
     function note(n) {
@@ -50,9 +50,9 @@ Singleton {
         delete j[key]
         jobs = j
         if (ev.kind === "shader" && ev.state === "done" && had)
-            note({ summary: ev.name + " is ready to play", body: "Vulkan shaders processed", app: "Steam", icon: "steam", image: "", cat: "steam" })
+            note({ summary: ev.name + " is ready to play", body: "Vulkan shaders processed", app: "Steam", icon: "steam", image: "", cat: "steam", done: true })
         else if (ev.kind === "download" && ev.state === "done" && had)
-            note({ summary: ev.name + " updated", body: "Steam finished the download", app: "Steam", icon: "steam", image: "", cat: "steam" })
+            note({ summary: ev.name + " updated", body: "Steam finished the download", app: "Steam", icon: "steam", image: "", cat: "steam", done: true })
     }
 
     function jobFor(appid, kind) {

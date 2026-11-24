@@ -84,7 +84,7 @@ ColumnLayout {
         }
     }
 
-    Text { text: "PANELS"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; Layout.topMargin: Theme.sp3 }
+    SectionTitle { text: "Panels"; Layout.topMargin: Theme.sp3 }
     Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "A panel that follows focus moves to the screen you switch to; one that stays keeps to the screen it opened on."; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
     GridLayout {
         Layout.fillWidth: true
@@ -114,7 +114,7 @@ ColumnLayout {
         ValueSlider { from: 0; to: 1500; step: 50; decimals: 0; value: Feel.followDelay; suffix: " ms"; onMoved: v => Feel.set("followDelay", v) }
     }
 
-    Text { text: "SOUNDS"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; Layout.topMargin: Theme.sp3 }
+    SectionTitle { text: "Sounds"; Layout.topMargin: Theme.sp3 }
     RowLayout {
         Layout.fillWidth: true
         spacing: Theme.sp6
@@ -142,13 +142,13 @@ ColumnLayout {
                     font.family: Theme.fontMono
                     font.pixelSize: Theme.fsLg
                     HoverHandler { id: playHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: Quickshell.execDetached(["torus-sound", "preview", feel.soundPreview[srow.modelData], String(Feel.soundVolume)]) }
+                    Tap { onTapped: Quickshell.execDetached(["torus-sound", "preview", feel.soundPreview[srow.modelData], String(Feel.soundVolume)]) }
                 }
             }
         }
     }
 
-    Text { text: "ISLAND"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; Layout.topMargin: Theme.sp3 }
+    SectionTitle { text: "Island"; Layout.topMargin: Theme.sp3 }
     GridLayout {
         Layout.fillWidth: true
         columns: 3

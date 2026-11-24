@@ -26,6 +26,8 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
+    Component.onCompleted: Store.popupSpot = () => visible && column.children.length > 0 ? Store.placeOf(column.children[0], column.width / 2, column.children[0].height / 2) : null
+
     Variants {
         id: cardRegions
         model: column.children
@@ -42,7 +44,7 @@ PanelWindow {
         add: Transition {
             ParallelAnimation {
                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durMed; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "x"; from: 48; to: 0; duration: Theme.durSlow; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                NumberAnimation { property: "x"; from: 48; to: 0; duration: Theme.durSlow; easing.type: Easing.OutCubic }
             }
         }
         move: Transition {

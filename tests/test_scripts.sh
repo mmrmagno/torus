@@ -87,6 +87,9 @@ echo "gpu-screen-recorder $*" >> "$STUB_LOG"
 S
 chmod +x "$F/bin/gpu-screen-recorder"
 assert_eq "default_input alsa_input.usb-mic" "$("$B/torus-record" replay-mics | cut -f1 | tr '\n' ' ' | sed 's/ $//')" "replay mics: inputs only, no monitors"
+printf '#!/usr/bin/env bash\n[[ -n ${STUB_RESET:-} ]] && echo "amdgpu: GPU reset begin!"\nexit 0\n' > "$F/bin/journalctl"; chmod +x "$F/bin/journalctl"
+: > "$STUB_LOG"; STUB_RESET=1 "$B/torus-record" replay-save && fail "replay after a GPU reset must refuse"; sleep 0.3
+grep -q '^gpu-screen-recorder -w' "$STUB_LOG" && fail "replay after a GPU reset must not record"
 : > "$STUB_LOG"; "$B/torus-record" replay-save; sleep 0.3
 grep -q -- '-a default_output -c mp4 -r 60' "$STUB_LOG" || fail "replay: desktop sound only by default"
 "$B/torus-record" replay-mic alsa_input.usb-mic

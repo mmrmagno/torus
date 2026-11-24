@@ -36,4 +36,4 @@ mkdir -p "$(dirname "$hist")"
   grep -vx -- "$hex" "$hist" 2> /dev/null | head -n 19
 } > "$hist.tmp"
 mv "$hist.tmp" "$hist"
-notify-send -a "Color picker" -i "$icon" "$hex copied" "rgb($r, $g, $b)  ·  $hsl"
+notify-send -a "Color picker" -i "$icon" "$hex copied" "rgb($r, $g, $b)  $hsl"

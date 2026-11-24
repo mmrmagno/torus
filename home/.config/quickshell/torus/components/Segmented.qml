@@ -70,7 +70,7 @@ Rectangle {
                     Behavior on color { ColorAnimation { duration: Theme.durFast } }
                 }
                 HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.picked(parent.modelData) }
+                Tap { on: label; onTapped: root.picked(parent.modelData) }
             }
         }
     }

@@ -114,6 +114,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: studioFrame
+            name: "theme"
             shown: Store.isOpen("theme") && !Store.moving
         }
         radius: Theme.rPanel
@@ -140,7 +141,7 @@ PanelWindow {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Theme.sp5
-                    Text { text: "󰏘"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 22 }
+                    Text { text: "󰏘"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
@@ -172,7 +173,7 @@ PanelWindow {
                     }
                 }
 
-                Heading { text: "Accent  ·  " + (root.hoverAccent || root.accentName) }
+                Heading { text: "Accent: " + (root.hoverAccent || root.accentName) }
 
                 Flow {
                     Layout.fillWidth: true
@@ -200,14 +201,14 @@ PanelWindow {
                                 height: width
                                 radius: width / 2
                                 color: root.pal[dot.modelData] || Theme.col(dot.modelData)
-                                Behavior on width { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutBack } }
+                                Behavior on width { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
                             }
                             HoverHandler {
                                 id: dotHover
                                 cursorShape: Qt.PointingHandCursor
                                 onHoveredChanged: root.hoverAccent = hovered ? dot.modelData : (root.hoverAccent === dot.modelData ? "" : root.hoverAccent)
                             }
-                            TapHandler { onTapped: root.run(dot.modelData, ["torus", "accent", dot.modelData]) }
+                            Tap { onTapped: root.run(dot.modelData, ["torus", "accent", dot.modelData]) }
                         }
                     }
                 }
@@ -243,7 +244,7 @@ PanelWindow {
                                 GradientStop { position: 0; color: Theme.base }
                                 GradientStop { position: 1; color: Theme.mantle }
                             }
-                            scale: wallHover.hovered && !on ? 1.03 : 1
+                            scale: wallPress.pressed ? 0.98 : wallHover.hovered && !on ? 1.03 : 1
                             Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
                             ClippingRectangle {
                                 visible: wall.still
@@ -287,7 +288,7 @@ PanelWindow {
                                 text: "marc @ os"
                                 color: Theme.overlay
                                 font.family: Theme.fontMono
-                                font.pixelSize: 7
+                                font.pixelSize: Math.round(wall.height * 0.06)
                             }
                             Rectangle {
                                 anchors.left: parent.left
@@ -309,7 +310,7 @@ PanelWindow {
                                 }
                             }
                             HoverHandler { id: wallHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: Store.setWallpaperFor(root.wallScreen, wall.modelData) }
+                            TapHandler { id: wallPress; onTapped: Store.setWallpaperFor(root.wallScreen, wall.modelData) }
                         }
                     }
                     Rectangle {
@@ -322,12 +323,12 @@ PanelWindow {
                         Column {
                             anchors.centerIn: parent
                             spacing: Theme.sp2
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "󰸉"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 22 }
+                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "󰸉"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
                             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Add pictures"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
                             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "~/Pictures/wallpapers"; color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
                         }
                         HoverHandler { id: addHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: Quickshell.execDetached(["torus-launch", "sh", "-c", "mkdir -p \"$HOME/Pictures/wallpapers\" && xdg-open \"$HOME/Pictures/wallpapers\""]) }
+                        Tap { onTapped: Quickshell.execDetached(["torus-launch", "sh", "-c", "mkdir -p \"$HOME/Pictures/wallpapers\" && xdg-open \"$HOME/Pictures/wallpapers\""]) }
                     }
                 }
 
@@ -434,12 +435,7 @@ PanelWindow {
         ScrollFade { flick: flick }
     }
 
-    component Heading: Text {
-        color: Theme.overlay
-        font.family: Theme.fontUi
-        font.pixelSize: Theme.fsSm
-        font.letterSpacing: 1.2
-        font.capitalization: Font.AllUppercase
+    component Heading: SectionTitle {
         Layout.topMargin: Theme.sp2
     }
 
@@ -455,7 +451,7 @@ PanelWindow {
         color: p.base || Theme.base
         border.width: on ? 2 : 1
         border.color: on ? Theme.accent : (cardHover.hovered ? Theme.surface1 : Qt.alpha(Theme.surface1, 0.6))
-        scale: cardHover.hovered && !on ? 1.02 : 1
+        scale: cardPress.pressed && !on ? 0.98 : cardHover.hovered && !on ? 1.02 : 1
         Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
 
         Rectangle {
@@ -516,6 +512,6 @@ PanelWindow {
         }
 
         HoverHandler { id: cardHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: if (!card.on) root.run(root.cap(card.name), ["torus", "flavour", card.name]) }
+        TapHandler { id: cardPress; onTapped: if (!card.on) root.run(root.cap(card.name), ["torus", "flavour", card.name]) }
     }
 }

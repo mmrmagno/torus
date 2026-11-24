@@ -12,7 +12,7 @@ X=$REPO/tests/fixtures/gpu/night.log
 out=$("$G" replay "$X")
 assert_eq 2 "$(wc -l <<< "$out")" "one event per reset"
 assert_eq "cs2:false:1" "$(sed -n 1p <<< "$out" | jq -r '"\(.culprit):\(.encoder):\(.resets)"')" "first reset names the game"
-assert_eq "Counter-Strike 2 froze the GPU and the driver reset it. A reboot gives a clean GPU." "$(sed -n 1p <<< "$out" | jq -r .text)" "plain words"
+assert_eq "Counter-Strike 2 froze the GPU and the driver reset it. Recording could hang it again, so game clips are off until a reboot. A reboot gives a clean GPU." "$(sed -n 1p <<< "$out" | jq -r .text)" "plain words"
 assert_eq "gpu-screen-reco:true:2" "$(sed -n 2p <<< "$out" | jq -r '"\(.culprit):\(.encoder):\(.resets)"')" "the recorder, from the ring line, not the page fault"
 grep -q "game clips are off" <<< "$(sed -n 2p <<< "$out" | jq -r .text)" || fail "says clips are off after an encoder hang"
 

@@ -22,6 +22,14 @@ Scope {
     property bool awake: true
     property bool releasing: false
     property bool fading: false
+    property bool dissolving: false
+    property real dissolve: 1
+    property real lockedAt: 0
+
+    // the time keeps a picture from an earlier lock out of the image cache
+    function shotUrl(scr) {
+        return scr ? "file://" + dir + "/" + scr.name + ".png#" + lockedAt : ""
+    }
     property bool faceReady: false
     property string face: ""
 
@@ -42,6 +50,8 @@ Scope {
     }
 
     function succeed() {
+        if (!Store.locked || fading)
+            return
         fails = 0
         message = ""
         face = ""
@@ -50,6 +60,9 @@ Scope {
         // a hyprlock stacked under this lock gets the session back and never sees the keyboard again
         Quickshell.execDetached(["pkill", "-USR1", "-x", "hyprlock"])
         fading = true
+        dissolve = 1
+        dissolving = Theme.motion > 0
+        dissolveEnd.restart()
         fadeOut.restart()
     }
 
@@ -139,6 +152,8 @@ Scope {
                 return
             }
             root.releasing = false
+            root.dissolving = false
+            root.lockedAt = Date.now()
             fallback.armed = true
             stacked.running = true
             root.poke()
@@ -236,8 +251,41 @@ Scope {
         onTriggered: root.release()
     }
 
+    Variants {
+        model: Quickshell.screens
+        Dissolve {
+            required property var modelData
+            screen: modelData
+            lock: root
+        }
+    }
+
+    NumberAnimation {
+        id: melt
+        target: root
+        property: "dissolve"
+        from: 1
+        to: 0
+        duration: Theme.durSlow
+        easing.type: Easing.InOutCubic
+        onFinished: root.dissolving = false
+    }
+
+    // whatever happens, nothing of the lock stays over the desktop
+    Timer {
+        id: dissolveEnd
+        interval: 1500
+        onTriggered: {
+            melt.stop()
+            root.dissolving = false
+        }
+    }
+
     function release() {
         fading = false
+        if (dissolving) {
+            melt.restart()
+        }
         releasing = true
         watchdog.stop()
         fallback.armed = false
@@ -249,6 +297,8 @@ Scope {
         face = ""
         if (facePam.active)
             facePam.abort()
+        if (pam.active)
+            pam.abort()
         cleanup.running = true
     }
 

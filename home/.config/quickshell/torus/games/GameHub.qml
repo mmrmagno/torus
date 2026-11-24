@@ -17,6 +17,7 @@ PanelWindow {
     property string view: "games"
     property bool setting: false
     property bool clipSetting: false
+    readonly property bool covered: setting || clipSetting || cutting !== ""
 
     function setView(v) {
         if (view === "clips" && v !== "clips")
@@ -33,6 +34,7 @@ PanelWindow {
             return
         settings.open(g)
         setting = true
+        Qt.callLater(ghost.go, false)
     }
     property bool failed: false
     property string filter: ""
@@ -134,6 +136,8 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: frame
+            fresh: false
+            name: "games"
             shown: Store.isOpen("games")
         }
         anchors.fill: parent
@@ -230,6 +234,7 @@ PanelWindow {
                     }
                 }
                 Segmented {
+                    enabled: !root.covered
                     options: ["games", "clips"]
                     labels: ["Games", "Clips"]
                     current: root.view
@@ -241,6 +246,7 @@ PanelWindow {
                 }
                 PanelButton {
                     visible: root.view === "clips"
+                    enabled: !root.covered
                     icon: "󰒓"
                     implicitHeight: 28
                     activeFocusOnTab: false
@@ -248,7 +254,7 @@ PanelWindow {
                 }
                 Text {
                     visible: !!root.selected && root.view === "games"
-                    text: root.selected ? root.hours(root.selected.mins) + "  ·  " + root.ago(root.selected.last) : ""
+                    text: root.selected ? root.hours(root.selected.mins) + ", " + root.ago(root.selected.last) : ""
                     color: Theme.subtext
                     font.family: Theme.fontUi
                     font.pixelSize: Theme.fsSm
@@ -258,6 +264,7 @@ PanelWindow {
             ClipLibrary {
                 id: library
                 visible: root.view === "clips"
+                enabled: !root.covered
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 filter: root.filter
@@ -267,6 +274,7 @@ PanelWindow {
             GridView {
                 id: grid
                 visible: root.view === "games"
+                enabled: !root.covered
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
@@ -281,19 +289,22 @@ PanelWindow {
                     required property var modelData
                     required property int index
                     readonly property bool current: GridView.isCurrentItem
+                    readonly property alias cover: card
                     width: grid.cellWidth
                     height: grid.cellHeight
+                    opacity: motion.arrive(index)
 
                     ClippingRectangle {
                         id: card
+                        opacity: ghost.visible && settings.game && settings.game.id === cell.modelData.id ? 0 : 1
                         anchors.horizontalCenter: parent.horizontalCenter
                         y: 4
                         width: cell.width - 14
                         height: Math.floor(width * 1.5)
                         radius: Theme.rCard
                         color: Theme.surface0
-                        scale: cell.current ? 1.03 : (tileHover.hovered ? 1.015 : 1)
-                        Behavior on scale { NumberAnimation { duration: 120 } }
+                        scale: press.pressed && !cogHover.hovered ? 0.98 : cell.current ? 1.03 : (tileHover.hovered ? 1.015 : 1)
+                        Behavior on scale { NumberAnimation { duration: Theme.durFast } }
 
                         Rectangle {
                             id: jobBar
@@ -320,6 +331,7 @@ PanelWindow {
                                     text: jobBar.job ? (jobBar.job.kind === "download" ? "update " : "shaders ") + jobBar.job.pct + "%" : ""
                                     color: Theme.text
                                     font.family: Theme.fontUi
+                                    font.features: ({ "tnum": 1 })
                                     font.pixelSize: Theme.fsXs
                                 }
                             }
@@ -366,7 +378,7 @@ PanelWindow {
                             Behavior on color { ColorAnimation { duration: Theme.durFast } }
                             Text { anchors.centerIn: cog; text: "󰒓"; color: cogHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd }
                             HoverHandler { id: cogHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler {
+                            Tap {
                                 onTapped: {
                                     root.placing = false
                                     grid.currentIndex = cell.index
@@ -375,8 +387,9 @@ PanelWindow {
                             }
                         }
                         TapHandler {
+                            id: press
                             onTapped: (point, button) => {
-                                if (cog.visible && cog.contains(cog.mapFromItem(card, point.position)))
+                                if (Store.over(cog, card, point.position))
                                     return
                                 root.placing = false
                                 grid.currentIndex === cell.index ? root.launch(cell.modelData) : grid.currentIndex = cell.index
@@ -435,10 +448,54 @@ PanelWindow {
             id: settings
             anchors.fill: parent
             z: 9
-            visible: root.setting
+            visible: opacity > 0
+            opacity: root.setting ? 1 : 0
+            enabled: root.setting
+            landing: ghost.visible
+            Behavior on opacity { enabled: root.visible; NumberAnimation { duration: root.setting ? Theme.durMed : Theme.durExit; easing.type: Easing.OutCubic } }
             onClosed: {
                 root.setting = false
+                ghost.go(true)
                 search.forceActiveFocus()
+            }
+        }
+
+        ClippingRectangle {
+            id: ghost
+            property var a: null
+            property var b: null
+            property real p: 1
+            visible: p < 1 && a !== null && b !== null
+            z: 9
+            x: visible ? a.x + (b.x - a.x) * p : 0
+            y: visible ? a.y + (b.y - a.y) * p : 0
+            width: visible ? a.width + (b.width - a.width) * p : 1
+            height: visible ? a.height + (b.height - a.height) * p : 1
+            radius: Theme.rSm
+            color: Theme.surface0
+            Image {
+                anchors.fill: parent
+                source: settings.game && settings.game.art ? "file://" + settings.game.art : ""
+                sourceSize.width: 300
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+            }
+            NumberAnimation { id: ghostMove; target: ghost; property: "p"; from: 0; to: 1; duration: Theme.durEnter; easing.type: Easing.InOutCubic }
+
+            function go(back) {
+                ghostMove.stop()
+                p = 1
+                const cell = grid.currentItem
+                if (Theme.motion === 0 || !cell || !root.visible || root.setting === back || !settings.game || !settings.game.art || root.selected.id !== settings.game.id)
+                    return
+                const from = cell.cover.mapToItem(frame, 0, 0, cell.cover.width, cell.cover.height)
+                const to = settings.cover.mapToItem(frame, 0, 0, settings.cover.width, settings.cover.height)
+                const seen = from.y > grid.mapToItem(frame, 0, 0).y - from.height / 2 && from.y < grid.mapToItem(frame, 0, grid.height).y - from.height / 2
+                if (!seen)
+                    return
+                a = back ? to : from
+                b = back ? from : to
+                ghostMove.restart()
             }
         }
 

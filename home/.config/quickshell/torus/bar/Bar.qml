@@ -26,6 +26,18 @@ PanelWindow {
         shown = s
     }
 
+    function boxes() {
+        const out = {}
+        for (const l of loaders) {
+            if (!l.item || !l.visible)
+                continue
+            const p = l.mapToItem(null, 0, 0)
+            out[l.mid] = { x: Math.round(p.x), w: Math.round(l.width), hits: l.item.hits ? l.item.hits() : [] }
+        }
+        return { w: bar.width, h: bar.height, hole: bar.hole, modules: out }
+    }
+    Component.onCompleted: if (screen) Store.bars[screen.name] = boxes
+
     function register() {
         const ids = []
         for (const l of loaders)

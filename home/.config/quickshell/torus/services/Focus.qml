@@ -43,7 +43,7 @@ Singleton {
     function finish() {
         stop()
         Quickshell.execDetached(["sh", "-c", "pw-play --media-role Event /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || true"])
-        Quickshell.execDetached(["notify-send", "-a", "torus", "Focus done", "Take a break"])
+        Quickshell.execDetached(["notify-send", "-h", "int:x-torus-done:1", "-a", "torus", "Focus done", Math.round(total / 60) + " min, take a break"])
     }
 
     Timer {

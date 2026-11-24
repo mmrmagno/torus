@@ -122,7 +122,7 @@ OTPOF
 
 with tempfile.TemporaryDirectory(prefix="torus-notification-test-") as directory:
     root = Path(directory)
-    for rel in ("Theme.qml", "Feel.qml", "components/PanelButton.qml", "components/FocusRing.qml", "components/NotifIcon.qml", "notifications/NotifCard.qml"):
+    for rel in ("Theme.qml", "Feel.qml", "components/PanelButton.qml", "components/FocusRing.qml", "components/Tap.qml", "components/Press.qml", "components/NotifIcon.qml", "notifications/NotifCard.qml"):
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / rel, root / rel)
     (root / "services").mkdir()

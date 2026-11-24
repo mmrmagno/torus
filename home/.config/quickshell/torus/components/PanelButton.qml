@@ -44,7 +44,5 @@ Rectangle {
 
     FocusRing { on: root.activeFocus; baseRadius: root.radius }
     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-    TapHandler { id: tap; onTapped: root.clicked() }
-    scale: tap.pressed ? 0.95 : 1
-    Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutBack } }
+    Tap { onTapped: root.clicked() }
 }

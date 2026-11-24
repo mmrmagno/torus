@@ -5,7 +5,9 @@ import qs.components
 import qs.services
 
 Chip {
+    id: chip
+
     icon: "󰏘"
     tip: "Theme: flavour, accent, wallpaper"
-    onClicked: Store.toggleOn("theme", QsWindow.window ? QsWindow.window.screen : null)
+    onClicked: Store.toggleFrom("theme", chip)
 }

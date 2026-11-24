@@ -1,0 +1,2016 @@
+#!/usr/bin/env python3
+import collections
+import concurrent.futures as cf
+import hashlib
+import http.client
+import json
+import os
+import queue as queues
+import random
+import secrets
+import socket
+import struct
+import subprocess
+import sys
+import threading
+import time
+import unicodedata
+import urllib.error
+import urllib.parse
+import urllib.request
+
+HOME = os.path.expanduser("~")
+CFG = os.path.join(os.environ.get("XDG_CONFIG_HOME") or HOME + "/.config", "torus", "music.json")
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or HOME + "/.local/state", "torus", "music-queue.json")
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or HOME + "/.cache", "torus", "music")
+COVERS = os.path.join(CACHE, "covers")
+INDEX = os.path.join(CACHE, "local.json")
+BROWSE = os.path.join(CACHE, "browse.json")
+RUN = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "torus-music")
+CTL = os.path.join(RUN, "ctl.sock")
+MPV = os.path.join(RUN, "mpv.sock")
+AUDIO = {".flac", ".mp3", ".opus", ".ogg", ".oga", ".m4a", ".aac", ".wav", ".wv", ".aiff", ".aif", ".ape", ".mka"}
+BUS = "org.mpris.MediaPlayer2.torus_music"
+
+
+class Fail(Exception):
+    pass
+
+
+def out(obj):
+    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def write_private(path, data):
+    import tempfile
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".music-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def read_json(path, default):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def config():
+    c = read_json(CFG, {})
+    if not isinstance(c, dict):
+        c = {}
+    c.setdefault("folder", "~/Music")
+    servers = c.get("servers") if isinstance(c.get("servers"), list) else []
+    c["servers"] = [s for s in servers if isinstance(s, dict) and s.get("name") and s.get("url") and s.get("user")]
+    return c
+
+
+def folder(c=None):
+    return os.path.realpath(os.path.expanduser((c or config())["folder"]))
+
+
+def fold(s):
+    return "".join(ch for ch in unicodedata.normalize("NFKD", s or "") if not unicodedata.combining(ch)).casefold()
+
+
+def short(s):
+    return hashlib.sha1(s.encode("utf-8", "surrogateescape")).hexdigest()[:16]
+
+
+def secret_get(name):
+    try:
+        r = subprocess.run(["secret-tool", "lookup", "service", "torus-music", "server", name],
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        raise Fail("the keyring is not reachable (secret-tool)")
+    pw = r.stdout.rstrip("\n")
+    if r.returncode != 0 or not pw:
+        raise Fail("no password for " + name + " in the keyring")
+    return pw
+
+
+def secret_set(name, pw):
+    try:
+        r = subprocess.run(["secret-tool", "store", "--label=torus music " + name, "service", "torus-music", "server", name],
+                           input=pw, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        raise Fail("the keyring is not reachable (secret-tool)")
+    if r.returncode != 0:
+        raise Fail("the keyring refused the password")
+
+
+def secret_clear(name):
+    try:
+        subprocess.run(["secret-tool", "clear", "service", "torus-music", "server", name],
+                       capture_output=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+class Subsonic:
+    def __init__(self, srv, password=None):
+        self.name = srv["name"]
+        self.base = srv["url"].rstrip("/")
+        self.user = srv["user"]
+        self.tag = short("\0".join((self.name, self.base, self.user)))
+        self._pw = password
+        self._fail = None
+        self._fail_at = 0
+        self._idle = []
+        self._lock = threading.Lock()
+        p = urllib.parse.urlsplit(self.base)
+        if p.scheme not in ("http", "https") or not p.netloc:
+            raise Fail(self.name + ": the address must start with http:// or https://")
+
+    def pw(self):
+        if self._fail and time.time() - self._fail_at < 20:
+            raise self._fail
+        pw = self._pw
+        if pw is None:
+            try:
+                pw = self._pw = secret_get(self.name)
+            except Fail as e:
+                self._fail, self._fail_at = e, time.time()
+                raise
+        return pw
+
+    def url(self, endpoint, **kw):
+        salt = secrets.token_hex(8)
+        q = {"u": self.user, "t": hashlib.md5((self.pw() + salt).encode()).hexdigest(), "s": salt,
+             "v": "1.16.1", "c": "torus", "f": "json"}
+        q.update({k: v for k, v in kw.items() if v is not None})
+        return self.base + "/rest/" + endpoint + "?" + urllib.parse.urlencode(q, doseq=True)
+
+    def marker(self):
+        return os.path.join(RUN, "down-" + short(self.name))
+
+    def down(self):
+        try:
+            return time.time() - os.path.getmtime(self.marker()) < 60
+        except OSError:
+            return False
+
+    def get(self, url, timeout, limit, reuse=True):
+        p = urllib.parse.urlsplit(url)
+        if not urllib.request.getproxies():
+            while True:
+                conn, stale = None, []
+                with self._lock:
+                    while reuse and self._idle and conn is None:
+                        at, c = self._idle.pop()
+                        if time.monotonic() - at < 20:
+                            conn = c
+                        else:
+                            stale.append(c)
+                for c in stale:
+                    c.close()
+                reused = conn is not None
+                try:
+                    if reused:
+                        conn.sock.settimeout(min(timeout, 1.5))
+                    else:
+                        conn = (http.client.HTTPSConnection if p.scheme == "https" else http.client.HTTPConnection)(p.netloc, timeout=timeout)
+                    conn.request("GET", p.path + "?" + p.query, headers={"User-Agent": "torus-music"})
+                    r = conn.getresponse()
+                    data = r.read(limit)
+                except (http.client.HTTPException, OSError, AttributeError):
+                    if conn:
+                        conn.close()
+                    if reused:
+                        with self._lock:
+                            dead, self._idle = self._idle, []
+                        for _, c in dead:
+                            c.close()
+                        continue
+                    raise OSError("no answer")
+                if r.isclosed() and not r.will_close:
+                    with self._lock:
+                        if len(self._idle) < 8:
+                            self._idle.append((time.monotonic(), conn))
+                            conn = None
+                if conn:
+                    conn.close()
+                if r.status in (301, 302, 303, 307, 308):
+                    break
+                return r.status, r.headers.get("Content-Type") or "", data
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as r:
+                return r.status, r.headers.get("Content-Type") or "", r.read(limit)
+        except urllib.error.HTTPError as e:
+            return e.code, "", b""
+        except http.client.HTTPException:
+            raise OSError("no answer")
+
+    def call(self, endpoint, timeout=4, **kw):
+        if self.down():
+            raise Fail(self.name + " offline")
+        url = self.url(endpoint, **kw)
+        try:
+            status, _, data = self.get(url, timeout, 32 * 1024 * 1024, endpoint != "scrobble")
+            body = json.loads(data.decode("utf-8")) if status < 400 else None
+        except (OSError, ValueError):
+            os.makedirs(RUN, mode=0o700, exist_ok=True)
+            open(self.marker(), "w").close()
+            raise Fail(self.name + " offline")
+        if status >= 400:
+            raise Fail(self.name + ": HTTP " + str(status))
+        resp = body.get("subsonic-response") if isinstance(body, dict) else None
+        if not isinstance(resp, dict):
+            raise Fail(self.name + ": not a Subsonic server")
+        if resp.get("status") != "ok":
+            err = resp.get("error") or {}
+            code = err.get("code")
+            if code in (40, 41, 44):
+                self._pw = None
+                raise Fail(self.name + ": wrong user or password")
+            raise Fail(self.name + ": " + str(err.get("message") or "error"))
+        return resp
+
+    def cover_path(self, cover_id):
+        return os.path.join(COVERS, short(self.name) + "-" + short(str(cover_id)) + ".jpg")
+
+    def cover_have(self, cover_id):
+        path = self.cover_path(cover_id)
+        try:
+            return path if os.path.getsize(path) > 0 else ""
+        except OSError:
+            return ""
+
+    def cover(self, cover_id):
+        if not cover_id:
+            return ""
+        path = self.cover_path(cover_id)
+        if self.cover_have(cover_id):
+            return path
+        if self.down():
+            return ""
+        try:
+            status, ctype, data = self.get(self.url("getCoverArt", id=cover_id, size=400), 6, 8 * 1024 * 1024)
+        except OSError:
+            return ""
+        if status >= 400 or not ctype.startswith("image/") or not data:
+            return ""
+        import tempfile
+        try:
+            os.makedirs(COVERS, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=COVERS, prefix=".cover-")
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+            os.replace(tmp, path)
+        except OSError:
+            return path if os.path.isfile(path) else ""
+        return path
+
+    def track(self, s):
+        return {"source": self.name, "kind": "track", "id": str(s.get("id", "")), "title": s.get("title") or "",
+                "artist": s.get("artist") or "", "album": s.get("album") or "", "albumId": str(s.get("albumId") or ""),
+                "artistId": str(s.get("artistId") or ""), "year": s.get("year") or 0, "seconds": s.get("duration") or 0,
+                "coverId": s.get("coverArt") or "", "starred": bool(s.get("starred")), "track": s.get("track") or 0}
+
+    def album(self, a):
+        return {"source": self.name, "kind": "album", "id": str(a.get("id", "")), "title": a.get("name") or a.get("title") or "",
+                "artist": a.get("artist") or "", "artistId": str(a.get("artistId") or ""), "year": a.get("year") or 0,
+                "count": a.get("songCount") or 0, "seconds": a.get("duration") or 0, "coverId": a.get("coverArt") or "",
+                "starred": bool(a.get("starred"))}
+
+    def artist(self, a):
+        return {"source": self.name, "kind": "artist", "id": str(a.get("id", "")), "title": a.get("name") or "",
+                "count": a.get("albumCount") or 0, "coverId": a.get("coverArt") or ""}
+
+    def playlist(self, p):
+        return {"source": self.name, "kind": "playlist", "id": str(p.get("id", "")), "title": p.get("name") or "",
+                "count": p.get("songCount") or 0, "seconds": p.get("duration") or 0, "coverId": p.get("coverArt") or ""}
+
+    def albums_list(self, kind, size):
+        r = self.call("getAlbumList2", type=kind, size=size)
+        return [self.album(a) for a in (r.get("albumList2") or {}).get("album") or []]
+
+    def stream(self, track_id):
+        return self.url("stream", id=track_id, format="raw")
+
+
+def servers(c=None):
+    return [Subsonic(s) for s in (c or config())["servers"]]
+
+
+def server(name, c=None):
+    for s in (c or config())["servers"]:
+        if s["name"] == name:
+            return Subsonic(s)
+    raise Fail("no server named " + name)
+
+
+def probe(path):
+    try:
+        r = subprocess.run(["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", path],
+                           capture_output=True, timeout=20)
+        fmt = json.loads(r.stdout.decode("utf-8", "replace")).get("format") or {}
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+    tags = {k.lower(): v for k, v in (fmt.get("tags") or {}).items()}
+
+    def num(v):
+        try:
+            return int(str(v).split("/")[0])
+        except ValueError:
+            return 0
+    try:
+        dur = float(fmt.get("duration") or 0)
+    except ValueError:
+        dur = 0
+    return {"title": tags.get("title") or os.path.splitext(os.path.basename(path))[0], "artist": tags.get("artist") or "",
+            "albumartist": tags.get("album_artist") or tags.get("albumartist") or "", "album": tags.get("album") or "",
+            "year": num(tags.get("date") or tags.get("year") or 0), "track": num(tags.get("track") or 0),
+            "disc": num(tags.get("disc") or 0), "seconds": int(dur)}
+
+
+def dir_cover(d):
+    try:
+        names = os.listdir(d)
+    except OSError:
+        return ""
+    for stem in ("cover", "folder", "front", "album"):
+        for n in names:
+            b, e = os.path.splitext(n)
+            if b.lower() == stem and e.lower() in (".jpg", ".jpeg", ".png", ".webp"):
+                return os.path.join(d, n)
+    return ""
+
+
+def index(progress=False):
+    root = folder()
+    os.makedirs(CACHE, exist_ok=True)
+    lock = os.path.join(CACHE, "index.lock")
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.close(fd)
+    except FileExistsError:
+        if time.time() - os.path.getmtime(lock) < 600:
+            return read_json(INDEX, {})
+        os.utime(lock)
+    try:
+        old = read_json(INDEX, {}).get("files") or {}
+        found = {}
+        for d, dirs, files in os.walk(root, followlinks=False):
+            dirs[:] = [x for x in dirs if not x.startswith(".")]
+            for n in files:
+                if os.path.splitext(n)[1].lower() in AUDIO:
+                    p = os.path.join(d, n)
+                    if not os.path.realpath(p).startswith(root + os.sep):
+                        continue
+                    try:
+                        st = os.stat(p)
+                    except OSError:
+                        continue
+                    found[p] = int(st.st_mtime)
+        files = {p: old[p] for p, m in found.items() if p in old and old[p].get("m") == m}
+        todo = [p for p in found if p not in files]
+        done = 0
+        with cf.ThreadPoolExecutor(8) as pool:
+            for p, tags in zip(todo, pool.map(probe, todo)):
+                done += 1
+                if tags:
+                    tags["m"] = found[p]
+                    files[p] = tags
+                if progress and done % 50 == 0:
+                    print(str(done) + "/" + str(len(todo)), file=sys.stderr, flush=True)
+        covers = {}
+        for p, t in sorted(files.items()):
+            aid = short((t.get("albumartist") or t.get("artist") or "") + "\0" + (t.get("album") or os.path.dirname(p)))
+            if aid in covers:
+                continue
+            c = dir_cover(os.path.dirname(p))
+            if not c:
+                c = os.path.join(COVERS, "local-" + aid + ".jpg")
+                if not os.path.isfile(c):
+                    os.makedirs(COVERS, exist_ok=True)
+                    try:
+                        subprocess.run(["ffmpeg", "-v", "quiet", "-y", "-i", p, "-an", "-frames:v", "1", "-vf", "scale=400:-2",
+                                        c + ".part.jpg"], capture_output=True, timeout=20)
+                        if os.path.isfile(c + ".part.jpg") and os.path.getsize(c + ".part.jpg") > 0:
+                            os.replace(c + ".part.jpg", c)
+                    except (OSError, subprocess.TimeoutExpired):
+                        pass
+                    if not os.path.isfile(c):
+                        try:
+                            os.remove(c + ".part.jpg")
+                        except OSError:
+                            pass
+                        open(c, "w").close()
+                if os.path.getsize(c) == 0:
+                    c = ""
+            covers[aid] = c
+        data = {"root": root, "at": int(time.time()), "files": files, "covers": covers}
+        write_private(INDEX, data)
+        return data
+    finally:
+        try:
+            os.remove(lock)
+        except OSError:
+            pass
+
+
+def index_soon(data):
+    if data.get("root") == folder() and time.time() - data.get("at", 0) < 6 * 3600:
+        return
+    if os.path.exists(os.path.join(CACHE, "index.lock")):
+        return
+    try:
+        subprocess.Popen([sys.argv[0], "index"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
+class Local:
+    name = "local"
+
+    def __init__(self, kick=True):
+        self.at = time.time()
+        self.data = read_json(INDEX, {})
+        if kick:
+            index_soon(self.data)
+        root = folder()
+        if self.data.get("root") != root:
+            self.data = {}
+        self.covers = self.data.get("covers") or {}
+        self.rows = []
+        for p, t in (self.data.get("files") or {}).items():
+            if not os.path.isfile(p):
+                continue
+            aa = t.get("albumartist") or t.get("artist") or ""
+            aid = short(aa + "\0" + (t.get("album") or os.path.dirname(p)))
+            c = self.covers.get(aid) or ""
+            self.rows.append({"source": "local", "kind": "track", "id": p, "path": p, "title": t.get("title") or "",
+                              "artist": t.get("artist") or aa, "album": t.get("album") or "", "albumId": aid,
+                              "artistId": short(aa), "albumArtist": aa, "year": t.get("year") or 0,
+                              "seconds": t.get("seconds") or 0, "cover": c if c and os.path.isfile(c) else "",
+                              "track": t.get("track") or 0, "disc": t.get("disc") or 0, "m": t.get("m") or 0})
+        self._albums = self._artists = None
+        self._pick = {}
+        self.rows.sort(key=lambda r: (fold(r["albumArtist"]), fold(r["album"]), r["disc"], r["track"], fold(r["title"])))
+
+    def albums(self):
+        if self._albums is not None:
+            return list(self._albums)
+        seen = {}
+        for r in self.rows:
+            a = seen.get(r["albumId"])
+            if not a:
+                a = seen[r["albumId"]] = {"source": "local", "kind": "album", "id": r["albumId"], "title": r["album"] or "Unknown album",
+                                          "artist": r["albumArtist"], "artistId": r["artistId"], "year": r["year"], "count": 0,
+                                          "seconds": 0, "cover": r["cover"], "m": 0}
+            a["count"] += 1
+            a["seconds"] += r["seconds"]
+            a["m"] = max(a["m"], r["m"])
+        self._albums = list(seen.values())
+        return list(self._albums)
+
+    def artists(self):
+        if self._artists is not None:
+            return list(self._artists)
+        seen = {}
+        for a in self.albums():
+            x = seen.get(a["artistId"])
+            if not x:
+                x = seen[a["artistId"]] = {"source": "local", "kind": "artist", "id": a["artistId"], "title": a["artist"] or "Unknown artist",
+                                           "count": 0, "cover": a["cover"]}
+            x["count"] += 1
+        self._artists = sorted(seen.values(), key=lambda a: fold(a["title"]))
+        return list(self._artists)
+
+    def some_albums(self):
+        t, rows = self._pick.get("albums", (0, None))
+        if rows is None or time.time() - t > 1800:
+            al = self.albums()
+            rows = random.sample(al, min(12, len(al)))
+            self._pick["albums"] = (time.time(), rows)
+        return list(rows)
+
+    def find(self, words):
+        if not hasattr(self, "hay"):
+            self.hay = ([(fold(" ".join((r["title"], r["artist"], r["album"]))), r) for r in self.rows],
+                        [(fold(a["title"] + " " + a["artist"]), a) for a in self.albums()],
+                        [(fold(a["title"]), a) for a in self.artists()])
+        return [[r for h, r in part if all(w in h for w in words)][:n] for part, n in zip(self.hay, (40, 16, 8))]
+
+    def tracks_of(self, key, value):
+        return [r for r in self.rows if r[key] == value]
+
+
+def clean(rows):
+    return [{k: v for k, v in r.items() if k != "m"} for r in rows]
+
+
+def with_covers(rows, c=None):
+    by = {}
+    for s in servers(c):
+        by[s.name] = s
+    need = [r for r in rows if r.get("source") in by and not r.get("cover") and r.get("coverId")]
+    keys = sorted({(r["source"], str(r["coverId"])) for r in need})
+    if keys:
+        with cf.ThreadPoolExecutor(8) as pool:
+            got = dict(zip(keys, pool.map(lambda k: by[k[0]].cover(k[1]), keys)))
+        for r in need:
+            r["cover"] = got.get((r["source"], str(r["coverId"])), "")
+    for r in rows:
+        r.setdefault("cover", "")
+    return rows
+
+
+def wanted(src, name):
+    return src in ("all", "", None) or src == name
+
+
+SECTIONS = [("Recently added", "newest"), ("Starred", "starred"), ("Most played", "frequent"), ("Random", "random")]
+LISTS = ("albums", "artists", "playlists", "starred")
+
+
+def remote(s, what):
+    kind, _, arg = what.partition(":")
+    if kind == "home":
+        return s.albums_list(arg, 12)
+    if kind == "albums":
+        return s.albums_list("alphabeticalByArtist", 500)
+    if kind == "artists":
+        return [s.artist(a) for i in (s.call("getArtists").get("artists") or {}).get("index") or [] for a in i.get("artist") or []]
+    if kind == "playlists":
+        return [s.playlist(p) for p in (s.call("getPlaylists").get("playlists") or {}).get("playlist") or []]
+    if kind == "starred":
+        r = s.call("getStarred2").get("starred2") or {}
+        return [s.album(a) for a in r.get("album") or []] + [s.track(t) for t in r.get("song") or []]
+    if kind == "search":
+        r = s.call("search3", query=arg, artistCount=8, albumCount=16, songCount=40).get("searchResult3") or {}
+        return {"tracks": [s.track(t) for t in r.get("song") or []], "albums": [s.album(a) for a in r.get("album") or []],
+                "artists": [s.artist(a) for a in r.get("artist") or []]}
+    if kind == "open":
+        kind, _, ident = arg.partition(":")
+        if kind == "artist":
+            r = s.call("getArtist", id=ident).get("artist") or {}
+            top = []
+            try:
+                top = [s.track(t) for t in (s.call("getTopSongs", artist=r.get("name") or "", count=10).get("topSongs") or {}).get("song") or []]
+            except Fail:
+                pass
+            albums = sorted([s.album(a) for a in r.get("album") or []], key=lambda a: -(a["year"] or 0))
+            return {"head": s.artist(r), "albums": albums, "tracks": top}
+        tracks, head = tracks_for(kind, s.name, ident, s)
+        return {"head": head, "albums": [], "tracks": tracks}
+    raise Fail("unknown list " + what)
+
+
+def check(args):
+    if not args or not all(isinstance(a, str) for a in args):
+        raise Fail("bad request")
+    c = args[0]
+    if c in ("home",) + LISTS and len(args) <= 2:
+        return
+    if c == "search" and len(args) in (2, 3):
+        return
+    if c == "open" and len(args) == 4 and args[1] in ("album", "artist", "playlist"):
+        if args[2] == "local" and args[1] == "playlist":
+            raise Fail("local has no playlists")
+        return
+    raise Fail("unknown list " + c)
+
+
+def needs(args, names):
+    c = args[0]
+    if c == "open":
+        return [] if args[2] == "local" else [(args[2], "open:" + args[1] + ":" + args[3])]
+    src = args[2] if c == "search" and len(args) > 2 else args[1] if c != "search" and len(args) > 1 else "all"
+    mine = [n for n in names if wanted(src, n)]
+    if c == "home":
+        return [(n, "home:" + kind) for n in mine for _, kind in SECTIONS]
+    if c == "search":
+        return [(n, "search:" + args[1]) for n in mine] if fold(args[1]).split() else []
+    return [(n, c) for n in mine]
+
+
+def uses_local(args):
+    c = args[0]
+    if c == "open":
+        return args[2] == "local"
+    if c in ("playlists", "starred"):
+        return False
+    return wanted(args[2] if c == "search" and len(args) > 2 else args[1] if c != "search" and len(args) > 1 else "all", "local")
+
+
+def compose(args, names, lib, got, notes=()):
+    c = args[0]
+    notes = list(dict.fromkeys(notes))
+    if c == "home":
+        result = []
+        for title, kind in SECTIONS:
+            rows = []
+            if lib and kind == "newest":
+                rows += sorted(lib.albums(), key=lambda a: -a["m"])[:12]
+            if lib and kind == "random":
+                rows += lib.some_albums()
+            for n in names:
+                rows += got.get((n, "home:" + kind)) or []
+            if rows:
+                result.append({"title": title, "rows": clean(rows)})
+        return {"sections": result, "notes": notes, "local": len(lib.rows) if lib else 0,
+                "indexing": os.path.exists(os.path.join(CACHE, "index.lock")), "servers": list(names)}
+    if c == "search":
+        tracks, albums, artists = lib.find(fold(args[1]).split()) if lib and fold(args[1]).split() else ([], [], [])
+        for n in names:
+            r = got.get((n, "search:" + args[1])) or {}
+            tracks, albums, artists = tracks + (r.get("tracks") or []), albums + (r.get("albums") or []), artists + (r.get("artists") or [])
+        return {"artists": clean(artists), "albums": clean(albums), "tracks": clean(tracks), "notes": notes}
+    if c == "open":
+        kind, src, ident = args[1:]
+        if src != "local":
+            r = got.get((src, "open:" + kind + ":" + ident)) or {}
+            head = r.get("head")
+            return {"head": clean([head])[0] if head else None, "albums": clean(r.get("albums") or []), "tracks": clean(r.get("tracks") or [])}
+        if kind == "album":
+            head = next((a for a in lib.albums() if a["id"] == ident), None)
+            return {"head": clean([head])[0] if head else None, "albums": [], "tracks": clean(lib.tracks_of("albumId", ident))}
+        albums = sorted([a for a in lib.albums() if a["artistId"] == ident], key=lambda a: -(a["year"] or 0))
+        head = next((a for a in lib.artists() if a["id"] == ident), None)
+        return {"head": clean([head])[0] if head else None, "albums": clean(albums), "tracks": []}
+    rows = []
+    for n in names:
+        rows += got.get((n, c)) or []
+    if lib and c == "albums":
+        rows += lib.albums()
+    if lib and c == "artists":
+        rows += lib.artists()
+    if c == "albums":
+        rows.sort(key=lambda a: (fold(a["artist"]), fold(a["title"])))
+    elif c == "artists":
+        rows.sort(key=lambda a: fold(a["title"]))
+    return {"rows": clean(rows), "notes": notes}
+
+
+def all_rows(res):
+    rows = [res["head"]] if res.get("head") else []
+    for k in ("rows", "tracks", "albums", "artists"):
+        rows += res.get(k) or []
+    for s in res.get("sections") or []:
+        rows += s["rows"]
+    return rows
+
+
+def cmd_browse(args):
+    check(args)
+    c = config()
+    by = {s.name: s for s in servers(c)}
+    need = needs(args, by)
+    lib = Local() if uses_local(args) else None
+    got, notes = {}, []
+    with cf.ThreadPoolExecutor(8) as pool:
+        jobs = [(k, pool.submit(remote, by[k[0]], k[1])) for k in need if k[0] in by]
+        for k, j in jobs:
+            try:
+                got[k] = j.result()
+            except Fail as e:
+                if args[0] == "open":
+                    raise
+                notes.append(str(e))
+    if any(k[0] not in by for k in need):
+        raise Fail("no server named " + args[2])
+    res = compose(args, list(by), lib, got, notes)
+    with_covers(all_rows(res), c)
+    out(res)
+
+
+def tracks_for(kind, src, ident, s=None, lib=None):
+    if src == "local":
+        loc = lib or Local(kick=False)
+        if kind == "album":
+            return loc.tracks_of("albumId", ident), None
+        if kind == "artist":
+            return loc.tracks_of("artistId", ident), None
+        if kind == "track":
+            return loc.tracks_of("id", ident), None
+        raise Fail("local has no " + kind + "s")
+    s = s or server(src)
+    if kind == "album":
+        r = s.call("getAlbum", id=ident).get("album") or {}
+        return [s.track(t) for t in r.get("song") or []], s.album(r)
+    if kind == "playlist":
+        r = s.call("getPlaylist", id=ident).get("playlist") or {}
+        return [s.track(t) for t in r.get("entry") or []], s.playlist(r)
+    if kind == "track":
+        return [s.track(s.call("getSong", id=ident).get("song") or {})], None
+    if kind == "artist":
+        r = s.call("getArtist", id=ident).get("artist") or {}
+        rows = []
+        for a in r.get("album") or []:
+            try:
+                rows += [s.track(t) for t in (s.call("getAlbum", id=a.get("id")).get("album") or {}).get("song") or []]
+            except Fail:
+                pass
+        return rows, s.artist(r)
+    raise Fail("unknown kind " + kind)
+
+
+def pick_random(src, by, lib):
+    rows = random.sample(lib.rows, min(50, len(lib.rows))) if wanted(src, "local") else []
+    with cf.ThreadPoolExecutor(4) as pool:
+        jobs = [pool.submit(s.call, "getRandomSongs", size=50) for n, s in by.items() if wanted(src, n)]
+        for s, j in zip([s for n, s in by.items() if wanted(src, n)], jobs):
+            try:
+                rows += [s.track(t) for t in (j.result().get("randomSongs") or {}).get("song") or []]
+            except Fail:
+                pass
+    random.shuffle(rows)
+    return rows[:100]
+
+
+def cmd_login(name, url, user):
+    pw = sys.stdin.readline().rstrip("\r\n")
+    if not name or not url or not user or not pw:
+        raise Fail("name, address, user and password are all needed")
+    if "/" in name or len(name) > 40:
+        raise Fail("pick a short name without /")
+    s = Subsonic({"name": name, "url": url, "user": user}, password=pw)
+    try:
+        os.remove(s.marker())
+    except OSError:
+        pass
+    s.call("ping", timeout=8)
+    exts = []
+    try:
+        exts = [e.get("name") for e in s.call("getOpenSubsonicExtensions").get("openSubsonicExtensions") or []]
+    except Fail:
+        pass
+    secret_set(name, pw)
+    c = config()
+    c["servers"] = [x for x in c["servers"] if x["name"] != name] + [{"name": name, "url": s.base, "user": user}]
+    write_private(CFG, c)
+    out({"ok": True, "name": name, "opensubsonic": bool(exts)})
+
+
+def cmd_logout(name):
+    c = config()
+    c["servers"] = [x for x in c["servers"] if x["name"] != name]
+    write_private(CFG, c)
+    secret_clear(name)
+    out({"ok": True})
+
+
+def cmd_servers():
+    c = config()
+    res = []
+    for s in c["servers"]:
+        res.append({"name": s["name"], "url": s["url"], "user": s["user"]})
+    out({"servers": res, "folder": c["folder"], "local": len(Local().rows),
+         "indexing": os.path.exists(os.path.join(CACHE, "index.lock"))})
+
+
+def cmd_test(name):
+    s = server(name)
+    try:
+        os.remove(s.marker())
+    except OSError:
+        pass
+    s.call("ping", timeout=8)
+    out({"ok": True})
+
+
+def cmd_folder(path):
+    p = os.path.realpath(os.path.expanduser(path))
+    if not os.path.isdir(p):
+        raise Fail("not a folder: " + path)
+    c = config()
+    c["folder"] = path
+    write_private(CFG, c)
+    index_soon({})
+    out({"ok": True})
+
+
+def ctl(req, start=True):
+    for attempt in range(80):
+        try:
+            sk = socket.socket(socket.AF_UNIX)
+            sk.connect(CTL)
+            break
+        except OSError:
+            sk.close()
+            if not start:
+                raise Fail("torus music is not running")
+            if attempt == 0:
+                subprocess.run(["systemctl", "--user", "start", "--no-block", "torus-music.service"], capture_output=True)
+            time.sleep(0.1)
+    else:
+        raise Fail("torus music did not start")
+    if req.get("cmd") != "follow":
+        sk.settimeout(30)
+    sk.sendall((json.dumps(req) + "\n").encode())
+    f = sk.makefile("r", encoding="utf-8")
+    if req.get("cmd") == "follow":
+        for line in f:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+        return None
+    try:
+        line = f.readline()
+    except OSError:
+        raise Fail("torus music did not answer")
+    sk.close()
+    r = json.loads(line or "{}")
+    if r.get("error"):
+        raise Fail(r["error"])
+    return r
+
+
+def die_with_parent():
+    import ctypes
+    import signal
+    ctypes.CDLL(None).prctl(1, signal.SIGTERM)
+
+
+class Mpv:
+    def __init__(self, path, on_event):
+        self.path = path
+        self.on_event = on_event
+        self.lock = threading.Lock()
+        self.waiting = {}
+        self.next_id = 1
+        self.events = queues.Queue()
+        threading.Thread(target=self.dispatch, daemon=True).start()
+        for _ in range(100):
+            try:
+                self.sk = socket.socket(socket.AF_UNIX)
+                self.sk.connect(path)
+                break
+            except OSError:
+                self.sk.close()
+                time.sleep(0.05)
+        else:
+            raise Fail("mpv did not start")
+        threading.Thread(target=self.reader, daemon=True).start()
+
+    def reader(self):
+        f = self.sk.makefile("r", encoding="utf-8", errors="replace")
+        for line in f:
+            try:
+                m = json.loads(line)
+            except ValueError:
+                continue
+            rid = m.get("request_id")
+            if rid in self.waiting:
+                slot = self.waiting.pop(rid)
+                slot[1] = m
+                slot[0].set()
+            elif "event" in m:
+                self.events.put(m)
+        os._exit(3)
+
+    def dispatch(self):
+        while True:
+            m = self.events.get()
+            try:
+                self.on_event(m)
+            except Exception as e:
+                print("torus-music: event failed: " + type(e).__name__, file=sys.stderr)
+
+    def cmd(self, *args, timeout=5):
+        with self.lock:
+            rid = self.next_id
+            self.next_id += 1
+            slot = [threading.Event(), None]
+            self.waiting[rid] = slot
+            self.sk.sendall((json.dumps({"command": list(args), "request_id": rid}) + "\n").encode())
+        if not slot[0].wait(timeout):
+            self.waiting.pop(rid, None)
+            return None
+        m = slot[1]
+        return m.get("data") if m.get("error") == "success" else None
+
+    def get(self, prop):
+        return self.cmd("get_property", prop)
+
+    def set(self, prop, value):
+        return self.cmd("set_property", prop, value)
+
+
+MPRIS_XML = """
+<node>
+ <interface name="org.mpris.MediaPlayer2">
+  <method name="Raise"/><method name="Quit"/>
+  <property name="CanQuit" type="b" access="read"/><property name="CanRaise" type="b" access="read"/>
+  <property name="HasTrackList" type="b" access="read"/><property name="Identity" type="s" access="read"/>
+  <property name="DesktopEntry" type="s" access="read"/>
+  <property name="SupportedUriSchemes" type="as" access="read"/><property name="SupportedMimeTypes" type="as" access="read"/>
+ </interface>
+ <interface name="org.mpris.MediaPlayer2.Player">
+  <method name="Next"/><method name="Previous"/><method name="Pause"/><method name="PlayPause"/>
+  <method name="Stop"/><method name="Play"/>
+  <method name="Seek"><arg direction="in" name="Offset" type="x"/></method>
+  <method name="SetPosition"><arg direction="in" name="TrackId" type="o"/><arg direction="in" name="Position" type="x"/></method>
+  <method name="OpenUri"><arg direction="in" name="Uri" type="s"/></method>
+  <signal name="Seeked"><arg name="Position" type="x"/></signal>
+  <property name="PlaybackStatus" type="s" access="read"/><property name="Rate" type="d" access="readwrite"/>
+  <property name="Metadata" type="a{sv}" access="read"/><property name="Volume" type="d" access="readwrite"/>
+  <property name="Position" type="x" access="read"/><property name="MinimumRate" type="d" access="read"/>
+  <property name="MaximumRate" type="d" access="read"/><property name="CanGoNext" type="b" access="read"/>
+  <property name="CanGoPrevious" type="b" access="read"/><property name="CanPlay" type="b" access="read"/>
+  <property name="CanPause" type="b" access="read"/><property name="CanSeek" type="b" access="read"/>
+  <property name="CanControl" type="b" access="read"/>
+ </interface>
+</node>
+"""
+
+
+class Covers:
+    def __init__(self, landed):
+        self.landed = landed
+        self.cond = threading.Condition()
+        self.todo = collections.deque()
+        self.busy = set()
+        self.failed = {}
+        self.threads = 0
+
+    def fill(self, rows, by):
+        need = []
+        for r in rows:
+            if r.get("cover"):
+                continue
+            s = by.get(r.get("source"))
+            cid = str(r.get("coverId") or "")
+            r["cover"] = s.cover_have(cid) if s and cid else ""
+            if s and cid and not r["cover"]:
+                need.append((s, cid))
+        self.want(need)
+
+    def want(self, need):
+        with self.cond:
+            fresh = []
+            for s, cid in need:
+                k = (s.tag, cid)
+                if k not in self.busy and time.time() - self.failed.get(k, 0) > 300:
+                    self.busy.add(k)
+                    fresh.append((s, cid))
+            self.todo.extendleft(reversed(fresh))
+            while self.threads < min(8, len(self.todo)):
+                self.threads += 1
+                threading.Thread(target=self.work, daemon=True).start()
+            self.cond.notify_all()
+
+    def work(self):
+        while True:
+            with self.cond:
+                while not self.todo:
+                    if not self.cond.wait(30):
+                        self.threads -= 1
+                        return
+                s, cid = self.todo.popleft()
+            path = ""
+            try:
+                path = s.cover(cid)
+            except Exception:
+                pass
+            with self.cond:
+                self.busy.discard((s.tag, cid))
+                if path:
+                    self.failed.pop((s.tag, cid), None)
+                elif not s.down():
+                    self.failed[(s.tag, cid)] = time.time()
+            if path:
+                self.landed(s.name, cid, path)
+
+
+class Shelf:
+    TTL = {"search": 60, "open": 60}
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.pool = cf.ThreadPoolExecutor(8)
+        self.inflight = {}
+        self.born = {}
+        self.dirty = False
+        self.data = {}
+        saved = read_json(BROWSE, [])
+        for e in saved if isinstance(saved, list) else []:
+            try:
+                self.data[(str(e["tag"]), str(e["what"]))] = [float(e["t"]), e["value"]]
+            except (KeyError, TypeError, ValueError):
+                pass
+
+    def value(self, s, what):
+        e = self.data.get((s.tag, what))
+        return e[1] if e else None
+
+    def has(self, s, what):
+        return (s.tag, what) in self.data
+
+    def fresh(self, s, what):
+        e = self.data.get((s.tag, what))
+        return bool(e) and time.time() - e[0] < self.TTL.get(what.partition(":")[0], 1800 if what == "home:random" else 20)
+
+    def fetch(self, s, what):
+        k = (s.tag, what)
+        with self.lock:
+            f = self.inflight.get(k)
+            if f is None:
+                f = self.inflight[k] = self.pool.submit(self.work, s, what)
+        return f
+
+    def work(self, s, what):
+        k = (s.tag, what)
+        born = self.born.get(s.tag, 0)
+        try:
+            v = remote(s, what)
+            with self.lock:
+                old = self.data.get(k)
+                self.data[k] = [time.time() if born == self.born.get(s.tag, 0) else 0, v]
+                if what.partition(":")[0] not in self.TTL and (not old or old[1] != v):
+                    self.dirty = True
+                extra = [x for x in self.data if x[1].partition(":")[0] in self.TTL]
+                for x in sorted(extra, key=lambda x: self.data[x][0])[:max(0, len(extra) - 200)]:
+                    del self.data[x]
+            return v
+        finally:
+            with self.lock:
+                self.inflight.pop(k, None)
+
+    def expire(self, tag):
+        with self.lock:
+            self.born[tag] = self.born.get(tag, 0) + 1
+            for k, e in self.data.items():
+                if k[0] == tag and k[1] != "home:random":
+                    e[0] = 0
+
+    def save(self, tags):
+        with self.lock:
+            if not self.dirty:
+                return
+            self.dirty = False
+            keep = [{"tag": k[0], "what": k[1], "t": e[0], "value": e[1]} for k, e in self.data.items()
+                    if k[0] in tags and k[1].partition(":")[0] not in self.TTL]
+        try:
+            write_private(BROWSE, keep)
+        except OSError:
+            pass
+
+
+class Peer:
+    def __init__(self, conn):
+        self.conn = conn
+        self.follow = False
+        self.multi = False
+        self.out = queues.Queue(400)
+        self.jobs = [queues.Queue(), queues.Queue()]
+        self.started = [False, False]
+        conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDTIMEO, struct.pack("ll", 5, 0))
+        threading.Thread(target=self.writer, daemon=True).start()
+
+    def send(self, obj):
+        try:
+            self.out.put_nowait((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8", "replace"))
+        except queues.Full:
+            self.close()
+
+    def writer(self):
+        while True:
+            line = self.out.get()
+            if line is None:
+                return
+            try:
+                self.conn.sendall(line)
+            except OSError:
+                self.close()
+                return
+
+    def job(self, fn, slow=False):
+        if not self.started[slow]:
+            self.started[slow] = True
+            threading.Thread(target=self.runner, args=(self.jobs[slow],), daemon=True).start()
+        self.jobs[slow].put(fn)
+
+    def runner(self, jobs):
+        while True:
+            fn = jobs.get()
+            if fn is None:
+                return
+            fn()
+
+    def lines(self):
+        buf = b""
+        while True:
+            at = buf.find(b"\n")
+            if at >= 0:
+                yield buf[:at].decode("utf-8", "replace")
+                buf = buf[at + 1:]
+                continue
+            if len(buf) > 4 * 1024 * 1024:
+                return
+            data = self.conn.recv(65536)
+            if not data:
+                return
+            buf += data
+
+    def close(self):
+        try:
+            self.conn.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+
+class Daemon:
+    def __init__(self):
+        os.makedirs(RUN, mode=0o700, exist_ok=True)
+        os.chmod(RUN, 0o700)
+        for p in (MPV, CTL):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        self.lock = threading.RLock()
+        self.queue = []
+        self.pos = -1
+        self.paused = False
+        self.idle = True
+        self.ready = False
+        self.time = 0.0
+        self.duration = 0.0
+        self.version = 0
+        self.played = 0.0
+        self.last_tick = None
+        self.scrobbled = False
+        self.restore_seek = None
+        self.volume = 1.0
+        self.muted = False
+        self.volume_due = 0
+        self.volume_was = []
+        self.volume_watch = False
+        self.peers = set()
+        self.playing = None
+        self.cfg = config()
+        self.cfg_key = None
+        self.cfg_lock = threading.Lock()
+        self.clients = {}
+        self.lib = None
+        self.lib_key = None
+        self.lib_kick = 0
+        self.lib_lock = threading.Lock()
+        self.shelf = Shelf()
+        self.covers = Covers(self.cover_landed)
+        self.browsers = cf.ThreadPoolExecutor(12)
+        self.up = threading.Event()
+        self.mpv = None
+        self.bus = None
+
+    def start(self):
+        self.proc = subprocess.Popen(["mpv", "--idle=yes", "--no-video", "--no-terminal", "--config=no", "--load-scripts=no",
+                                      "--ytdl=no", "--input-default-bindings=no", "--input-ipc-server=" + MPV,
+                                      "--gapless-audio=weak", "--replaygain=album", "--prefetch-playlist=yes",
+                                      "--audio-client-name=torus-music", "--audio-display=no", "--force-window=no"],
+                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     preexec_fn=die_with_parent)
+        threading.Thread(target=self.watch_mpv, daemon=True).start()
+        self.mpv = Mpv(MPV, self.event)
+        os.chmod(MPV, 0o600)
+        for i, p in enumerate(("playlist-pos", "pause", "duration", "idle-active", "current-ao")):
+            self.mpv.cmd("observe_property", i + 1, p)
+        self.restore()
+        self.ready = True
+        self.up.set()
+        self.push(True)
+        threading.Thread(target=self.ticker, daemon=True).start()
+
+    def refresh(self):
+        try:
+            st = os.stat(CFG)
+            k = (st.st_mtime_ns, st.st_ino, st.st_size)
+        except OSError:
+            k = ()
+        with self.cfg_lock:
+            if k != self.cfg_key:
+                self.cfg_key = k
+                self.cfg = config()
+                self.clients = {}
+                for s in self.cfg["servers"]:
+                    try:
+                        self.clients[s["name"]] = Subsonic(s)
+                    except Fail:
+                        pass
+            return dict(self.clients)
+
+    def library(self):
+        self.refresh()
+        root = folder(self.cfg)
+        with self.lib_lock:
+            try:
+                st = os.stat(INDEX)
+                k = (root, st.st_mtime_ns, st.st_ino)
+            except OSError:
+                k = (root, 0, 0)
+            if self.lib is None or k != self.lib_key:
+                self.lib = Local(kick=False)
+                self.lib_key = k
+            if time.time() - self.lib_kick > 60:
+                self.lib_kick = time.time()
+                index_soon(self.lib.data)
+            return self.lib
+
+    def cover_landed(self, name, cid, path):
+        with self.lock:
+            touched = False
+            for r in self.queue:
+                if r.get("source") == name and str(r.get("coverId") or "") == cid and not r.get("cover"):
+                    r["cover"] = path
+                    touched = touched or r is self.current()
+        self.tell({"cover": {"source": name, "coverId": cid, "path": path}})
+        if touched:
+            self.mpris_changed()
+
+    def tell(self, obj):
+        for p in list(self.peers):
+            if p.multi:
+                p.send(obj)
+
+    def browse(self, args, send):
+        check(args)
+        by = self.refresh()
+        need = needs(args, by)
+        for k in need:
+            if k[0] not in by:
+                raise Fail("no server named " + k[0])
+        lib = self.library() if uses_local(args) else None
+        names = list(by)
+
+        def build(notes):
+            got = {k: self.shelf.value(by[k[0]], k[1]) for k in need}
+            res = compose(args, names, lib, got, notes)
+            self.covers.fill(all_rows(res), by)
+            return res
+        missing = [k for k in need if not self.shelf.has(by[k[0]], k[1])]
+        old = [k for k in need if not self.shelf.fresh(by[k[0]], k[1])]
+        if not old:
+            send(dict(build([]), more=False))
+            return
+        first = None
+        if not missing or lib or len(missing) < len(need):
+            first = build([])
+            if not missing or all_rows(first):
+                send(dict(first, more=True))
+            else:
+                first = None
+        jobs = [(k, self.shelf.fetch(by[k[0]], k[1])) for k in old]
+        notes = []
+        for k, j in jobs:
+            try:
+                j.result()
+            except Fail as e:
+                if args[0] == "open" and not self.shelf.has(by[k[0]], k[1]):
+                    raise
+                notes.append(str(e))
+        last = build(notes)
+        send({"same": True, "more": False} if first is not None and dict(first, indexing=0) == dict(last, indexing=0) else dict(last, more=False))
+        self.shelf.save({s.tag for s in by.values()})
+
+    def warm(self):
+        by = self.refresh()
+        for what in ("albums", "artists", "playlists") + tuple("home:" + k for _, k in SECTIONS):
+            for s in by.values():
+                if not self.shelf.fresh(s, what):
+                    self.shelf.fetch(s, what)
+        self.library().find(["\0"])
+
+    def star(self, src, ident, on):
+        s = self.refresh().get(src)
+        if not s:
+            raise Fail("no server named " + str(src))
+        s.call("star" if on else "unstar", id=ident)
+        self.shelf.expire(s.tag)
+        with self.lock:
+            for r in self.queue:
+                if r["source"] == src and r["id"] == ident:
+                    r["starred"] = on
+            self.changed()
+
+    def setup(self):
+        self.refresh()
+        lib = self.library()
+        return {"servers": [{k: s[k] for k in ("name", "url", "user")} for s in self.cfg["servers"]], "folder": self.cfg["folder"],
+                "local": len(lib.rows), "indexing": os.path.exists(os.path.join(CACHE, "index.lock"))}
+
+    def watch_mpv(self):
+        self.proc.wait()
+        os._exit(4)
+
+    def client(self, name):
+        s = self.refresh().get(name)
+        if not s:
+            raise Fail("no server named " + str(name))
+        return s
+
+    def valid(self, r):
+        if not isinstance(r, dict) or not isinstance(r.get("id"), str) or not r["id"]:
+            return None
+        src = r.get("source")
+        if src == "local":
+            p = os.path.realpath(r.get("path") or r["id"])
+            root = folder(self.cfg)
+            if not (p.startswith(root + os.sep) and os.path.isfile(p)):
+                return None
+            r["path"] = r["id"] = p
+        elif not any(s["name"] == src for s in self.cfg["servers"]):
+            return None
+        keep = ("source", "id", "path", "title", "artist", "album", "albumId", "artistId", "seconds", "cover", "coverId", "starred")
+        return {k: r[k] for k in keep if k in r}
+
+    def uri(self, r):
+        if r["source"] == "local":
+            return r["path"]
+        return self.client(r["source"]).stream(r["id"])
+
+    def load(self, rows, mode):
+        n = 0
+        for r in rows:
+            try:
+                u = self.uri(r)
+            except Fail:
+                continue
+            if mode == "next":
+                at = max(0, self.pos + 1 + n) if self.pos >= 0 else len(self.queue)
+                res = self.mpv.cmd("loadfile", u, "insert-at", at)
+            else:
+                at = len(self.queue)
+                res = self.mpv.cmd("loadfile", u, "append")
+            if not isinstance(res, dict) or "playlist_entry_id" not in res:
+                continue
+            r["eid"] = res["playlist_entry_id"]
+            self.queue.insert(at, r)
+            n += 1
+        return n
+
+    def resolve(self, req):
+        by = self.refresh()
+        what = req.get("what")
+        if what == "rows":
+            rows = req.get("rows") or []
+        elif what == "random":
+            rows = pick_random(req.get("source") or "all", by, self.library())
+        else:
+            src, ident = req.get("source"), str(req.get("id"))
+            s = by.get(src)
+            if src != "local" and not s:
+                raise Fail("no server named " + str(src))
+            if s and what in ("album", "playlist"):
+                key = "open:" + what + ":" + ident
+                v = self.shelf.value(s, key) if self.shelf.fresh(s, key) else self.shelf.fetch(s, key).result()
+                rows = v["tracks"]
+            else:
+                rows, _ = tracks_for(what, src, ident, s, self.library() if src == "local" else None)
+        rows = [dict(r) for r in rows if isinstance(r, dict)]
+        for r in rows:
+            s = by.get(r.get("source"))
+            if s and not r.get("cover"):
+                r["cover"] = s.cover_have(r.get("coverId")) if r.get("coverId") else ""
+        start = int(req.get("start") or 0)
+        kept = [(i, v) for i, v in ((i, self.valid(dict(r))) for i, r in enumerate(rows[:2000]) if isinstance(r, dict)) if v]
+        rows = [v for _, v in kept]
+        req["start"] = next((k for k, (i, _) in enumerate(kept) if i >= start), 0)
+        if req.get("shuffle"):
+            random.shuffle(rows)
+        return rows
+
+    def handle(self, req):
+        c = req.get("cmd")
+        if not self.up.wait(10):
+            raise Fail("torus music did not start")
+        if c in ("play", "add", "next"):
+            rows = self.resolve(req)
+            if not rows:
+                raise Fail("nothing to play")
+            with self.lock:
+                if c == "play":
+                    start = max(0, min(int(req.get("start") or 0), len(rows) - 1))
+                    self.mpv.cmd("stop")
+                    self.mpv.cmd("playlist-clear")
+                    self.queue = []
+                    self.pos = -1
+                    self.load(rows, "append")
+                    self.mpv.set("pause", False)
+                    self.mpv.cmd("playlist-play-index", start)
+                else:
+                    first = len(self.queue)
+                    self.load(rows, c)
+                    if self.pos < 0 and c == "add" and first < len(self.queue):
+                        self.mpv.set("pause", False)
+                        self.mpv.cmd("playlist-play-index", first)
+                self.changed()
+            return {"ok": True, "count": len(rows)}
+        if c == "toggle":
+            if self.pos < 0 and self.queue:
+                self.mpv.set("pause", False)
+                self.mpv.cmd("playlist-play-index", 0)
+            else:
+                self.mpv.cmd("cycle", "pause")
+        elif c == "pause":
+            self.mpv.set("pause", True)
+        elif c == "resume":
+            self.mpv.set("pause", False)
+        elif c == "skip":
+            self.mpv.cmd("playlist-next", "force")
+        elif c == "prev":
+            if (self.mpv.get("time-pos") or 0) > 3 or self.pos <= 0:
+                self.mpv.cmd("seek", 0, "absolute")
+                self.seeked(0)
+            else:
+                self.mpv.cmd("playlist-prev", "force")
+        elif c == "seek":
+            to = float(req.get("to") or 0)
+            self.mpv.cmd("seek", to, "absolute")
+            self.seeked(to)
+        elif c == "jump":
+            i = int(req.get("index"))
+            if 0 <= i < len(self.queue):
+                self.mpv.set("pause", False)
+                self.mpv.cmd("playlist-play-index", i)
+        elif c == "remove":
+            i = int(req.get("index"))
+            with self.lock:
+                if 0 <= i < len(self.queue):
+                    self.mpv.cmd("playlist-remove", i)
+                    self.queue.pop(i)
+                    self.changed()
+        elif c == "move":
+            a, b = int(req.get("from")), int(req.get("to"))
+            with self.lock:
+                if 0 <= a < len(self.queue) and 0 <= b < len(self.queue) and a != b:
+                    self.mpv.cmd("playlist-move", a, b + 1 if b > a else b)
+                    self.queue.insert(b, self.queue.pop(a))
+                    self.changed()
+        elif c == "clear":
+            with self.lock:
+                self.mpv.cmd("stop")
+                self.mpv.cmd("playlist-clear")
+                self.queue = []
+                self.pos = -1
+                self.changed()
+        elif c == "starset":
+            self.star(req.get("source"), str(req.get("id")), bool(req.get("on")))
+        elif c == "star":
+            r = self.current()
+            if not r or r["source"] == "local":
+                raise Fail("only server tracks can be starred")
+            self.star(r["source"], r["id"], not r.get("starred"))
+        elif c == "volume":
+            self.set_volume(req.get("to"), req.get("muted"))
+        elif c == "raise":
+            self.raise_panel()
+        elif c != "state":
+            raise Fail("unknown command")
+        return self.snapshot(True)
+
+    def current(self):
+        return self.queue[self.pos] if 0 <= self.pos < len(self.queue) else None
+
+    def snapshot(self, full):
+        s = {"pos": self.pos, "paused": self.paused or self.idle, "time": round(self.time, 1), "duration": round(self.duration, 1),
+             "version": self.version, "volume": round(self.volume, 3), "muted": self.muted}
+        if full:
+            s["queue"] = [{k: v for k, v in r.items() if k not in ("path", "eid")} for r in self.queue]
+        return s
+
+    def set_volume(self, to=None, muted=None):
+        with self.lock:
+            if to is not None:
+                self.volume = max(0.0, min(1.0, float(to)))
+            if muted is not None:
+                self.muted = bool(muted)
+            now = self.stream_volume()
+            if self.volume_due == 0 or now is None:
+                self.volume_was = []
+            if now is not None:
+                self.volume_was += [now, (self.volume, self.muted)]
+            self.volume_due = 3
+            self.apply_volume()
+            self.save()
+            self.push(False)
+            watch = now is not None and not self.volume_watch
+            self.volume_watch = self.volume_watch or watch
+        if watch:
+            threading.Thread(target=self.heard, daemon=True).start()
+        self.mpris_changed({"Volume": ("d", self.volume)})
+
+    # once the stream has the new level, whatever comes next is the mixer's
+    def heard(self):
+        for _ in range(20):
+            time.sleep(0.03)
+            try:
+                now = self.stream_volume()
+            except Exception:
+                break
+            with self.lock:
+                if now and abs(now[0] - self.volume) < 0.006 and now[1] == self.muted:
+                    self.volume_due = 0
+                    self.volume_was = []
+                    self.volume_watch = False
+                    return
+        with self.lock:
+            self.volume_watch = False
+
+    def stream_volume(self):
+        v = self.mpv.get("ao-volume")
+        return (max(0.0, min(1.0, v / 100)) ** (1 / 3), bool(self.mpv.get("ao-mute"))) if isinstance(v, (int, float)) else None
+
+    # ao-volume is linear, PipeWire and the mixer show the cubic value
+    def apply_volume(self):
+        if self.mpv.get("ao-volume") is not None:
+            self.mpv.set("ao-volume", self.volume ** 3 * 100)
+            self.mpv.set("ao-mute", self.muted)
+
+    def follow_volume(self):
+        now = self.stream_volume()
+        if now is None:
+            return
+        v, m = now
+        with self.lock:
+            same = abs(v - self.volume) < 0.006 and m == self.muted
+            # only a stream that has not heard the last change yet is told again, a value nobody set here is the mixer's
+            if same:
+                self.volume_due = 0
+            elif self.volume_due > 0 and (not self.volume_was or any(abs(v - x) < 0.006 and m == y for x, y in self.volume_was)):
+                self.volume_due -= 1
+                self.apply_volume()
+            else:
+                self.volume, self.muted = v, m
+                self.volume_due = 0
+                self.save()
+                self.push(False)
+                self.mpris_changed({"Volume": ("d", self.volume)})
+
+    def changed(self):
+        self.version += 1
+        self.save()
+        self.push(True)
+        self.mpris_changed()
+
+    def push(self, full):
+        on = [p for p in list(self.peers) if p.follow]
+        if on:
+            s = self.snapshot(full)
+            for p in on:
+                p.send(s)
+
+    def save(self):
+        if not self.ready:
+            return
+        keep = []
+        for r in self.queue:
+            r = dict(r)
+            r.pop("eid", None)
+            if r.get("source") != "local":
+                r.pop("cover", None)
+            keep.append(r)
+        try:
+            write_private(STATE, {"queue": keep, "pos": self.pos, "time": round(self.time, 1),
+                                  "volume": round(self.volume, 3), "muted": self.muted, "volumeDue": self.volume_due > 0})
+        except OSError:
+            pass
+
+    def restore(self):
+        s = read_json(STATE, {})
+        if isinstance(s.get("volume"), (int, float)):
+            self.volume = max(0.0, min(1.0, float(s["volume"])))
+            self.muted = s.get("muted") is True
+            self.volume_due = 3 if s.get("volumeDue") else 0
+        saved = s.get("queue") if isinstance(s.get("queue"), list) else []
+        want = s.get("pos") if isinstance(s.get("pos"), int) else 0
+        rows, pos = [], -1
+        for i, r in enumerate(saved):
+            v = self.valid(dict(r)) if isinstance(r, dict) else None
+            if not v:
+                continue
+            if pos < 0 and i >= want:
+                pos = len(rows)
+            v["_at"] = len(rows)
+            rows.append(v)
+        if not rows:
+            return
+        with self.lock:
+            self.load(rows, "append")
+            pos = next((k for k, r in enumerate(self.queue) if r.get("_at", -1) >= pos), -1) if pos >= 0 else -1
+            for r in self.queue:
+                r.pop("_at", None)
+            if 0 <= pos < len(self.queue):
+                self.restore_seek = float(s.get("time") or 0)
+                self.mpv.set("pause", True)
+                self.mpv.cmd("playlist-play-index", pos)
+                self.pos = pos
+            self.version += 1
+
+    def event(self, m):
+        e = m.get("event")
+        if e == "property-change":
+            n, d = m.get("name"), m.get("data")
+            with self.lock:
+                if n == "playlist-pos":
+                    new = d if isinstance(d, int) else -1
+                    if new != self.pos:
+                        self.pos = new
+                        self.save()
+                        self.push(False)
+                        self.mpris_changed()
+                elif n == "pause":
+                    self.paused = bool(d)
+                    self.save()
+                    self.push(False)
+                    self.mpris_changed()
+                elif n == "duration":
+                    self.duration = float(d or 0)
+                    self.push(False)
+                    self.mpris_changed()
+                elif n == "idle-active":
+                    self.idle = bool(d)
+                    self.push(False)
+                    self.mpris_changed()
+                elif n == "current-ao" and d and self.volume_due > 0:
+                    self.apply_volume()
+        elif e == "start-file":
+            eid = m.get("playlist_entry_id")
+            with self.lock:
+                if eid == self.playing:
+                    return
+                self.playing = eid
+                self.played = 0.0
+                self.scrobbled = False
+                self.time = 0.0
+                self.last_tick = None
+                r = next((x for x in self.queue if x.get("eid") == eid), None)
+            if r:
+                threading.Thread(target=self.now_playing, args=(r,), daemon=True).start()
+        elif e == "file-loaded" and self.restore_seek:
+            t, self.restore_seek = self.restore_seek, None
+            self.mpv.cmd("seek", t, "absolute")
+        elif e == "end-file" and m.get("reason") == "error":
+            with self.lock:
+                r = self.current()
+            title = (r or {}).get("title") or "a track"
+            self.flash("Could not play " + title + ", skipped")
+
+    def flash(self, text):
+        try:
+            subprocess.Popen(["qs", "-c", "torus", "ipc", "call", "torus", "islandFlash", "osd", text],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            pass
+
+    def raise_panel(self):
+        try:
+            subprocess.Popen(["qs", "-c", "torus", "ipc", "call", "torus", "musicOpen"],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            pass
+
+    def now_playing(self, r):
+        if r["source"] == "local":
+            return
+        try:
+            s = self.client(r["source"])
+            s.call("scrobble", id=r["id"], submission="false")
+        except Fail:
+            pass
+        if not r.get("cover") and r.get("coverId"):
+            try:
+                self.covers.want([(self.client(r["source"]), str(r["coverId"]))])
+            except Fail:
+                pass
+
+    def ticker(self):
+        n = 0
+        while True:
+            time.sleep(1)
+            n += 1
+            try:
+                self.tick(n)
+            except Exception as e:
+                print("torus-music: tick failed: " + type(e).__name__, file=sys.stderr)
+
+    def tick(self, n):
+        if n % 5 == 0:
+            self.shelf.save({s.tag for s in self.refresh().values()})
+        t = self.mpv.get("time-pos")
+        self.follow_volume()
+        with self.lock:
+            if isinstance(t, (int, float)):
+                if not self.paused and not self.idle and self.last_tick is not None and 0 <= t - self.last_tick <= 2.5:
+                    self.played += t - self.last_tick
+                self.last_tick = t
+                self.time = float(t)
+            r = self.current()
+            due = r and not self.scrobbled and self.duration > 0 and self.played >= min(self.duration / 2, 240)
+            if due:
+                self.scrobbled = True
+            if not self.paused and not self.idle:
+                self.push(False)
+            if n % 10 == 0 and not self.paused:
+                self.save()
+        if due and r["source"] != "local":
+            try:
+                self.client(r["source"]).call("scrobble", id=r["id"], submission="true", time=int(time.time() * 1000))
+            except Fail:
+                pass
+
+    # mpv seeks later than it answers: its own time-pos is still the old one here
+    def seeked(self, to):
+        if self.bus:
+            from gi.repository import GLib
+            us = int(to * 1e6)
+            GLib.idle_add(lambda: self.bus.emit_signal(None, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player",
+                                                       "Seeked", GLib.Variant("(x)", (us,))) and False)
+
+    def metadata(self):
+        from gi.repository import GLib
+        r = self.current()
+        if not r:
+            return {"mpris:trackid": GLib.Variant("o", "/org/mpris/MediaPlayer2/TrackList/NoTrack")}
+        md = {"mpris:trackid": GLib.Variant("o", "/org/torus/music/track/" + str(self.pos) + "_" + str(self.version)),
+              "xesam:title": GLib.Variant("s", r.get("title") or ""),
+              "xesam:artist": GLib.Variant("as", [r.get("artist") or ""]),
+              "xesam:album": GLib.Variant("s", r.get("album") or ""),
+              "mpris:length": GLib.Variant("x", int((self.duration or r.get("seconds") or 0) * 1e6))}
+        if r.get("cover") and os.path.isfile(r["cover"]):
+            md["mpris:artUrl"] = GLib.Variant("s", "file://" + urllib.parse.quote(r["cover"]))
+        return md
+
+    def status(self):
+        if self.pos < 0 or self.idle:
+            return "Stopped"
+        return "Paused" if self.paused else "Playing"
+
+    def player_props(self):
+        from gi.repository import GLib
+        return {"PlaybackStatus": GLib.Variant("s", self.status()), "Metadata": GLib.Variant("a{sv}", self.metadata()),
+                "CanGoNext": GLib.Variant("b", self.pos + 1 < len(self.queue)), "CanGoPrevious": GLib.Variant("b", self.pos >= 0),
+                "CanPlay": GLib.Variant("b", bool(self.queue)), "CanPause": GLib.Variant("b", bool(self.queue)),
+                "CanSeek": GLib.Variant("b", self.pos >= 0)}
+
+    def mpris_changed(self, extra=None):
+        if not self.bus:
+            return
+        from gi.repository import GLib
+
+        def emit():
+            with self.lock:
+                props = self.player_props()
+            for k, (sig, v) in (extra or {}).items():
+                props[k] = GLib.Variant(sig, v)
+            self.bus.emit_signal(None, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "PropertiesChanged",
+                                 GLib.Variant("(sa{sv}as)", ("org.mpris.MediaPlayer2.Player", props, [])))
+            return False
+        GLib.idle_add(emit)
+
+    def mpris(self):
+        try:
+            import gi
+            gi.require_version("Gio", "2.0")
+            from gi.repository import Gio, GLib
+        except (ImportError, ValueError):
+            return None
+        node = Gio.DBusNodeInfo.new_for_xml(MPRIS_XML)
+        loop = GLib.MainLoop()
+
+        def call(conn, sender, path, iface, method, params, inv):
+            act = {"Next": {"cmd": "skip"}, "Previous": {"cmd": "prev"}, "Pause": {"cmd": "pause"}, "Play": {"cmd": "resume"},
+                   "PlayPause": {"cmd": "toggle"}, "Stop": {"cmd": "pause"}, "Raise": {"cmd": "raise"}}.get(method)
+            try:
+                if act:
+                    threading.Thread(target=self.handle, args=(act,), daemon=True).start()
+                elif method == "Seek":
+                    cur = self.mpv.get("time-pos") or 0
+                    threading.Thread(target=self.handle, args=({"cmd": "seek", "to": max(0, cur + params[0] / 1e6)},), daemon=True).start()
+                elif method == "SetPosition":
+                    threading.Thread(target=self.handle, args=({"cmd": "seek", "to": max(0, params[1] / 1e6)},), daemon=True).start()
+            except Exception:
+                pass
+            inv.return_value(None)
+
+        def get(conn, sender, path, iface, prop):
+            with self.lock:
+                if iface == "org.mpris.MediaPlayer2":
+                    v = {"CanQuit": GLib.Variant("b", False), "CanRaise": GLib.Variant("b", True),
+                         "HasTrackList": GLib.Variant("b", False), "Identity": GLib.Variant("s", "torus music"),
+                         "DesktopEntry": GLib.Variant("s", "torus-music"), "SupportedUriSchemes": GLib.Variant("as", []),
+                         "SupportedMimeTypes": GLib.Variant("as", [])}
+                    return v.get(prop)
+                if prop in ("Rate", "MinimumRate", "MaximumRate"):
+                    return GLib.Variant("d", 1.0)
+                if prop == "Volume":
+                    return GLib.Variant("d", self.volume)
+                if prop == "Position":
+                    return GLib.Variant("x", int((self.mpv.get("time-pos") or 0) * 1e6))
+                if prop == "CanControl":
+                    return GLib.Variant("b", True)
+                return self.player_props().get(prop)
+
+        def setp(conn, sender, path, iface, prop, value):
+            if prop == "Volume":
+                threading.Thread(target=self.handle, args=({"cmd": "volume", "to": value.unpack()},), daemon=True).start()
+                return True
+            return False
+
+        def bus_up(conn, name):
+            self.bus = conn
+            for i in node.interfaces:
+                conn.register_object("/org/mpris/MediaPlayer2", i, call, get, setp)
+
+        Gio.bus_own_name(Gio.BusType.SESSION, BUS, Gio.BusNameOwnerFlags.NONE, bus_up, None, lambda c, n: None)
+        return loop
+
+    def serve(self):
+        srv = socket.socket(socket.AF_UNIX)
+        old = os.umask(0o177)
+        srv.bind(CTL)
+        os.umask(old)
+        srv.listen(8)
+        while True:
+            conn, _ = srv.accept()
+            threading.Thread(target=self.session, args=(conn,), daemon=True).start()
+
+    def answer(self, peer, req):
+        rid = req.get("rid")
+
+        def send(obj):
+            peer.send(dict(obj, rid=rid))
+        try:
+            args = req.get("args")
+            if not isinstance(args, list) or not args or not all(isinstance(a, str) for a in args):
+                raise Fail("bad request")
+            if args[0] == "setup":
+                send(self.setup())
+            elif args[0] == "warm":
+                self.warm()
+                send({"ok": True})
+            elif args[0] in ("home", "search", "open") + LISTS:
+                self.browse(args, send)
+            else:
+                send(self.handle(request(args)))
+        except Fail as e:
+            send({"error": str(e), "more": False})
+        except (ValueError, TypeError, AttributeError, KeyError, IndexError):
+            send({"error": "bad request", "more": False})
+        except Exception as e:
+            print("torus-music: request failed: " + type(e).__name__, file=sys.stderr)
+            send({"error": "torus music failed", "more": False})
+
+    def talk(self, peer, req):
+        if "follow" in req:
+            peer.follow = bool(req["follow"])
+            if peer.follow:
+                with self.lock:
+                    peer.send(self.snapshot(True))
+            return
+        args = req.get("args")
+        first = args[0] if isinstance(args, list) and args else None
+        if first in ("home", "search", "open", "setup", "warm") + LISTS:
+            self.browsers.submit(self.answer, peer, req)
+        elif first in ("star", "starset"):
+            threading.Thread(target=self.answer, args=(peer, req), daemon=True).start()
+        elif first in ("play", "add", "next"):
+            peer.job(lambda: self.answer(peer, req), slow=True)
+        else:
+            peer.job(lambda: self.answer(peer, req))
+
+    def session(self, conn):
+        peer = Peer(conn)
+        try:
+            for line in peer.lines():
+                try:
+                    req = json.loads(line or "{}")
+                except ValueError:
+                    break
+                if not isinstance(req, dict):
+                    break
+                if "rid" in req or "follow" in req:
+                    peer.multi = True
+                    self.peers.add(peer)
+                    self.talk(peer, req)
+                    continue
+                if req.get("cmd") == "follow":
+                    with self.lock:
+                        peer.follow = True
+                        peer.send(self.snapshot(True))
+                        self.peers.add(peer)
+                    continue
+                try:
+                    r = self.handle(req)
+                except Fail as e:
+                    r = {"error": str(e)}
+                except (ValueError, TypeError):
+                    r = {"error": "bad request"}
+                conn.sendall((json.dumps(r, ensure_ascii=False) + "\n").encode())
+                break
+        except (OSError, ValueError):
+            pass
+        finally:
+            self.peers.discard(peer)
+            peer.close()
+            peer.out.put(None) if not peer.out.full() else None
+            for q in peer.jobs:
+                q.put(None)
+            conn.close()
+
+    def run(self):
+        threading.Thread(target=self.serve, daemon=True).start()
+        self.start()
+        loop = self.mpris()
+        if loop:
+            loop.run()
+        else:
+            threading.Event().wait()
+
+
+def request(a):
+    c, rest = a[0], a[1:]
+    if c in ("play", "add", "next") and rest:
+        what = rest[0]
+        req = {"cmd": c, "what": what}
+        if what == "rows":
+            req["rows"] = json.loads(rest[1])
+            req["start"] = int(rest[2]) if len(rest) > 2 else 0
+        elif what == "random":
+            req["source"] = rest[1] if len(rest) > 1 else "all"
+        elif len(rest) >= 3:
+            req.update({"source": rest[1], "id": rest[2], "start": int(rest[3]) if len(rest) > 3 else 0})
+            if what == "artist":
+                req["shuffle"] = True
+        else:
+            return None
+        return req
+    if c in ("toggle", "pause", "resume", "skip", "prev", "clear", "star", "state"):
+        return {"cmd": c}
+    if c == "seek" and rest:
+        return {"cmd": "seek", "to": float(rest[0])}
+    if c == "volume" and rest:
+        return {"cmd": "volume", "muted": rest[0] == "mute"} if rest[0] in ("mute", "unmute") else {"cmd": "volume", "to": float(rest[0])}
+    if c in ("jump", "remove") and rest:
+        return {"cmd": c, "index": int(rest[0])}
+    if c == "move" and len(rest) == 2:
+        return {"cmd": "move", "from": int(rest[0]), "to": int(rest[1])}
+    if c == "starset" and len(rest) == 3:
+        return {"cmd": "starset", "source": rest[0], "id": rest[1], "on": rest[2] == "1"}
+    return None
+
+
+USAGE = """usage: torus-music COMMAND
+  browse:  home|albums|artists|playlists|starred [SOURCE], search QUERY [SOURCE], open album|artist|playlist SOURCE ID
+  play:    play|add|next album|artist|playlist|track SOURCE ID [START], play|add|next rows JSON [START], play random [SOURCE]
+  control: toggle|pause|resume|skip|prev|seek SECONDS|jump N|remove N|move FROM TO|clear|star|state|follow
+           volume 0..1|mute|unmute
+  setup:   servers, login NAME URL USER (password on stdin), logout NAME, test NAME, folder PATH, index
+  service: daemon"""
+
+
+def main(a):
+    if not a:
+        print(USAGE, file=sys.stderr)
+        return 2
+    c, rest = a[0], a[1:]
+    if c == "daemon":
+        Daemon().run()
+    elif c in ("home", "search", "open") + LISTS:
+        cmd_browse(a)
+    elif request(a):
+        out(ctl(request(a), start=c in ("play", "add", "next", "toggle", "pause", "resume", "skip", "prev", "clear", "star", "volume", "starset")))
+    elif c == "follow":
+        ctl({"cmd": "follow"}, start=False)
+    elif c == "servers":
+        cmd_servers()
+    elif c == "login" and len(rest) == 3:
+        cmd_login(*rest)
+    elif c == "logout" and rest:
+        cmd_logout(rest[0])
+    elif c == "test" and rest:
+        cmd_test(rest[0])
+    elif c == "folder" and rest:
+        cmd_folder(rest[0])
+    elif c == "index":
+        d = index(progress=True)
+        out({"ok": True, "tracks": len(d.get("files") or {})})
+    else:
+        print(USAGE, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Fail as e:
+        out({"error": str(e)})
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except BrokenPipeError:
+        sys.exit(0)

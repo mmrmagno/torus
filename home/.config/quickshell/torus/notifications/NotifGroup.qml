@@ -21,7 +21,7 @@ ColumnLayout {
     transform: Translate { id: slide; x: 0 }
     SequentialAnimation {
         running: group.leaving
-        PauseAnimation { duration: Math.max(0, group.order) * 45 }
+        PauseAnimation { duration: Math.max(0, group.order) * 45 * Theme.motion }
         ParallelAnimation {
             NumberAnimation { target: slide; property: "x"; to: group.width; duration: Theme.durMed; easing.type: Easing.InCubic }
             NumberAnimation { target: group; property: "opacity"; to: 0; duration: Theme.durMed }
@@ -99,7 +99,7 @@ ColumnLayout {
                 color: muteHover.hovered ? Theme.accent : Theme.surface0
                 Text { id: muteText; anchors.centerIn: parent; text: parent.modelData[0]; color: muteHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
                 HoverHandler { id: muteHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler {
+                Tap {
                     onTapped: {
                         const m = parent.modelData[1]
                         Notifs.mute(group.app, m < 0 ? Notifs.untilTomorrow() : m)
@@ -124,9 +124,10 @@ ColumnLayout {
         visible: !group.open
         Layout.leftMargin: 4
         text: "+" + (group.entry.threads.length - 1) + " more"
-        color: Theme.overlay
+        color: moreHover.hovered ? Theme.text : Theme.overlay
         font.family: Theme.fontUi
         font.pixelSize: Theme.fsSm
-        TapHandler { onTapped: Notifs.toggleGroup(group.entry.app) }
+        HoverHandler { id: moreHover; margin: 5; cursorShape: Qt.PointingHandCursor }
+        Tap { reach: 5; onTapped: Notifs.toggleGroup(group.entry.app) }
     }
 }

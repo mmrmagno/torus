@@ -226,7 +226,7 @@ hl.window_rule({
 local layers = any({ "torus-.*", "rofi", "selection" })
 hl.layer_rule({ name = "torus_layer_blur", match = { namespace = any({ "torus-bar", "torus-panel", "torus-notifications", "torus-osd", "torus-logout", "rofi" }) }, blur = true })
 hl.layer_rule({ name = "torus_layer_ignore_alpha", match = { namespace = layers }, ignore_alpha = 0 })
-hl.layer_rule({ name = "torus_layer_no_anim", match = { namespace = any({ "selection", "torus-panel", "torus-logout", "torus-notifications" }) }, no_anim = true })
+hl.layer_rule({ name = "torus_layer_no_anim", match = { namespace = any({ "selection", "torus-panel", "torus-logout", "torus-notifications", "torus-fly" }) }, no_anim = true })
 
 hl.window_rule({
 	name = "torus_games_keep_cursor",

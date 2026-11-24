@@ -41,6 +41,8 @@ PanelWindow {
         value: root.tab
     }
     property bool setting: false
+    onSettingChanged: if (setting) capFrame.forceActiveFocus()
+    onLookChanged: if (look !== "") capFrame.forceActiveFocus()
     property string look: ""
     onShownItemsChanged: if (sel >= shownItems.length) sel = shownItems.length - 1
     onSelChanged: {
@@ -176,12 +178,14 @@ PanelWindow {
             onStreamFinished: {
                 const lines = text.split("\n")
                 root.mic = (lines.shift() || "").trim()
-                root.mics = lines.filter(l => l.indexOf("\t") > 0).map(l => {
+                const found = lines.filter(l => l.indexOf("\t") > 0).map(l => {
                     const parts = l.split("\t")
                     const name = parts[0]
                     const label = parts[1] || name
                     return { name: name, label: name === "default_input" ? "Default mic" : label.replace(/ Analog Stereo| Digital Stereo.*$/, "") }
                 })
+                if (JSON.stringify(found) !== JSON.stringify(root.mics))
+                    root.mics = found
             }
         }
     }
@@ -327,6 +331,8 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: capFrame
+            fresh: false
+            name: "capture"
             shown: Store.isOpen("capture") && !Store.moving
         }
         radius: Theme.rPanel
@@ -337,6 +343,7 @@ PanelWindow {
 
         Flickable {
             id: flick
+            enabled: !root.setting && root.look === ""
             anchors.fill: parent
             anchors.margins: 15
             anchors.bottomMargin: 15 + hintBar.height + Theme.sp5
@@ -354,7 +361,7 @@ PanelWindow {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Theme.sp5
-                    Text { text: "󰄀"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 22 }
+                    Text { text: "󰄀"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
@@ -419,13 +426,11 @@ PanelWindow {
                             border.width: 1
                             border.color: actHover.hovered ? (rec ? Theme.red : Theme.accent) : Qt.alpha(Theme.surface1, 0.6)
                             Behavior on color { ColorAnimation { duration: Theme.durFast } }
-                            scale: actTap.pressed ? 0.96 : 1
-                            Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutBack } }
                             RowLayout {
                                 anchors.fill: parent
                                 anchors.margins: 12
                                 spacing: Theme.sp5
-                                Text { text: action.modelData[0]; color: action.rec ? Theme.red : Theme.accent; font.family: Theme.fontMono; font.pixelSize: 22 }
+                                Text { text: action.modelData[0]; color: action.rec ? Theme.red : Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 0
@@ -444,7 +449,7 @@ PanelWindow {
                                                 color: Qt.alpha(Theme.crust, 0.6)
                                                 border.width: 1
                                                 border.color: Qt.alpha(Theme.surface1, 0.8)
-                                                Text { id: keyText; anchors.centerIn: parent; text: parent.modelData; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: 9 }
+                                                Text { id: keyText; anchors.centerIn: parent; text: parent.modelData; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs - 1 }
                                             }
                                         }
                                     }
@@ -462,14 +467,14 @@ PanelWindow {
                                     }
                                 }
                             }
-                            TapHandler { id: actTap; onTapped: root.act(action.modelData[3]) }
+                            Tap { onTapped: root.act(action.modelData[3]) }
                         }
                     }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Text { text: "Recent"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase }
+                    SectionTitle { text: "Recent" }
                     Item { Layout.fillWidth: true }
                     Segmented {
                         options: ["all", "image", "video", "clip"]
@@ -546,7 +551,7 @@ PanelWindow {
             visible: root.setting
             title: "Capture settings"
             note: "Screenshots go to ~/Pictures/Screenshots, recordings to ~/Videos, game clips to ~/Videos/Clips"
-            rows: [{ key: "mic", label: "Mic in instant replay", note: root.mics.length > 0 ? "your voice in the clips the replay buffer saves" : "no microphone found", values: [""].concat(root.mics.map(m => m.name)), labels: ["Off"].concat(root.mics.map(m => m.label)) }]
+            rows: [{ key: "mic", pick: true, label: "Mic in instant replay", note: root.mics.length > 0 ? "your voice in the clips the replay buffer saves" : "no microphone found", values: [""].concat(root.mics.map(m => m.name)), labels: ["Off"].concat(root.mics.map(m => m.label)) }]
             values: ({ mic: root.mic })
             onPicked: (key, value) => root.pickMic(value)
             moreHints: capTrash.count > 0 ? [["Del", capTrash.armed ? "again: empty for good" : "empty trash"]] : []

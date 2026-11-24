@@ -85,7 +85,7 @@ Singleton {
                     w[key] = true
                     root.warned = w
                     if (!Store.dnd)
-                        Island.flash("notification", { summary: e.title, body: "in " + Math.ceil(mins) + " min" + (e.place ? " · " + e.place : ""), app: "Calendar", icon: "x-office-calendar", image: "", cat: "meeting" }, 9000)
+                        Island.flash("notification", { summary: e.title, body: "in " + Math.ceil(mins) + " min" + (e.place ? ", " + e.place : ""), app: "Calendar", icon: "x-office-calendar", image: "", cat: "meeting" }, 9000)
                 }
             }
         }

@@ -265,7 +265,7 @@ check_gpu() {
   if ((enc > 0)); then
     bad gpu "the video encoder hung $enc time$( ((enc == 1)) || echo s) this boot ($resets GPU reset$( ((resets == 1)) || echo s)), each one can take the session down: reboot; the replay buffer stays off until then"
   elif ((resets > 0)); then
-    bad gpu "$resets GPU reset$( ((resets == 1)) || echo s) this boot: a reboot gives a clean GPU"
+    bad gpu "$resets GPU reset$( ((resets == 1)) || echo s) this boot: a reboot gives a clean GPU, the replay buffer stays off until then"
   else
     ok gpu "no GPU resets this boot"
   fi

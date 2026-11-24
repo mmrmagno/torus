@@ -19,6 +19,8 @@ Singleton {
         } else {
             delete j[ev.id]
             root.last = ev.state + ":" + ev.name
+            if (ev.state === "done" && !Fullscreen.any && !Store.dnd)
+                Island.flash("notification", { summary: ev.name, body: "Downloaded", app: "Downloads", icon: "folder-download", image: "", cat: "notifications", done: true }, 1600)
         }
         jobs = j
     }

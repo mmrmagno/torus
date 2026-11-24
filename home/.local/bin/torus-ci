@@ -23,9 +23,9 @@ read -r conclusion name url < <(timeout 15 gh run view -R "$repo" "$id" --json c
 name=${name//_/ }
 short=${repo#*/}
 case $conclusion in
-  success) icon=emblem-ok-symbolic title="CI passed · $short" ;;
-  cancelled | skipped) icon=dialog-information title="CI $conclusion · $short" ;;
-  *) icon=dialog-error title="CI failed · $short" ;;
+  success) icon=emblem-ok-symbolic title="CI passed: $short" ;;
+  cancelled | skipped) icon=dialog-information title="CI $conclusion: $short" ;;
+  *) icon=dialog-error title="CI failed: $short" ;;
 esac
 a=$(notify-send -a "GitHub Actions" -i "$icon" -A open=Open "$title" "$name on $(git rev-parse --abbrev-ref HEAD 2> /dev/null)")
 [[ $a == open ]] && xdg-open "$url"

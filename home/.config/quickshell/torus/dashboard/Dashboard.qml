@@ -86,12 +86,13 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: dashFrame
+            name: "dashboard"
             shown: Store.isOpen("dashboard") && !Store.moving
         }
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(content.implicitHeight + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
+        height: Math.min(content.implicitHeight + 37 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.Top
         radius: Theme.rPanel
@@ -121,6 +122,7 @@ PanelWindow {
             rowSpacing: Theme.sp6
 
             Card {
+                opacity: motion.arrive(0)
                 Layout.fillWidth: true
                 Layout.preferredHeight: 150
                 Column {
@@ -131,6 +133,7 @@ PanelWindow {
                         text: Qt.formatDateTime(clock.date, "hh:mm")
                         color: Theme.accent
                         font.family: Theme.fontUi
+                        font.features: ({ "tnum": 1 })
                         font.pixelSize: Theme.fsDisplay
                         font.weight: Font.Bold
                     }
@@ -139,6 +142,7 @@ PanelWindow {
                         text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
                         color: Theme.subtext
                         font.family: Theme.fontUi
+                        font.features: ({ "tnum": 1 })
                         font.pixelSize: Theme.fsLg
                     }
                     Text {
@@ -156,6 +160,7 @@ PanelWindow {
             }
 
             Card {
+                opacity: motion.arrive(1)
                 title: Weather.place || "weather"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 150
@@ -168,9 +173,9 @@ PanelWindow {
                     spacing: Theme.sp3
                     Row {
                         spacing: Theme.sp6
-                        Text { text: Weather.icon; color: Theme.yellow; font.family: Theme.fontMono; font.pixelSize: 40 }
+                        Text { text: Weather.icon; color: Theme.yellow; font.family: Theme.fontMono; font.pixelSize: Theme.iconXl }
                         Column {
-                            Text { text: Weather.temp; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsHead; font.weight: Font.DemiBold }
+                            Text { text: Weather.temp; color: Theme.text; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsHead; font.weight: Font.DemiBold }
                             Text { text: Weather.ok ? Weather.desc + ", feels " + Weather.feels : Weather.desc; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
                         }
                     }
@@ -190,6 +195,7 @@ PanelWindow {
             }
 
             Card {
+                opacity: motion.arrive(2)
                 title: "system"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 150
@@ -203,12 +209,14 @@ PanelWindow {
             }
 
             Card {
+                opacity: motion.arrive(3)
                 Layout.fillWidth: true
                 Layout.preferredHeight: content.calRow
                 Calendar { id: cal; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top }
             }
 
             Card {
+                opacity: motion.arrive(4)
                 title: "quick settings"
                 Layout.fillWidth: true
                 Layout.preferredHeight: content.calRow
@@ -228,7 +236,10 @@ PanelWindow {
                         }
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: mouse => { if (parent.a) parent.a.volume = mouse.x / width }
+                            preventStealing: true
+                            cursorShape: Qt.PointingHandCursor
+                            onPressed: mouse => { if (parent.a) parent.a.volume = Math.max(0, Math.min(1, mouse.x / width)) }
+                            onPositionChanged: mouse => { if (pressed && parent.a) parent.a.volume = Math.max(0, Math.min(1, mouse.x / width)) }
                             onWheel: wheel => { if (parent.a) parent.a.volume = Math.max(0, Math.min(1.5, parent.a.volume + (wheel.angleDelta.y > 0 ? 0.05 : -0.05))) }
                         }
                     }
@@ -245,7 +256,7 @@ PanelWindow {
                         PanelButton { icon: "󰂛"; label: "DND"; active: Store.dnd; onClicked: Store.dnd = !Store.dnd }
                         PanelButton { icon: "󰊴"; label: "Game"; active: Store.gamemode; onClicked: Quickshell.execDetached(["torus-gamemode"]) }
                         PanelButton { icon: "󰖔"; label: "Night"; active: NightLight.on; onClicked: NightLight.toggle() }
-                        PanelButton { icon: "󰑓"; label: Session.on ? "Session: on" : "Session: off"; active: Session.on; onClicked: { Store.setOpen("dashboard", false); Store.setOpen("session", true) } }
+                        PanelButton { id: sessionBtn; icon: "󰑓"; label: Session.on ? "Session: on" : "Session: off"; active: Session.on; onClicked: { Store.setOpen("dashboard", false); Store.openFrom("session", sessionBtn) } }
                         PanelButton {
                             readonly property var names: ["Power saver", "Balanced", "Performance"]
                             icon: PowerProfiles.profile === PowerProfile.Performance ? "󰓅" : (PowerProfiles.profile === PowerProfile.PowerSaver ? "󰾆" : "󰾅")
@@ -253,13 +264,14 @@ PanelWindow {
                             active: PowerProfiles.profile === PowerProfile.Performance
                             onClicked: Island.cyclePower()
                         }
-                        PanelButton { icon: "󰏘"; label: "Theme"; onClicked: { Store.setOpen("dashboard", false); Store.setOpen("theme", true) } }
+                        PanelButton { id: themeBtn; icon: "󰏘"; label: "Theme"; onClicked: { Store.setOpen("dashboard", false); Store.openFrom("theme", themeBtn) } }
                         PanelButton { icon: "󰖲"; label: "Widgets: " + Store.widgets; active: Store.widgets !== "off"; onClicked: Store.setWidgets("next") }
                     }
                 }
             }
 
             Card {
+                opacity: motion.arrive(5)
                 title: "network"
                 Layout.fillWidth: true
                 Layout.preferredHeight: content.calRow
@@ -291,11 +303,13 @@ PanelWindow {
             }
 
             MediaCard {
+                opacity: motion.arrive(6)
                 Layout.fillWidth: true
                 Layout.columnSpan: content.columns
             }
 
             Card {
+                opacity: motion.arrive(7)
                 title: "displays"
                 visible: Displays.available
                 Layout.fillWidth: true
@@ -363,6 +377,7 @@ PanelWindow {
             }
 
             Card {
+                opacity: motion.arrive(8)
                 title: "battery"
                 visible: Island.hasBattery
                 Layout.fillWidth: true
@@ -375,8 +390,8 @@ PanelWindow {
                     spacing: Theme.sp7
                     Column {
                         spacing: Theme.sp1
-                        Text { text: root.battery.health >= 0 ? root.battery.health + "%" : "--"; color: root.battery.health >= 0 && root.battery.health < 70 ? Theme.peach : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsHead; font.weight: Font.DemiBold }
-                        Text { text: "health" + (root.battery.cycles > 0 ? "  ·  " + root.battery.cycles + " cycles" : ""); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+                        Text { text: root.battery.health >= 0 ? root.battery.health + "%" : "--"; color: root.battery.health >= 0 && root.battery.health < 70 ? Theme.peach : Theme.text; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsHead; font.weight: Font.DemiBold }
+                        Text { text: "health" + (root.battery.cycles > 0 ? ", " + root.battery.cycles + " cycles" : ""); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
                     }
                     Item { Layout.fillWidth: true }
                     Column {
@@ -407,12 +422,14 @@ PanelWindow {
             }
 
             Card {
+                opacity: motion.arrive(9)
                 title: "sound"
                 Layout.fillWidth: true
                 Layout.columnSpan: content.columns
                 Layout.preferredHeight: mixer.implicitHeight + 44
                 Mixer {
                     id: mixer
+                    host: dashFrame
                     anchors.left: parent.left
                     anchors.right: parent.right
                 }
@@ -420,7 +437,8 @@ PanelWindow {
 
 
             Card {
-                title: Island.recording ? "Recordings · recording now" : "Recordings"
+                opacity: motion.arrive(10)
+                title: Island.recording ? "Recordings, recording now" : "Recordings"
                 visible: Recordings.count > 0 || Island.recording
                 Layout.fillWidth: true
                 Layout.columnSpan: content.columns
@@ -446,14 +464,16 @@ PanelWindow {
                         onClicked: Quickshell.execDetached(["torus-launch", "xdg-open", Recordings.dir])
                     }
                     PanelButton {
+                        id: studioBtn
                         icon: "󰄀"
                         label: "Studio"
-                        onClicked: { Store.setOpen("dashboard", false); Store.setOpen("capture", true) }
+                        onClicked: { Store.setOpen("dashboard", false); Store.openFrom("capture", studioBtn) }
                     }
                 }
             }
 
             CommuteCard {
+                opacity: motion.arrive(11)
                 Layout.fillWidth: true
                 Layout.columnSpan: content.columns
                 Layout.preferredHeight: smoothHeight

@@ -2,7 +2,7 @@
 # Runs inside the dev VM. Idempotent: everything vm/parity.sh expects, so `torus-vm freeze dev <image>` keeps it.
 set -euo pipefail
 
-sudo pacman -S --needed --noconfirm mangohud vulkan-tools vulkan-swrast wf-recorder podman python-numpy ffmpeg wtype qrencode zbar chromium > /dev/null 2>&1
+sudo pacman -S --needed --noconfirm mangohud vulkan-tools vulkan-swrast wf-recorder podman python-numpy ffmpeg wtype qrencode zbar chromium mpv python-gobject libsecret gnome-keyring > /dev/null 2>&1
 
 mkdir -p ~/.config/hypr ~/.config/systemd/user
 cat > ~/.config/hypr/monitors.lua <<'EOF'

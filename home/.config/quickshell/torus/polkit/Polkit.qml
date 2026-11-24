@@ -71,6 +71,8 @@ Scope {
                         if (dialog.flow && dialog.flow.isResponseRequired) {
                             password.text = ""
                             password.forceActiveFocus()
+                            if (dialog.flow.failed)
+                                pwShake.go()
                         }
                     }
                 }
@@ -109,7 +111,7 @@ Scope {
                                 text: "Authentication required"
                                 color: Theme.text
                                 font.family: Theme.fontUi
-                                font.pixelSize: 17
+                                font.pixelSize: Theme.fsTitle
                                 font.weight: Font.DemiBold
                             }
                         }
@@ -139,6 +141,8 @@ Scope {
                             radius: Theme.rCard
                             color: Theme.surface0
                             border.width: 1
+                            transform: Translate { id: pwNudge }
+                            Shake { id: pwShake; nudge: pwNudge }
                             border.color: dialog.flow && dialog.flow.failed ? Theme.red : Qt.alpha(Theme.accent, password.activeFocus ? 0.7 : 0.2)
                             TextInput {
                                 id: password
@@ -193,8 +197,8 @@ Scope {
                                     font.family: Theme.fontUi
                                     font.pixelSize: Theme.fsBase
                                 }
-                                HoverHandler { id: cancelHover }
-                                TapHandler { onTapped: if (dialog.flow) dialog.flow.cancelAuthenticationRequest() }
+                                HoverHandler { id: cancelHover; cursorShape: Qt.PointingHandCursor }
+                                Tap { onTapped: if (dialog.flow) dialog.flow.cancelAuthenticationRequest() }
                             }
                             Rectangle {
                                 implicitWidth: 120
@@ -209,8 +213,8 @@ Scope {
                                     font.pixelSize: Theme.fsBase
                                     font.weight: Font.DemiBold
                                 }
-                                HoverHandler { id: okHover }
-                                TapHandler { onTapped: dialog.submit() }
+                                HoverHandler { id: okHover; cursorShape: Qt.PointingHandCursor }
+                                Tap { onTapped: dialog.submit() }
                             }
                         }
                     }

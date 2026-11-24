@@ -26,8 +26,8 @@ Provider {
         if (GitHub.status !== "ok" && GitHub.updated === 0)
             return [{ id: "gh:state", kind: "hint", glyph: "󰊤", title: GitHub.status === "signed-out" ? "gh is not signed in" : GitHub.status === "missing" ? "gh is not installed" : "loading GitHub…", sub: GitHub.status === "signed-out" ? "run gh auth login in a terminal" : "", act: () => {} }]
         const ci = c => c === "failure" || c === "error" ? "󰅚" : c === "pending" ? "󰔟" : c === "success" ? "󰄬" : "󰘬"
-        return GitHub.review.map(p => row("gh:" + p.url, "󰈈", p.title, p.repo + " #" + p.number + "  ·  " + p.author, p.url, "Review requests"))
+        return GitHub.review.map(p => row("gh:" + p.url, "󰈈", p.title, p.repo + " #" + p.number + " by " + p.author, p.url, "Review requests"))
             .concat(GitHub.failing.map(r => row("gh:" + r.url, "󰅚", r.repo, r.branch + " is failing", r.url, "Failing")))
-            .concat(GitHub.mine.map(p => row("gh:" + p.url, ci(p.ci), p.title, p.repo + " #" + p.number + (p.draft ? "  ·  draft" : "") + (p.ci ? "  ·  CI " + p.ci : ""), p.url, "My pull requests")))
+            .concat(GitHub.mine.map(p => row("gh:" + p.url, ci(p.ci), p.title, p.repo + " #" + p.number + (p.draft ? ", draft" : "") + (p.ci ? ", CI " + p.ci : ""), p.url, "My pull requests")))
     }
 }

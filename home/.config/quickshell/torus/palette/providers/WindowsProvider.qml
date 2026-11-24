@@ -54,7 +54,7 @@ Provider {
             const app = t.wayland && t.wayland.appId ? t.wayland.appId : ""
             const top = t
             const e = app ? DesktopEntries.heuristicLookup(app) : null
-            w.push({ id: "w", kind: "window", title: t.title || app, sub: app + " · workspace " + (t.workspace ? t.workspace.name : "?"), icon: e ? Quickshell.iconPath(e.icon, true) : "", enter: "focus",
+            w.push({ id: "w", kind: "window", title: t.title || app, sub: app + " on workspace " + (t.workspace ? t.workspace.name : "?"), icon: e ? Quickshell.iconPath(e.icon, true) : "", enter: "focus",
                 act: () => Store.focusWindow(top),
                 ctrl: { label: "window menu", keep: true, act: () => { const f = root.infoOf(top); if (f) root.menuFor(f, "") } } })
         }
@@ -88,7 +88,7 @@ Provider {
         opts.push(
             { glyph: f.floating ? "󰕴" : "󰉧", title: f.floating ? "Tile it" : "Float it", act: d('hl.dsp.window.float({ action = "toggle", ' + w + " })") },
             { glyph: "󰐃", title: "Pin on every workspace", sub: "floating windows only", hidden: !f.floating || f.full, act: d("hl.dsp.window.pin({ " + w + " })") },
-            { glyph: "󰘖", title: "Centre it", hidden: !f.floating || f.full, act: d("hl.dsp.window.center({ " + w + " })") },
+            { glyph: "󰘖", title: "Center it", hidden: !f.floating || f.full, act: d("hl.dsp.window.center({ " + w + " })") },
             { glyph: "󰊓", title: f.full ? "Leave fullscreen" : "Fullscreen", act: d("hl.dsp.window.fullscreen_state({ internal = " + (f.full ? 0 : 2) + ", client = " + (f.full ? 0 : 2) + ", " + w + " })") },
             { glyph: "󰕮", title: "Rules for " + f.cls, sub: "always float, workspace, monitor…", keep: true, act: () => { root.winFor = null; root.ruleFor = f } },
             { glyph: "󰅖", title: "Close it", act: d("hl.dsp.window.close({ " + w + " })") }

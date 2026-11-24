@@ -163,10 +163,18 @@ Singleton {
     property var screenOf: ({})
     property var pendingScreen: null
 
-    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games", "homelab", "draw"].concat(Feel.list("stay"))
-    readonly property var exclusive: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games"]
+    readonly property var stayPut: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games", "music", "homelab", "draw"].concat(Feel.list("stay"))
+    readonly property var exclusive: ["palette", "clip", "ai", "logout", "cheatsheet", "overview", "games", "music"]
     property var activeScreen: null
     property bool moving: false
+
+    // a little more than the button: it is smaller while it is pressed, and the row under it must not answer for it
+    function over(button, from, point) {
+        if (!button.visible)
+            return false
+        const q = button.mapFromItem(from, point.x, point.y)
+        return q.x > -6 && q.y > -6 && q.x < button.width + 6 && q.y < button.height + 6
+    }
 
     function screenFor(name) {
         return screenOf[name] || activeScreen || focusedScreen
@@ -204,17 +212,57 @@ Singleton {
 
     Timer {
         id: moveTimer
-        interval: Theme.durFast + 30
+        interval: Theme.durExit + 30
         onTriggered: {
             root.activeScreen = root.focusedScreen
             root.moving = false
         }
     }
 
-    function toggleOn(name, scr) {
-        pendingScreen = scr || null
-        toggle(name)
+    property var pendingFrom: null
+    property var popupSpot: null
+    property var musicSpots: ({})
+    property var motions: ({})
+    property int shakes: 0
+    property int doneRings: 0
+    property int sweeps: 0
+    property int dissolves: 0
+    property var picker: null
+    property var openedFrom: ({})
+
+    function placeOf(item, x, y) {
+        const w = item ? item.QsWindow.window : null
+        if (!w || !w.screen)
+            return null
+        const at = item.mapToItem(null, x, y)
+        if (!w.anchors)
+            return null
+        const a = w.anchors, m = w.margins, s = w.screen
+        const top = w.exclusionMode === ExclusionMode.Ignore || w.exclusiveZone !== 0 ? 0 : barReserved
+        const left = a.left ? m.left : a.right ? s.width - w.width - m.right : (s.width - w.width) / 2
+        const up = a.top ? top + m.top : a.bottom ? s.height - w.height - m.bottom : top + (s.height - top - w.height) / 2
+        return { x: at.x + left, y: at.y + up, screen: s.name }
+    }
+
+    function toggleFrom(name, item) {
+        pendingFrom = placeOf(item, item.width / 2, item.height / 2)
+        pendingScreen = item.QsWindow.window ? item.QsWindow.window.screen : null
+        if (isOpen(name) || Date.now() - (closedAt[name] || 0) >= 250)
+            setOpen(name, !isOpen(name))
+        pendingFrom = null
         pendingScreen = null
+    }
+
+    function openFrom(name, item) {
+        pendingFrom = placeOf(item, item.width / 2, item.height / 2)
+        setOpen(name, true)
+        pendingFrom = null
+    }
+
+    function originFor(name, frame) {
+        const from = openedFrom[name]
+        const at = from && frame.parent ? placeOf(frame.parent, frame.x, frame.y) : null
+        return at && at.screen === from.screen ? { x: from.x - at.x, y: from.y - at.y } : null
     }
 
     property bool sounds: false
@@ -265,6 +313,7 @@ Singleton {
         if (value && open[name] !== true && sounds)
             sound("open")
         if (value && open[name] !== true) {
+            openedFrom[name] = pendingFrom || (name === "center" && popupSpot ? popupSpot() : null)
             const so = Object.assign({}, screenOf)
             if (pendingScreen)
                 so[name] = pendingScreen
@@ -297,6 +346,11 @@ Singleton {
     property string captureSel: ""
     property string captureTab: ""
     property string hubSpot: ""
+    property var bars: ({})
+    property string musicSpot: ""
+    property int musicSel: -1
+    property var musicVol: null
+    property real songPart: 0
     property real recallSince: 0
 
     function recalls(name) {
@@ -315,8 +369,6 @@ Singleton {
     }
 
     function toggle(name) {
-        if (!isOpen(name) && Date.now() - (closedAt[name] || 0) < 250)
-            return
         setOpen(name, !isOpen(name))
     }
 

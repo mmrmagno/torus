@@ -22,6 +22,7 @@ RowLayout {
         color: Theme.text
         elide: Text.ElideMiddle
         font.family: Theme.fontUi
+        font.features: ({ "tnum": 1 })
         font.pixelSize: Theme.fsMd
     }
     Rectangle {
@@ -39,6 +40,6 @@ RowLayout {
             Text { text: "Undo"; color: undoHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
         }
         HoverHandler { id: undoHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: face.undo() }
+        Tap { onTapped: face.undo() }
     }
 }

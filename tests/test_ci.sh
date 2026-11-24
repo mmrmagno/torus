@@ -22,10 +22,10 @@ chmod +x "$F"/bin/*
 C=$REPO/home/.local/bin/torus-ci
 "$C" "$F/repo"
 grep -q "gh run list -R me/proj --commit $(git -C "$F/repo" rev-parse HEAD)" "$LOG" || fail "finds the run of the pushed commit"
-grep -q "notify -a GitHub Actions -i dialog-error -A open=Open CI failed · proj Build and test on main" "$LOG" || fail "failure notified: $(cat "$LOG")"
+grep -q "notify -a GitHub Actions -i dialog-error -A open=Open CI failed: proj Build and test on main" "$LOG" || fail "failure notified: $(cat "$LOG")"
 : > "$LOG"
 STUB_CONCLUSION=success "$C" "$F/repo"
-grep -q "CI passed · proj" "$LOG" || fail "success notified"
+grep -q "CI passed: proj" "$LOG" || fail "success notified"
 mkdir "$F/run/torus-ci-$(git -C "$F/repo" rev-parse HEAD)"
 : > "$LOG"
 "$C" "$F/repo"

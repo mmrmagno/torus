@@ -7,6 +7,8 @@ Item {
 
     property string icon: ""
     property string label: ""
+    property string dim: ""
+    property string widest: ""
     property color iconColor: Theme.accent
     property color labelColor: Theme.text
     property string tip: ""
@@ -21,14 +23,29 @@ Item {
     signal middleClicked
     signal scrolled(int delta)
 
+    function hits() {
+        return [[area.width, area.height]]
+    }
+
     visible: available
-    implicitWidth: content.implicitWidth
+    implicitWidth: Math.max(20, content.implicitWidth)
     implicitHeight: content.implicitHeight
+
+    Text {
+        id: slot
+        visible: false
+        text: root.widest
+        font.family: Theme.fontMono
+        font.pixelSize: Theme.fontSize
+        font.features: ({ "tnum": 1 })
+    }
 
     Row {
         id: content
+        scale: area.pressed ? 0.9 : 1
+        Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
         spacing: Theme.sp2
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.centerIn: parent
 
         Text {
             text: root.icon
@@ -43,9 +60,18 @@ Item {
         Text {
             text: root.label
             visible: root.label !== ""
+            width: root.widest === "" ? implicitWidth : Math.max(implicitWidth, slot.implicitWidth)
             color: root.labelColor
-            font.family: Theme.fontMono
-            font.pixelSize: Theme.fontSize
+            font: slot.font
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Text {
+            text: root.dim
+            visible: root.dim !== ""
+            leftPadding: Theme.sp2
+            color: Theme.subtext
+            font: slot.font
             anchors.verticalCenter: parent.verticalCenter
         }
     }
@@ -143,8 +169,10 @@ Item {
     }
 
     MouseArea {
-        anchors.fill: parent
-        anchors.margins: -4
+        id: area
+        anchors.centerIn: parent
+        width: root.width + 8
+        height: Math.max(root.height + 8, Store.barHeight)
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         onClicked: mouse => {
             root.open = false

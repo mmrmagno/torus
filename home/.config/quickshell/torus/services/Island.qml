@@ -42,8 +42,50 @@ Singleton {
     PwObjectTracker { objects: Pipewire.nodes.values }
     property real recordStart: 0
     readonly property var player: Mpris.players.values.find(p => p.isPlaying) || null
+    readonly property real songLength: player && player.lengthSupported && player.positionSupported ? player.length : 0
+    readonly property real songPart: songLength > 0 ? Math.max(0, Math.min(1, player.position / songLength)) : 0
     property var modes: ({})
     readonly property string state: flashKind !== "" ? flashKind : (recording ? "recording" : (player ? "media" : "idle"))
+
+    readonly property var win: Hyprland.activeToplevel
+    property string winTitle: ""
+    property int titleChanges: 0
+    onWinChanged: settled()
+    Component.onCompleted: settled()
+
+    // a prompt sets the title twice in a row (oh-my-zsh, then kitty): show what it settles on, a ticking title at least every 0.8 s
+    function settled() {
+        settle.stop()
+        ticking.stop()
+        const t = win && win.title ? win.title : ""
+        if (t === winTitle)
+            return
+        winTitle = t
+        titleChanges++
+    }
+
+    Connections {
+        target: root.win
+        function onTitleChanged() {
+            if (root.winTitle === "")
+                return root.settled()
+            settle.restart()
+            if (!ticking.running)
+                ticking.start()
+        }
+    }
+
+    Timer {
+        id: settle
+        interval: 220
+        onTriggered: root.settled()
+    }
+
+    Timer {
+        id: ticking
+        interval: 800
+        onTriggered: root.settled()
+    }
 
     function flash(kind, data, ms) {
         if (!armed || (data && data.cat && !Feel.islandOn(data.cat)))
@@ -120,6 +162,33 @@ Singleton {
         const m = Object.assign({}, modes)
         m[screenName] = mode
         modes = m
+    }
+
+    signal firstSong()
+    property string heardOn: ""
+    FileView {
+        id: heardFile
+        path: Store.stateDir + "/first-song"
+        blockLoading: true
+        printErrors: false
+        onLoaded: root.heardOn = text().trim()
+    }
+    readonly property bool singing: player !== null && songLength > 0 && Object.values(modes).indexOf("media") >= 0
+    onSingingChanged: {
+        const today = Qt.formatDate(new Date(), "yyyy-MM-dd")
+        if (!singing || heardOn === today)
+            return
+        heardOn = today
+        heardFile.setText(today + "\n")
+        Store.sweeps++
+        Qt.callLater(root.firstSong)
+    }
+
+    Timer {
+        interval: 1000
+        repeat: true
+        running: root.songLength > 0 && Object.values(root.modes).indexOf("media") >= 0
+        onTriggered: if (root.player) root.player.positionChanged()
     }
 
     function nudgePlayerVolume(delta) {
@@ -210,7 +279,8 @@ Singleton {
     }
 
     function notify(n) {
-        flash("notification", { summary: n.summary, body: n.body, app: n.appName, icon: n.appIcon, image: n.image, cat: "notifications" }, 4000)
+        const done = (n.hints || {})["x-torus-done"] !== undefined
+        flash("notification", { summary: n.summary, body: n.body, app: n.appName, icon: n.appIcon, image: n.image, cat: "notifications", done: done }, 4000)
     }
 
     Binding {
@@ -309,7 +379,7 @@ Singleton {
             function onConnectedChanged() {
                 const d = modelData
                 const icon = (d.icon || "").includes("headset") || (d.icon || "").includes("audio") ? "󰋋" : ((d.icon || "").includes("phone") ? "󰏲" : "󰂯")
-                const bat = d.connected && d.batteryAvailable ? "  ·  " + Math.round(d.battery * 100) + "%" : ""
+                const bat = d.connected && d.batteryAvailable ? "  " + Math.round(d.battery * 100) + "%" : ""
                 root.flash("osd", { icon: d.connected ? icon : "󰂲", label: d.name + (d.connected ? bat : "  disconnected"), value: d.connected && d.batteryAvailable ? d.battery : -1, cat: "devices" }, 2600)
             }
         }

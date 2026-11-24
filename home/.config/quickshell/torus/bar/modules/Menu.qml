@@ -5,8 +5,10 @@ import qs.components
 import qs.services
 
 Chip {
+    id: chip
+
     icon: "󰣇"
     tip: "Apps\nRight click: dashboard"
     onClicked: Quickshell.execDetached(["torus-menu", "drun"])
-    onRightClicked: Store.toggleOn("dashboard", QsWindow.window ? QsWindow.window.screen : null)
+    onRightClicked: Store.toggleFrom("dashboard", chip)
 }

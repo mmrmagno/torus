@@ -271,13 +271,13 @@ def replay_audio(cls, mode):
     return "app:" + game + "|" + (mic or "default_input")
 
 
-def encoder_broken():
+def gpu_was_reset():
     try:
-        r = subprocess.run(["journalctl", "-k", "-b", "-q", "--no-pager", "-o", "cat", "-g", "ring vcn_unified_[0-9]+ timeout", "-n", "1"],
+        r = subprocess.run(["journalctl", "-k", "-b", "-q", "--no-pager", "-o", "cat", "-g", "GPU reset begin|ring vcn_unified_[0-9]+ timeout", "-n", "1"],
                            capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.TimeoutExpired):
         return False
-    return r.returncode == 0 and "timeout" in r.stdout
+    return r.returncode == 0 and ("GPU reset begin" in r.stdout or "timeout" in r.stdout)
 
 
 def replay_running():
@@ -316,9 +316,10 @@ def cmd_start(cls):
         run("torus-mangohud", s["overlay"])
     if s["power"] == "balanced":
         run("powerprofilesctl", "set", "balanced")
-    if s["replay"] == "on" and not replay_running() and shutil.which("gpu-screen-recorder") and encoder_broken():
+    if s["replay"] == "on" and shutil.which("gpu-screen-recorder") and gpu_was_reset():
+        stop_plain_replay()
         s = dict(s, replay="off")
-        ipc("islandFlash", "notification", "Replay buffer off until a reboot: the video encoder hung after a GPU reset")
+        ipc("islandFlash", "notification", "Replay buffer off until a reboot: the GPU reset itself, recording now could hang it again")
     if s["replay"] == "on" and shutil.which("gpu-screen-recorder"):
         stop_plain_replay()
     if s["replay"] == "on" and not replay_running() and shutil.which("gpu-screen-recorder"):
@@ -411,7 +412,18 @@ def recap_text(r):
     if r["clips"]:
         auto = r.get("auto_clips", 0)
         parts.append(f"{r['clips']} clip" + ("s" if r["clips"] != 1 else "") + " saved" + (f" ({auto} auto)" if auto else ""))
-    return r["name"] + ": " + " · ".join(parts)
+    return r["name"] + ": " + ", ".join(parts)
+
+
+def cover(appid):
+    if not re.fullmatch(r"\d+", str(appid)):
+        return ""
+    base = os.path.join(os.environ.get("TORUS_STEAM", os.path.expanduser("~/.local/share/Steam")), "appcache", "librarycache", str(appid))
+    for pat in ("library_600x900.jpg", "*/library_600x900.jpg", "header.jpg", "*/header.jpg"):
+        hits = sorted(glob.glob(os.path.join(base, pat)))
+        if hits:
+            return hits[0]
+    return ""
 
 
 def cmd_end(closed=False):
@@ -437,7 +449,7 @@ def cmd_end(closed=False):
     if r["minutes"] < 1 and not r["clips"]:
         return
     save(LAST, r)
-    ipc("islandFlash", "notification", recap_text(r))
+    ipc("islandRecap", r["name"], recap_text(r)[len(r["name"]) + 2:], cover(r["appid"]))
 
 
 def cmd_saved(path):
@@ -474,7 +486,7 @@ def cmd_saved(path):
         save(SESSION, sess)
     secs = sess.get("replay_secs", 60)
     if not auto:
-        ipc("islandFlash", "notification", f"Clip saved · {name} · {secs} s")
+        ipc("islandFlash", "notification", f"Clip saved: {name}, {secs} s")
     print(dest)
     if budget() > 0:
         subprocess.Popen([os.path.abspath(sys.argv[0]), "cleanup"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)

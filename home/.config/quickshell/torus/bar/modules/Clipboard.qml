@@ -5,15 +5,17 @@ import qs.components
 import qs.services
 
 Chip {
+    id: chip
+
     icon: "󰅌"
     tip: "Clipboard history\nRight click: select and delete"
     onClicked: {
         Clip.manage = false
-        Store.toggle("clip")
+        Store.toggleFrom("clip", chip)
     }
     onRightClicked: {
         if (!Store.isOpen("clip"))
-            Store.setOpen("clip", true)
+            Store.openFrom("clip", chip)
         Clip.manage = true
     }
 }

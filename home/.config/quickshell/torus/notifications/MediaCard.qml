@@ -11,7 +11,7 @@ import qs.services
 ClippingRectangle {
     id: root
 
-    readonly property var player: Mpris.players.values.length > 0 ? (Mpris.players.values.find(p => p.isPlaying) || Mpris.players.values[0]) : null
+    readonly property var player: Mpris.players.values.find(p => p.isPlaying) || Mpris.players.values.find(p => (p.trackTitle || "") !== "") || null
     readonly property string art: player ? player.trackArtUrl : ""
     readonly property color tint: quant.colors.length > 0 ? quant.colors[0] : Theme.accent
 
@@ -81,7 +81,7 @@ ClippingRectangle {
                 text: "󰎆"
                 color: root.tint
                 font.family: Theme.fontMono
-                font.pixelSize: 36
+                font.pixelSize: Theme.iconXl
             }
         }
 
@@ -94,7 +94,7 @@ ClippingRectangle {
                 text: root.player ? root.player.trackTitle : ""
                 color: Theme.text
                 font.family: Theme.fontUi
-                font.pixelSize: Theme.icon
+                font.pixelSize: Theme.fsLg + 1
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
             }
@@ -124,7 +124,8 @@ ClippingRectangle {
                 Rectangle {
                     anchors.fill: parent
                     radius: Theme.rXs
-                    color: Qt.alpha(Theme.text, 0.15)
+                    color: Qt.alpha(Theme.text, seekHover.hovered ? 0.28 : 0.15)
+                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
                 }
                 Rectangle {
                     width: root.player && root.player.length > 0 ? parent.width * Math.min(1, root.player.position / root.player.length) : 0
@@ -132,6 +133,7 @@ ClippingRectangle {
                     radius: Theme.rXs
                     color: root.tint
                 }
+                HoverHandler { id: seekHover; margin: 6 }
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -6

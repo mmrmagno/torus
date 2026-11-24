@@ -11,14 +11,18 @@ import Quickshell.Widgets
 Row {
     id: root
     property bool available: true
-    spacing: Theme.sp4
+    function hits() {
+        return children.filter(c => c.area).map(c => [c.area.width, c.area.height])
+    }
+    spacing: 0
 
     Repeater {
         model: SystemTray.items.values
 
-        IconImage {
+        Item {
             id: icon
             required property var modelData
+            readonly property Item area: trayArea
             property bool menuOpen: false
             property bool menuKeep: false
             onMenuOpenChanged: if (!menuOpen && Theme.motion > 0) {
@@ -30,19 +34,27 @@ Row {
                 interval: Theme.durFast + 60
                 onTriggered: icon.menuKeep = false
             }
-            implicitSize: 14
+            implicitWidth: 28
+            implicitHeight: 14
             anchors.verticalCenter: parent.verticalCenter
-            source: modelData.icon
-            layer.enabled: !Theme.dark
-            layer.effect: MultiEffect { brightness: -0.55 }
-            scale: hover.hovered ? 1.15 : 1
-            Behavior on scale { NumberAnimation { duration: Theme.durFast } }
+
+            IconImage {
+                anchors.centerIn: parent
+                implicitSize: 14
+                source: icon.modelData.icon
+                layer.enabled: !Theme.dark
+                layer.effect: MultiEffect { brightness: -0.55 }
+                scale: trayArea.pressed ? 0.85 : hover.hovered ? 1.15 : 1
+                Behavior on scale { NumberAnimation { duration: Theme.durFast } }
+            }
 
             HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
 
             MouseArea {
-                anchors.fill: parent
-                anchors.margins: -4
+                id: trayArea
+                anchors.centerIn: parent
+                width: icon.width
+                height: Store.barHeight
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 onClicked: mouse => {
                     const item = icon.modelData

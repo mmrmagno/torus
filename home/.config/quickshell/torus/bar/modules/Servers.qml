@@ -43,8 +43,11 @@ Chip {
                     color: rowHover.hovered ? Theme.surface0 : "transparent"
 
                     HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                    Press { target: srow; down: rowArea.pressed }
                     MouseArea {
+                        id: rowArea
                         anchors.fill: parent
+                        anchors.margins: pressed ? -3 : 0
                         onClicked: DevServers.open(srow.modelData)
                     }
 
@@ -66,7 +69,7 @@ Chip {
                             spacing: 1
                             Text {
                                 Layout.fillWidth: true
-                                text: srow.modelData.comm + (srow.modelData.cwd ? "  ·  " + DevServers.tilde(srow.modelData.cwd) : "")
+                                text: srow.modelData.comm + (srow.modelData.cwd ? " in " + DevServers.tilde(srow.modelData.cwd) : "")
                                 color: Theme.text
                                 font.family: Theme.fontUi
                                 font.pixelSize: Theme.fsBase
@@ -82,6 +85,7 @@ Chip {
                             }
                         }
                         Rectangle {
+                            id: stopBtn
                             Layout.preferredWidth: 28
                             Layout.preferredHeight: 28
                             radius: Theme.radius
@@ -93,9 +97,11 @@ Chip {
                                 font.family: Theme.fontMono
                                 font.pixelSize: Theme.fsBase
                             }
+                            Press { target: stopBtn; down: stopArea.pressed }
                             MouseArea {
                                 id: stopArea
                                 anchors.fill: parent
+                                anchors.margins: pressed ? -3 : 0
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: DevServers.stop(srow.modelData)

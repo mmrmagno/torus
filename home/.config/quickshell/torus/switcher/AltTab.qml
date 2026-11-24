@@ -189,7 +189,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
-                text: root.query !== "" ? root.query + (root.shown.length === 0 ? "  ·  no match" : "") : "type to filter"
+                text: root.query !== "" ? root.query + (root.shown.length === 0 ? ", no match" : "") : "type to filter"
                 color: root.query !== "" ? (root.shown.length === 0 ? Theme.red : Theme.text) : Theme.overlay
                 font.family: root.query !== "" ? Theme.fontMono : Theme.fontUi
                 font.pixelSize: Theme.fsMd

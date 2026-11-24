@@ -30,7 +30,7 @@ export STUB_NOSHELL=1
 
 assert_eq 640x480 "$("$T")" "size printed"
 grep -q '^wl-copy 640x480$' "$STUB_LOG" || fail "size copied"
-grep -q 'islandFlash osd 640x480  ·  at 10,20  ·  copied' "$STUB_LOG" || fail "island shows it"
+grep -q 'islandFlash osd 640x480 at 10,20 copied' "$STUB_LOG" || fail "island shows it"
 : > "$STUB_LOG"
 STUB_CANCEL=1 "$T"
 grep -q wl-copy "$STUB_LOG" && fail "Escape copies nothing"

@@ -8,7 +8,7 @@ Column {
 
     Row {
         spacing: Theme.sp5
-        Text { text: (SysStats.gpuBusy >= 0 ? SysStats.gpuBusy : "--") + "%"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsHead; font.weight: Font.Bold }
+        Text { text: (SysStats.gpuBusy >= 0 ? SysStats.gpuBusy : "--") + "%"; color: Theme.text; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsHead; font.weight: Font.Bold }
         Column {
             anchors.verticalCenter: parent.verticalCenter
             Text { text: "GPU" + (SysStats.gpuMhz > 0 ? "  " + SysStats.gpuMhz + " MHz" : ""); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }

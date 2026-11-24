@@ -59,7 +59,7 @@ Singleton {
                     const cur = j.current_condition[0]
                     root.temp = cur.temp_C + "°"
                     root.feels = cur.FeelsLikeC + "°"
-                    root.desc = cur.weatherDesc[0].value
+                    root.desc = String(cur.weatherDesc[0].value).trim()
                     root.icon = root.iconFor(cur.weatherCode)
                     root.place = j.nearest_area ? j.nearest_area[0].areaName[0].value : ""
                     root.hours = j.weather[0].hourly.filter((h, i) => i % 2 === 0).map(h => ({ t: (parseInt(h.time) / 100) + ":00", temp: h.tempC + "°", icon: root.iconFor(h.weatherCode) }))

@@ -69,3 +69,7 @@ poppler
 qrencode
 chromium
 zbar
+mpv
+ffmpeg
+python-gobject
+libsecret

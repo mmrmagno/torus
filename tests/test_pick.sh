@@ -15,7 +15,7 @@ T=$REPO/home/.local/bin/torus-pick
 
 "$T"
 grep -qx 'wl-copy #cba6f7' "$F/calls" || fail "copies lowercase hex: $(cat "$F/calls")"
-grep -q 'notify .*#cba6f7 copied rgb(203, 166, 247)  ·  hsl(267, 84%, 81%)' "$F/calls" || fail "notifies rgb and hsl: $(cat "$F/calls")"
+grep -q 'notify .*#cba6f7 copied rgb(203, 166, 247)  hsl(267, 84%, 81%)' "$F/calls" || fail "notifies rgb and hsl: $(cat "$F/calls")"
 grep -q "fill='#cba6f7'" "$F/cache/torus/swatches/pick-cba6f7.svg" || fail "swatch icon written"
 PICK='#89B4FA' "$T"
 "$T"

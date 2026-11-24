@@ -17,7 +17,7 @@ Provider {
     }
 
     function row(h, title) {
-        return { id: "c:" + h, kind: "color", swatch: h, title: title || h, sub: R.rgb(h) + "  ·  " + R.hsl(h), enter: "copy hex",
+        return { id: "c:" + h, kind: "color", swatch: h, title: title || h, sub: R.rgb(h) + "  " + R.hsl(h), enter: "copy hex",
             act: () => root.copy(h), ctrl: { label: "copy rgb", act: () => root.copy(R.rgb(h)) }, alt: { label: "copy hsl", act: () => root.copy(R.hsl(h)) } }
     }
 

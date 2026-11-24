@@ -85,6 +85,7 @@ RowLayout {
             color: Theme.text
             elide: Text.ElideRight
             font.family: Theme.fontUi
+            font.features: ({ "tnum": 1 })
             font.pixelSize: Theme.fsMd
         }
         Text {

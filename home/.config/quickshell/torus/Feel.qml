@@ -61,7 +61,7 @@ Singleton {
     function soundGroup(ev) {
         switch (ev) {
         case "unlock": return "lock"
-        case "notify": case "critical": return "notify"
+        case "notify": case "critical": case "recap": return "notify"
         case "device-in": case "device-out": case "plug": case "unplug": case "online": case "offline": return "device"
         case "record-start": case "record-stop": case "shot": return "record"
         default: return ev

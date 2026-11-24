@@ -27,14 +27,19 @@ Singleton {
     property string armed: ""
     property var thumbReady: ({})
     property bool thumbsKnown: false
+    property bool shrunkOld: false
     property var seen: ({})
     property bool seenFresh: false
     property var hashes: ({})
     property var queue: []
+    property var toShrink: []
     property bool listOk: false
     readonly property string decoderKey: decoder.key
     property real openedAt: 0
     property int openMs: -1
+    property var pics: null
+    signal changing
+    property string selected: ""
     property real filterMs: -1
     property real filterMax: 0
     property real applyMs: 0
@@ -261,6 +266,7 @@ Singleton {
         const target = pinned.map(e => Object.assign({}, e, { group: "Pinned" }))
             .concat(hist.slice(0, limit).map(e => Object.assign({}, e, { group: q === "" ? groupOf(e.id) : "Matches" })))
         const t1 = Date.now()
+        changing()
         apply(target)
         shown = target
         applyMs = Date.now() - t1
@@ -498,17 +504,21 @@ Singleton {
         return "deleted"
     }
 
+    function thumbKey(line) {
+        return Qt.md5("640:" + line)
+    }
+
     function wantThumb(line) {
         if (!line)
             return
-        const k = Qt.md5(line)
+        const k = thumbKey(line)
         if (!thumbReady[k] && queue.indexOf(line) < 0 && decoder.key !== k)
             queue.push(line)
         pump()
     }
 
     function thumbLost(line) {
-        const k = Qt.md5(line)
+        const k = thumbKey(line)
         if (!thumbReady[k])
             return
         const r = Object.assign({}, thumbReady)
@@ -521,17 +531,38 @@ Singleton {
         if (decoder.running || !queue.length)
             return
         const line = queue.shift()
-        if (thumbReady[Qt.md5(line)]) {
+        if (thumbReady[thumbKey(line)]) {
             Qt.callLater(root.pump)
             return
         }
-        decoder.key = Qt.md5(line)
+        decoder.key = thumbKey(line)
+        decoder.line = line
         decoder.command = ["sh", "-c", "umask 077; mkdir -p \"$2\" && chmod 700 \"$2\" && printf '%s\\n' \"$1\" | cliphist decode > \"$2/$3.tmp\" && [ -s \"$2/$3.tmp\" ] && mv -f \"$2/$3.tmp\" \"$2/$3.img\" || { rm -f \"$2/$3.tmp\"; exit 1; }", "sh", line, thumbs, decoder.key]
         decoder.running = true
     }
 
+    // the coder is named: magick guessing it from clipboard content would run any format it knows
+    function pumpShrink() {
+        if (shrinker.running || decoder.running || !toShrink.length)
+            return
+        const j = toShrink.shift()
+        shrinker.command = ["sh", "-c", "umask 077; cd \"$1\" && [ \"$(nice -n 10 magick identify -format %w \"$2:$3.img[0]\" 2> /dev/null)\" -gt 640 ] && timeout 20 nice -n 10 magick \"$2:$3.img[0]\" -thumbnail '640x1280>' \"png:$3.s.tmp\" && [ -s \"$3.s.tmp\" ] && [ -e \"$3.img\" ] && mv -f \"$3.s.tmp\" \"$3.img\"; rm -f \"$3.s.tmp\"", "sh", thumbs, j.coder, j.key]
+        shrinker.running = true
+    }
+
+    function shrink(key, line) {
+        const coder = coderOf(line)
+        if (coder)
+            toShrink.push({ key: key, coder: coder })
+    }
+
+    function coderOf(line) {
+        const m = line.match(/ (png|jpg|jpeg|webp|bmp|gif) (\d+)x(\d+) \]\]$/)
+        return m && (Number(m[2]) > 640 || Number(m[3]) > 1280) ? (m[1] === "jpg" ? "jpeg" : m[1]) : ""
+    }
+
     function thumbFor(line) {
-        const k = Qt.md5(line)
+        const k = thumbKey(line)
         return thumbReady[k] ? "file://" + thumbs + "/" + k + ".img" : ""
     }
 
@@ -549,7 +580,8 @@ Singleton {
             const preview = line.slice(tab + 1)
             const m = preview.match(/^\[\[ binary data .* (png|jpg|jpeg|webp|bmp|gif) (\d+)x(\d+) \]\]$/)
             const md5 = Qt.md5(line)
-            const e = { key: "h:" + id, id: id, line: line, at: out.length, pinFile: md5 + ".pin", text: m ? "image " + m[2] + "x" + m[3] : preview, image: m ? "file://" + thumbs + "/" + md5 + ".img" : "", pinned: false }
+            const thumb = m ? thumbKey(line) : ""
+            const e = { key: "h:" + id, id: id, line: line, at: out.length, pinFile: md5 + ".pin", thumb: thumb, text: m ? "image " + m[2] + "x" + m[3] : preview, image: m ? "file://" + thumbs + "/" + thumb + ".img" : "", pinned: false }
             Object.assign(e, classify(e))
             out.push(e)
             ids[id] = true
@@ -571,12 +603,29 @@ Singleton {
         sync()
         pruneThumbs()
         findDuplicates()
+        if (thumbsKnown)
+            warm()
+    }
+
+    function shrinkOld() {
+        if (shrunkOld)
+            return
+        shrunkOld = true
+        for (const e of entries.filter(e => e.image).slice(0, 12))
+            if (thumbReady[e.thumb])
+                shrink(e.thumb, e.line)
+        pumpShrink()
+    }
+
+    function warm() {
+        for (const e of entries.filter(e => e.image).slice(0, 12))
+            wantThumb(e.line)
     }
 
     function pruneThumbs() {
         if (prune.running || (entries.length === 0 && !listOk))
             return
-        prune.command = ["sh", "-c", "cd \"$1\" 2>/dev/null || exit 0; shift; for f in *.img; do [ -e \"$f\" ] || continue; case \" $* \" in *\" ${f%.img} \"*) echo \"${f%.img}\" ;; *) rm -f \"$f\" ;; esac; done", "sh", thumbs].concat(entries.filter(e => e.image).map(e => e.pinFile.slice(0, 32)))
+        prune.command = ["sh", "-c", "cd \"$1\" 2>/dev/null || exit 0; shift; find . -maxdepth 1 -name '*.tmp' -mmin +1 -delete; for f in *.img; do [ -e \"$f\" ] || continue; case \" $* \" in *\" ${f%.img} \"*) echo \"${f%.img}\" ;; *) rm -f \"$f\" ;; esac; done", "sh", thumbs].concat(entries.filter(e => e.image).map(e => e.thumb))
         prune.running = true
     }
 
@@ -672,17 +721,39 @@ Singleton {
         }
     }
 
+    FileView {
+        path: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/cliphist/db"
+        preload: false
+        printErrors: false
+        watchChanges: true
+        onFileChanged: stored.restart()
+    }
+
+    Timer {
+        id: stored
+        interval: 80
+        onTriggered: lister.running ? restart() : root.refresh()
+    }
+
+    Process {
+        id: shrinker
+        onExited: Qt.callLater(root.pumpShrink)
+    }
+
     Process {
         id: decoder
         property string key: ""
+        property string line: ""
         onExited: code => {
             if (code === 0) {
                 const r = Object.assign({}, root.thumbReady)
                 r[key] = true
                 root.thumbReady = r
+                root.shrink(key, line)
             }
             key = ""
             Qt.callLater(root.pump)
+            Qt.callLater(root.pumpShrink)
         }
     }
 
@@ -695,6 +766,8 @@ Singleton {
                     if (k)
                         r[k] = true
                 root.thumbReady = r
+                root.warm()
+                root.shrinkOld()
             }
         }
     }

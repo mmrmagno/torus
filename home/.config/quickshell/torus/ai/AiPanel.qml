@@ -37,6 +37,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: parent
+            name: "ai"
             shown: Store.isOpen("ai")
         }
         anchors.fill: parent
@@ -57,7 +58,7 @@ PanelWindow {
                     text: "󰚩"
                     color: Theme.accent
                     font.family: Theme.fontMono
-                    font.pixelSize: 20
+                    font.pixelSize: Theme.iconLg
                 }
                 Text {
                     Layout.fillWidth: true
@@ -162,8 +163,9 @@ PanelWindow {
                             color: copyHover.hovered ? Theme.lavender : Theme.overlay
                             font.family: Theme.fontMono
                             font.pixelSize: Theme.fsSm
-                            HoverHandler { id: copyHover }
-                            TapHandler {
+                            HoverHandler { id: copyHover; margin: 5; cursorShape: Qt.PointingHandCursor }
+                            Tap {
+                                reach: 5
                                 onTapped: {
                                     Quickshell.execDetached(["wl-copy", "--", msg.modelData.content])
                                     copied.restart()
@@ -237,10 +239,12 @@ PanelWindow {
                     anchors.rightMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
                     text: Ai.busy ? "󰓛" : "󰒊"
-                    color: Ai.busy ? Theme.red : Theme.accent
+                    color: Ai.busy ? Theme.red : sendHover.hovered ? Theme.lavender : Theme.accent
                     font.family: Theme.fontMono
                     font.pixelSize: Theme.fsXl
-                    TapHandler {
+                    HoverHandler { id: sendHover; margin: 8; cursorShape: Qt.PointingHandCursor }
+                    Tap {
+                        reach: 8
                         onTapped: {
                             if (Ai.busy) {
                                 Ai.stop()

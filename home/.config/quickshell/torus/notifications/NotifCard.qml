@@ -134,7 +134,8 @@ Item {
         radius: Theme.radius
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: card.notif && card.notif.urgency === NotificationUrgency.Critical ? 2 : 1
-        border.color: card.notif && card.notif.urgency === NotificationUrgency.Critical ? Theme.red : Qt.alpha(Theme.accent, 0.5)
+        border.color: card.notif && card.notif.urgency === NotificationUrgency.Critical ? Theme.red : Qt.alpha(Theme.accent, hover.hovered && card.defaultAction ? 0.9 : 0.5)
+        Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
         transform: Translate { x: card.swipe }
         opacity: 1 - Math.min(0.8, Math.abs(card.swipe) / width)
 
@@ -150,7 +151,7 @@ Item {
                 image: card.notif ? card.notif.image || "" : ""
                 appIcon: card.notif ? card.notif.appIcon || "" : ""
                 app: card.notif ? card.notif.appName || "" : ""
-                TapHandler { enabled: !!card.defaultAction; onTapped: card.activate() }
+                Tap { on: layout; enabled: !!card.defaultAction; onTapped: card.activate() }
                 HoverHandler { enabled: !!card.defaultAction; cursorShape: Qt.PointingHandCursor }
             }
 
@@ -163,7 +164,7 @@ Item {
                     Text {
                         Layout.fillWidth: true
                         text: card.notif ? card.notif.summary : ""
-                        TapHandler { enabled: !!card.defaultAction; onTapped: card.activate() }
+                        Tap { on: layout; enabled: !!card.defaultAction; onTapped: card.activate() }
                         HoverHandler { enabled: !!card.defaultAction; cursorShape: Qt.PointingHandCursor }
                         color: Theme.text
                         font.family: Theme.fontUi
@@ -198,8 +199,8 @@ Item {
                         color: closeHover.hovered ? Theme.red : Theme.overlay
                         font.family: Theme.fontMono
                         font.pixelSize: Theme.fsLg
-                        HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: card.popup ? card.notif.dismiss() : card.dismissAll() }
+                        HoverHandler { id: closeHover; margin: 4; cursorShape: Qt.PointingHandCursor }
+                        Tap { reach: 1; onTapped: if (card.notif) card.popup ? card.notif.dismiss() : card.dismissAll() }
                     }
                 }
 
@@ -207,7 +208,7 @@ Item {
                     Layout.fillWidth: true
                     visible: card.hasBody
                     text: card.body
-                    TapHandler { enabled: !!card.defaultAction; onTapped: card.activate() }
+                    Tap { on: layout; enabled: !!card.defaultAction; onTapped: card.activate() }
                     HoverHandler { enabled: !!card.defaultAction; cursorShape: Qt.PointingHandCursor }
                     color: Theme.subtext
                     font.family: Theme.fontUi
@@ -223,7 +224,7 @@ Item {
                     Text {
                         required property var modelData
                         Layout.fillWidth: true
-                        text: "· " + modelData.body.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
+                        text: modelData.body.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
                         color: Theme.overlay
                         font.family: Theme.fontUi
                         font.pixelSize: Theme.fsSm
@@ -258,7 +259,7 @@ Item {
                             font.pixelSize: Theme.fsMd
                         }
                         HoverHandler { id: codeHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: Notifs.copyOtp(card.code) }
+                        Tap { onTapped: Notifs.copyOtp(card.code) }
                     }
                     Repeater {
                         model: card.actions
@@ -277,7 +278,7 @@ Item {
                                 font.pixelSize: Theme.fsMd
                             }
                             HoverHandler { id: actionHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: parent.modelData.invoke() }
+                            Tap { onTapped: parent.modelData.invoke() }
                         }
                     }
                 }
@@ -321,16 +322,17 @@ Item {
                         anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
                         text: "󰒊"
-                        color: Theme.accent
+                        color: sendHover.hovered ? Theme.lavender : Theme.accent
                         font.family: Theme.fontMono
                         font.pixelSize: Theme.fsLg
-                        TapHandler { onTapped: reply.send() }
+                        HoverHandler { id: sendHover; margin: 7; cursorShape: Qt.PointingHandCursor }
+                        Tap { reach: 7; onTapped: reply.send() }
                     }
                 }
 
                 PanelButton {
                     visible: card.popup && card.notif && card.notif.hasInlineReply
-                    label: "Reply in notification centre"
+                    label: "Reply in notification center"
                     onClicked: Notifs.openReply(card.notif)
                 }
             }

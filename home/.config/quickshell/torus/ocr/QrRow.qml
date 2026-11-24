@@ -43,7 +43,7 @@ Rectangle {
         anchors.margins: 10
         spacing: Theme.sp4
 
-        Text { text: row.wifi ? "󰖩" : "󰐲"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 20 }
+        Text { text: row.wifi ? "󰖩" : "󰐲"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 0

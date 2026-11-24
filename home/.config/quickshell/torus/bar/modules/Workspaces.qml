@@ -10,6 +10,9 @@ import qs.services
 Row {
     id: root
     property bool available: true
+    function hits() {
+        return children.filter(c => c.area).map(c => [c.area.width, c.area.height])
+    }
     property var monitor: QsWindow.window ? Hyprland.monitorFor(QsWindow.window.screen) : null
     readonly property int h: Math.max(16, Store.barHeight - 8)
     spacing: Theme.sp2
@@ -48,9 +51,10 @@ Row {
         Rectangle {
             id: ws
             required property var modelData
+            readonly property Item area: wsArea
             readonly property bool active: modelData.active
             readonly property var icons: active ? [] : root.appsOn(modelData).slice(0, 3)
-            implicitWidth: Math.max(root.h + 4, row.implicitWidth + 12)
+            implicitWidth: Math.max(root.h + 4, 28 - root.spacing, row.implicitWidth + 12)
             width: implicitWidth
             height: root.h
             radius: height / 2
@@ -168,7 +172,14 @@ Row {
                     }
                 }
             }
-            TapHandler { onTapped: Hyprland.dispatch('hl.dsp.focus({ workspace = "' + ws.modelData.id + '" })') }
+            Press { target: ws; down: wsArea.pressed; depth: 3 }
+            MouseArea {
+                id: wsArea
+                anchors.centerIn: parent
+                width: ws.width + root.spacing + (pressed ? 6 : 0)
+                height: Store.barHeight + (pressed ? 6 : 0)
+                onClicked: Hyprland.dispatch('hl.dsp.focus({ workspace = "' + ws.modelData.id + '" })')
+            }
         }
     }
 }

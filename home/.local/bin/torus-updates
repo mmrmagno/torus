@@ -62,7 +62,7 @@ case ${1:-list} in
     echo "torus doctor:"
     torus-doctor
     fails=$?
-    if ((fails == 0)); then island "Update done · torus doctor: all green"; else island "Update done · torus doctor found $fails problem$( ((fails == 1)) || echo s), run torus doctor"; fi
+    if ((fails == 0)); then island "Update done, torus doctor: all green"; else island "Update done, torus doctor found $fails problem$( ((fails == 1)) || echo s), run torus doctor"; fi
     exit "$fails"
     ;;
   *)

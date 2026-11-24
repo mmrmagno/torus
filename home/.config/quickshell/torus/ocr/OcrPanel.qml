@@ -81,7 +81,7 @@ PanelWindow {
             root.copy(source.text().trim(), "all")
             Store.setOpen("ocr", false)
         }
-        PanelMotion { id: motion; target: ocrFrame; shown: Store.isOpen("ocr") && !Store.moving }
+        PanelMotion { id: motion; target: ocrFrame; name: "ocr"; shown: Store.isOpen("ocr") && !Store.moving }
         radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1
@@ -97,7 +97,7 @@ PanelWindow {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.sp4
-                Text { text: "󰊄"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 22 }
+                Text { text: "󰊄"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 0
@@ -184,7 +184,7 @@ visible: !root.empty
                                     wrapMode: Text.Wrap
                                 }
                                 HoverHandler { id: lineHover; enabled: !line.blank; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { enabled: !line.blank; onTapped: root.copy(line.modelData.trim(), "line") }
+                                Tap { enabled: !line.blank; onTapped: root.copy(line.modelData.trim(), "line") }
                             }
                         }
                     }

@@ -5,7 +5,9 @@ import qs.components
 import qs.services
 
 Chip {
+    id: chip
+
     icon: "󰌌"
     tip: "Keybind cheat sheet (SUPER+/)"
-    onClicked: Store.toggleOn("cheatsheet", QsWindow.window ? QsWindow.window.screen : null)
+    onClicked: Store.toggleFrom("cheatsheet", chip)
 }

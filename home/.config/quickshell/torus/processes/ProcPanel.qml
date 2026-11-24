@@ -27,7 +27,7 @@ PanelWindow {
     onShownChanged: selected = Math.max(0, Math.min(selected, shown.length - 1))
 
     function size(b) {
-        return b >= 1073741824 ? (b / 1073741824).toFixed(1) + " G" : b >= 1048576 ? Math.round(b / 1048576) + " M" : b > 0 ? Math.round(b / 1024) + " K" : "–"
+        return b >= 1073741824 ? (b / 1073741824).toFixed(1) + " G" : b >= 1048576 ? Math.round(b / 1048576) + " M" : b > 0 ? Math.round(b / 1024) + " K" : "-"
     }
     function stop(p) {
         if (!p)
@@ -102,7 +102,7 @@ PanelWindow {
 
     Rectangle {
         anchors.fill: parent
-        PanelMotion { id: motion; target: parent; shown: Store.isOpen("processes") && !Store.moving }
+        PanelMotion { id: motion; target: parent; name: "processes"; shown: Store.isOpen("processes") && !Store.moving }
         radius: Theme.rPanel
         color: Qt.alpha(Theme.base, Theme.glassCard)
         border.width: 1
@@ -117,7 +117,7 @@ PanelWindow {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.sp4
-                Text { text: "󰍛"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 22 }
+                Text { text: "󰍛"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 34
@@ -191,8 +191,8 @@ PanelWindow {
                     height: 40
                     radius: Theme.rSm
                     color: sel ? Qt.alpha(Theme.accent, 0.16) : rowHover.hovered ? Theme.surface0 : "transparent"
-                    HoverHandler { id: rowHover }
-                    TapHandler { onTapped: root.selected = row.index }
+                    HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                    Tap { quiet: killHover.hovered; onTapped: root.selected = row.index }
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 10
@@ -223,7 +223,7 @@ PanelWindow {
                                 font.pixelSize: row.asking ? Theme.fsSm : Theme.fsLg
                             }
                             HoverHandler { id: killHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: root.stop(row.modelData) }
+                            Tap { onTapped: root.stop(row.modelData) }
                         }
                     }
                 }
@@ -237,9 +237,10 @@ PanelWindow {
                     hints: [["↑ / ↓", "select"], ["Del", "stop"], ["Tab", "sort"], ["Esc", "close"]]
                 }
                 Text {
-                    text: root.status !== "" ? root.status : root.shown.length + " of " + root.all.filter(p => !root.mineOnly || p.mine).length + " processes · CPU is the share of all cores"
+                    text: root.status !== "" ? root.status : root.shown.length + " of " + root.all.filter(p => !root.mineOnly || p.mine).length + " processes, CPU is the share of all cores"
                     color: root.status !== "" ? Theme.green : Theme.overlay
                     font.family: Theme.fontUi
+                    font.features: ({ "tnum": 1 })
                     font.pixelSize: Theme.fsXs
                 }
             }
@@ -252,12 +253,12 @@ PanelWindow {
         property int align: Text.AlignRight
         text: label + (root.sortBy === key && key !== "" ? (key === "name" ? " ↑" : " ↓") : "")
         horizontalAlignment: align
-        color: root.sortBy === key ? Theme.accent : Theme.subtext
+        color: root.sortBy === key ? Theme.accent : headHover.hovered ? Theme.text : Theme.subtext
         font.family: Theme.fontUi
         font.pixelSize: Theme.fsSm
         font.weight: Font.DemiBold
-        HoverHandler { enabled: parent.key !== ""; cursorShape: Qt.PointingHandCursor }
-        TapHandler { enabled: parent.key !== ""; onTapped: root.sortBy = parent.key }
+        HoverHandler { id: headHover; enabled: parent.key !== ""; cursorShape: Qt.PointingHandCursor }
+        Tap { enabled: parent.key !== ""; onTapped: root.sortBy = parent.key }
     }
 
     component Cell: Text {

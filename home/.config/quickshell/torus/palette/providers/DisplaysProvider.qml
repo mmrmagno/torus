@@ -24,7 +24,7 @@ Provider {
             return []
         return items.map(it => ({
             id: "dl:" + it.key, kind: "layout", glyph: "󰍹", title: it.key.split(" + ").map(d => { const w = d.split(" "); return w.length >= 3 ? w[0] + " " + w[w.length - 2] : d }).join("  +  "),
-            sub: it.count + (it.count === "1" ? " screen" : " screens") + (it.current ? "  ·  plugged in now" : ""), keys: "display layout screens monitors " + it.key,
+            sub: it.count + (it.count === "1" ? " screen" : " screens") + (it.current ? ", plugged in now" : ""), keys: "display layout screens monitors " + it.key,
             enter: "apply", act: () => Quickshell.execDetached(["torus-displays", "use", it.key]),
             alt: { label: "forget", act: () => { Quickshell.execDetached(["torus-displays", "drop", it.key]); root.items = root.items.filter(x => x.key !== it.key) } }
         }))

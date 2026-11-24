@@ -10,8 +10,11 @@ Rectangle {
     id: sheet
 
     property var game: null
+    property bool landing: false
+    readonly property alias cover: headCover
     property int index: 0
     signal closed()
+    onEnabledChanged: Store.sheetTitle = enabled ? "Game settings" : ""
 
     readonly property bool cs2: game !== null && game.id === "730"
     readonly property var playing: [
@@ -110,6 +113,8 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.sp6
             ClippingRectangle {
+                id: headCover
+                opacity: sheet.landing ? 0 : 1
                 Layout.preferredWidth: 48
                 Layout.preferredHeight: 72
                 radius: Theme.rSm
@@ -136,7 +141,7 @@ Rectangle {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: sheet.recap ? "Last session: " + (sheet.recap.match ? sheet.recap.match.map + " " + sheet.recap.match.score + ", " + sheet.recap.match.kills + "/" + sheet.recap.match.deaths + " K/D  ·  " : "") + sheet.recap.minutes + " min" + (sheet.recap.fps_avg ? "  ·  " + sheet.recap.fps_avg + " FPS, 1 % low " + sheet.recap.fps_low1 : "") + (sheet.recap.gpu_temp_max ? "  ·  GPU max " + sheet.recap.gpu_temp_max + " °C" : "") : "Settings apply the next time the game starts"
+                    text: sheet.recap ? "Last session: " + (sheet.recap.match ? sheet.recap.match.map + " " + sheet.recap.match.score + ", " + sheet.recap.match.kills + "/" + sheet.recap.match.deaths + " K/D, " : "") + sheet.recap.minutes + " min" + (sheet.recap.fps_avg ? ", " + sheet.recap.fps_avg + " FPS, 1 % low " + sheet.recap.fps_low1 : "") + (sheet.recap.gpu_temp_max ? ", GPU max " + sheet.recap.gpu_temp_max + " °C" : "") : "Settings apply the next time the game starts"
                     color: Theme.subtext
                     elide: Text.ElideRight
                     font.family: Theme.fontUi
@@ -151,7 +156,7 @@ Rectangle {
                 color: closeHover.hovered ? Theme.surface1 : Theme.surface0
                 Text { anchors.centerIn: parent; text: "󰅖"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd }
                 HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: sheet.closed() }
+                Tap { onTapped: sheet.closed() }
             }
         }
 
@@ -165,7 +170,7 @@ Rectangle {
                 Layout.preferredWidth: 1
                 Layout.alignment: Qt.AlignTop
                 spacing: Theme.sp2
-                Text { text: "While playing"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase; Layout.bottomMargin: Theme.sp2 }
+                SectionTitle { text: "While playing"; Layout.bottomMargin: Theme.sp2 }
                 Repeater {
                     model: sheet.playing
                     GameSettingRow {
@@ -178,7 +183,7 @@ Rectangle {
                         rowIndex: index
                     }
                 }
-                Text { text: "Recording"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase; Layout.topMargin: Theme.sp6; Layout.bottomMargin: Theme.sp2 }
+                SectionTitle { text: "Recording"; Layout.topMargin: Theme.sp6; Layout.bottomMargin: Theme.sp2 }
                 Repeater {
                     model: sheet.recording
                     GameSettingRow {
@@ -199,7 +204,7 @@ Rectangle {
                 Layout.preferredWidth: 1
                 Layout.alignment: Qt.AlignTop
                 spacing: Theme.sp2
-                Text { text: "Auto highlights"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; font.capitalization: Font.AllUppercase; Layout.bottomMargin: Theme.sp2 }
+                SectionTitle { text: "Auto highlights"; Layout.bottomMargin: Theme.sp2 }
                 Repeater {
                     model: sheet.highlights
                     GameSettingRow {

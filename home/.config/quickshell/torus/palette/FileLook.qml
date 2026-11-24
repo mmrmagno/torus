@@ -55,7 +55,7 @@ Rectangle {
             return entries.length === 0 ? "empty folder" : entries.length + (entries.length >= 300 ? "+" : "") + " items"
         if (kind === "other") {
             const f = body.trim().split(" ")
-            return sizeText(f[0]) + "  ·  " + new Date(Number(f[1]) * 1000).toLocaleString(Qt.locale(), "d MMM yyyy HH:mm")
+            return sizeText(f[0]) + ", " + new Date(Number(f[1]) * 1000).toLocaleString(Qt.locale(), "d MMM yyyy HH:mm")
         }
         return kind
     }
@@ -165,7 +165,7 @@ Rectangle {
         spacing: Theme.sp6
         Text {
             Layout.fillWidth: true
-            text: look.path.split("/").filter(x => x).pop() + (look.caption && !look.loading ? "  ·  " + look.caption : "")
+            text: look.path.split("/").filter(x => x).pop() + (look.caption && !look.loading ? "  (" + look.caption + ")" : "")
             color: Theme.subtext
             elide: Text.ElideMiddle
             font.family: Theme.fontMono

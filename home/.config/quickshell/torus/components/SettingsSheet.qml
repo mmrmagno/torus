@@ -14,6 +14,7 @@ Rectangle {
     default property alias extra: extraBox.data
     signal picked(string key, string value)
     signal closed()
+    signal pickRow(string key)
     signal deletePressed()
     onVisibleChanged: Store.sheetTitle = visible ? title : ""
     property var moreHints: []
@@ -40,7 +41,9 @@ Rectangle {
 
     function flip() {
         const r = rows[index]
-        if (r && r.values.length === 2)
+        if (r && r.pick)
+            pickRow(r.key)
+        else if (r && r.values.length === 2)
             set(r.key, value(r.key) === r.values[1] ? r.values[0] : r.values[1])
         else
             change(1)
@@ -84,7 +87,7 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.sp5
-            Text { text: sheet.glyph; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 22 }
+            Text { text: sheet.glyph; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 0
@@ -100,7 +103,8 @@ Rectangle {
                 color: closeHover.hovered ? Theme.surface1 : Theme.surface0
                 Text { anchors.centerIn: closeBtn; text: "󰅖"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd }
                 HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
-                MouseArea { anchors.fill: closeBtn; onClicked: sheet.closed() }
+                MouseArea { id: closeArea; anchors.fill: closeBtn; anchors.margins: pressed ? -3 : 0; onClicked: sheet.closed() }
+                Press { target: closeBtn; down: closeArea.pressed }
             }
         }
 

@@ -65,35 +65,6 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: !Store.isOpen("network") || Store.moving ? WlrKeyboardFocus.None : (root.asking !== "" ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand)
 
-    component Toggle: Rectangle {
-        id: tg
-        property bool on: false
-        property string label: "toggle"
-        signal toggled
-        activeFocusOnTab: visible
-        onActiveFocusChanged: if (activeFocus) Store.focusLabel = label
-        Keys.onReturnPressed: tg.toggled()
-        Keys.onEnterPressed: tg.toggled()
-        Keys.onSpacePressed: tg.toggled()
-        FocusRing { on: tg.activeFocus; baseRadius: tg.radius }
-        width: 38
-        height: 22
-        radius: 11
-        color: on ? Theme.accent : Theme.surface1
-        Behavior on color { ColorAnimation { duration: Theme.durFast } }
-        Rectangle {
-            x: tg.on ? tg.width - width - 3 : 3
-            anchors.verticalCenter: parent.verticalCenter
-            width: 16
-            height: 16
-            radius: Theme.rSm
-            color: tg.on ? Theme.crust : Theme.text
-            Behavior on x { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
-        }
-        HoverHandler { cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: tg.toggled() }
-    }
-
     component Heading: RowLayout {
         id: hd
         property string glyph: ""
@@ -110,6 +81,7 @@ PanelWindow {
         id: sb
         property string label: ""
         property bool danger: false
+        readonly property bool hot: sbHover.hovered
         signal clicked
         activeFocusOnTab: visible
         onActiveFocusChanged: if (activeFocus) Store.focusLabel = label
@@ -124,7 +96,7 @@ PanelWindow {
         Behavior on color { ColorAnimation { duration: Theme.durFast } }
         Text { id: sbText; anchors.centerIn: parent; text: sb.label; color: sbHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
         HoverHandler { id: sbHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: sb.clicked() }
+        Tap { onTapped: sb.clicked() }
     }
 
     HyprlandFocusGrab {
@@ -135,6 +107,14 @@ PanelWindow {
 
     Rectangle {
         id: netFrame
+        // the list under the code is off, and Qt drops the focus of whatever was in it
+        Connections {
+            target: Wifi
+            function onQrSsidChanged() {
+                if (Wifi.qrSsid !== "" && root.visible)
+                    netFrame.forceActiveFocus()
+            }
+        }
         Connections {
             target: root
             function onVisibleChanged() {
@@ -154,12 +134,13 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: netFrame
+            name: "network"
             shown: Store.isOpen("network") && !Store.moving
         }
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(Math.max(body.implicitHeight, Wifi.qrSsid !== "" ? 380 : 0) + 32 + hintBar.height + Theme.sp5, root.implicitHeight)
+        height: Math.min(Math.max(body.implicitHeight, Wifi.qrSsid !== "" ? 380 : 0) + 37 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.TopRight
         radius: Theme.rPanel
@@ -170,6 +151,7 @@ PanelWindow {
 
         Flickable {
             id: scroller
+            enabled: Wifi.qrSsid === ""
             anchors.fill: parent
             anchors.margins: 11
             anchors.bottomMargin: 16 + hintBar.height + Theme.sp5
@@ -188,14 +170,14 @@ PanelWindow {
                     visible: Wifi.wired !== ""
                     spacing: Theme.sp4
                     Text { text: "󰈀"; color: Theme.green; font.family: Theme.fontMono; font.pixelSize: Theme.fsXl }
-                    Text { text: "Wired · " + Wifi.wired + " connected"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd; Layout.fillWidth: true }
+                    Text { text: Wifi.wired + " connected by cable"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd; Layout.fillWidth: true }
                 }
 
                 Heading {
                     glyph: "󰖩"
                     title: "Wi-Fi"
                     SmallButton { label: Wifi.scanning ? "scanning…" : "rescan"; visible: Wifi.enabled; onClicked: Wifi.refresh(true) }
-                    Toggle { label: "Wi-Fi"; on: Wifi.enabled; onToggled: Wifi.setEnabled(!Wifi.enabled) }
+                    Toggle { label: "Wi-Fi"; checked: Wifi.enabled; onToggled: Wifi.setEnabled(!Wifi.enabled) }
                 }
 
                 Text {
@@ -223,8 +205,18 @@ PanelWindow {
                                 Wifi.connect(net.modelData.ssid, "")
                         }
 
+                        Connections {
+                            target: Wifi
+                            function onFailedSsidChanged() {
+                                if (Wifi.failedSsid === net.modelData.ssid && net.modelData.secure && root.visible)
+                                    netShake.go()
+                            }
+                        }
+
                         Rectangle {
                             id: netRow
+                            transform: Translate { id: netNudge }
+                            Shake { id: netShake; nudge: netNudge; by: 6 }
                             Layout.fillWidth: true
                             Layout.preferredHeight: 38
                             radius: Theme.radius
@@ -260,9 +252,10 @@ PanelWindow {
                                 }
                             }
                             HoverHandler { id: netHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler {
+                            Tap {
+                                quiet: qrButton.hot
                                 onTapped: (point, button) => {
-                                    if (qrButton.visible && qrButton.contains(qrButton.mapFromItem(netRow, point.position)))
+                                    if (Store.over(qrButton, netRow, point.position))
                                         return
                                     net.activate()
                                 }
@@ -311,7 +304,7 @@ PanelWindow {
                         label: root.adapter && root.adapter.discovering ? "stop scan" : "scan"
                         onClicked: root.adapter.discovering = !root.adapter.discovering
                     }
-                    Toggle { label: "Bluetooth"; on: root.adapter ? root.adapter.enabled : false; onToggled: if (root.adapter) root.adapter.enabled = !root.adapter.enabled }
+                    Toggle { label: "Bluetooth"; checked: root.adapter ? root.adapter.enabled : false; onToggled: if (root.adapter) root.adapter.enabled = !root.adapter.enabled }
                 }
 
                 Text {

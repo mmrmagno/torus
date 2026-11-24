@@ -53,7 +53,7 @@ PanelWindow {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.min(body.implicitHeight + 40 + hintBar.height + Theme.sp5, root.implicitHeight)
+        height: Math.min(body.implicitHeight + 45 + hintBar.height + Theme.sp5, root.implicitHeight)
         Behavior on height { enabled: root.visible; NumberAnimation { duration: Theme.durMed; easing.type: Easing.OutCubic } }
         transformOrigin: Item.Top
         focus: true
@@ -67,6 +67,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: hubFrame
+            name: "homelab"
             shown: Store.isOpen("homelab") && !Store.moving
         }
         radius: Theme.rPanel
@@ -94,7 +95,7 @@ PanelWindow {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Theme.sp5
-                    Text { text: "󱃾"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: 24 }
+                    Text { text: "󱃾"; color: Theme.accent; font.family: Theme.fontMono; font.pixelSize: Theme.iconLg }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
@@ -104,7 +105,7 @@ PanelWindow {
                             elide: Text.ElideRight
                             text: !Spire.ok ? (root.d.reason || "checking…")
                                 : (Spire.problems === 0 ? "all healthy" : Spire.problems + (Spire.problems === 1 ? " problem" : " problems"))
-                                    + "  ·  " + (root.d.context || "") + "  ·  checked " + Spire.ago(root.d.at) + "  ·  R refreshes, read only"
+                                    + (root.d.context ? " on " + root.d.context : "") + ", checked " + Spire.ago(root.d.at) + ". Read only, R refreshes."
                             color: !Spire.ok || Spire.problems > 0 ? Theme.peach : Theme.green
                             font.family: Theme.fontUi
                             font.pixelSize: Theme.fsSm
@@ -127,7 +128,7 @@ PanelWindow {
                     sub: root.d.reason === "no kubectl context" ? "the shell does not see your shell's KUBECONFIG: add \"kubeconfig\" (and \"talosconfig\") paths to ~/.config/torus/spire.json" : "R refreshes"
                 }
 
-                Text { visible: Spire.ok; text: "CLUSTER"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2 }
+                SectionTitle { visible: Spire.ok; text: "Cluster" }
                 GridLayout {
                     Layout.fillWidth: true
                     columns: Math.max(1, Math.min(4, Math.floor(root.implicitWidth / 230)))
@@ -147,13 +148,13 @@ PanelWindow {
                         glyph: root.badKs.length + root.badHr.length === 0 ? "󰄬" : "󰅚"
                         tint: root.badKs.length + root.badHr.length === 0 ? Theme.green : Theme.red
                         title: "Flux: " + root.count((root.d.kustomizations || []).length, "kustomization") + ", " + root.count((root.d.helmreleases || []).length, "Helm release")
-                        sub: root.badKs.concat(root.badHr).map(x => x.ns + "/" + x.name + ": " + x.msg).join("  ·  ") || "all reconciled"
+                        sub: root.badKs.concat(root.badHr).map(x => x.ns + "/" + x.name + ": " + x.msg).join(", ") || "all reconciled"
                     }
                     StatusRow {
                         glyph: (root.d.pods || []).length === 0 ? "󰄬" : "󰅚"
                         tint: (root.d.pods || []).length === 0 ? Theme.green : Theme.red
                         title: (root.d.pods || []).length === 0 ? "Pods: all running" : "Pods: " + root.d.pods.length + " unhealthy"
-                        sub: (root.d.pods || []).slice(0, 4).map(p => p.ns + "/" + p.name + " " + p.why).join("  ·  ")
+                        sub: (root.d.pods || []).slice(0, 4).map(p => p.ns + "/" + p.name + " " + p.why).join(", ")
                     }
                     Repeater {
                         model: (root.d.events || []).slice(0, 4)
@@ -161,13 +162,13 @@ PanelWindow {
                             required property var modelData
                             glyph: "󰀪"
                             tint: Theme.yellow
-                            title: modelData.reason + "  ·  " + modelData.ns + " " + modelData.obj
-                            sub: modelData.msg + "  ·  " + Spire.ago(modelData.at)
+                            title: modelData.reason + " in " + modelData.ns + " " + modelData.obj
+                            sub: modelData.msg + ", " + Spire.ago(modelData.at)
                         }
                     }
                 }
 
-                Text { text: "APPS"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; visible: (root.d.apps || []).length > 0 }
+                SectionTitle { text: "Apps"; visible: (root.d.apps || []).length > 0 }
                 Flow {
                     Layout.fillWidth: true
                     spacing: Theme.sp4
@@ -190,7 +191,7 @@ PanelWindow {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
                         spacing: 0
-                        Text { text: "TAILSCALE ROUTERS"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2 }
+                        SectionTitle { text: "Tailscale routers" }
                         StatusRow {
                             visible: (root.d.tailscale || []).length === 0
                             glyph: "󰋼"
@@ -204,7 +205,7 @@ PanelWindow {
                                 required property var modelData
                                 glyph: /Running/.test(modelData.state) ? "󰄬" : "󰅚"
                                 tint: /Running/.test(modelData.state) ? Theme.green : Theme.red
-                                title: modelData.node + "  ·  " + modelData.state
+                                title: modelData.node + " is " + modelData.state
                                 sub: modelData.routes ? "routes " + modelData.routes : "no routes advertised"
                             }
                         }
@@ -214,7 +215,7 @@ PanelWindow {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
                         spacing: 0
-                        Text { text: "REMOTE HANDS (AMT)"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2 }
+                        SectionTitle { text: "Remote hands (AMT)" }
                         StatusRow {
                             visible: Spire.amt.length === 0
                             glyph: "󰋼"
@@ -231,7 +232,7 @@ PanelWindow {
                                 StatusRow {
                                     glyph: amtRow.modelData.up ? "󰄬" : "󰅚"
                                     tint: amtRow.modelData.up ? Theme.green : Theme.red
-                                    title: amtRow.modelData.node + (amtRow.modelData.up ? "  ·  reachable" : "  ·  not reachable")
+                                    title: amtRow.modelData.node + (amtRow.modelData.up ? " answers" : " does not answer")
                                     sub: "TCP 16993 from this workstation"
                                 }
                                 PanelButton { icon: "󰢹"; label: Spire.kvmBusy ? "Starting…" : "Remote KVM"; active: true; implicitHeight: 30; onClicked: Spire.kvm() }
@@ -241,7 +242,7 @@ PanelWindow {
                     }
                 }
 
-                Text { text: "BACKUPS"; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; font.letterSpacing: 1.2; visible: (root.d.backups || []).length > 0 }
+                SectionTitle { text: "Backups"; visible: (root.d.backups || []).length > 0 }
                 Repeater {
                     model: root.d.backups || []
                     StatusRow {
@@ -249,7 +250,7 @@ PanelWindow {
                         readonly property real hours: modelData.last ? (Date.now() - Date.parse(modelData.last)) / 3600000 : 1e9
                         glyph: hours < 13 ? "󰄬" : "󰀪"
                         tint: hours < 13 ? Theme.green : Theme.yellow
-                        title: modelData.ns + "/" + modelData.name + "  ·  last success " + Spire.ago(modelData.last)
+                        title: modelData.ns + "/" + modelData.name + ", last success " + Spire.ago(modelData.last)
                         sub: "schedule " + modelData.schedule
                     }
                 }

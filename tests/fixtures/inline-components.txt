@@ -7,7 +7,6 @@ home/.config/quickshell/torus/dashboard/CommuteCard.qml Lines
 home/.config/quickshell/torus/dashboard/Dashboard.qml StatRow
 home/.config/quickshell/torus/network/NetPanel.qml Heading
 home/.config/quickshell/torus/network/NetPanel.qml SmallButton
-home/.config/quickshell/torus/network/NetPanel.qml Toggle
 home/.config/quickshell/torus/notifications/Center.qml LiveCard
 home/.config/quickshell/torus/processes/ProcPanel.qml Cell
 home/.config/quickshell/torus/processes/ProcPanel.qml Header

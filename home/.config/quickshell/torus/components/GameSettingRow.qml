@@ -10,6 +10,7 @@ Rectangle {
     property var row: null
     property int rowIndex: 0
     readonly property bool current: owner !== null && owner.index === rowIndex
+    readonly property bool pick: row !== null && row.pick === true
     readonly property bool binary: row !== null && row.values.length === 2 && row.values[1] === "on"
     readonly property string value: row && owner ? owner.value(row.key) : ""
     readonly property bool muted: row !== null && row.sub === true && owner !== null && owner.value("highlights") === "off"
@@ -21,7 +22,7 @@ Rectangle {
     opacity: muted ? 0.45 : 1
     Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
-    HoverHandler { id: rowHover }
+    HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
     TapHandler { onTapped: if (item.owner) item.owner.index = item.rowIndex }
 
     RowLayout {
@@ -46,7 +47,7 @@ Rectangle {
             }
         }
         Segmented {
-            visible: !item.binary
+            visible: !item.binary && !item.pick
             activeFocusOnTab: false
             options: item.row && !item.binary ? item.row.values : []
             labels: item.row && item.row.labels ? item.row.labels : []
@@ -54,6 +55,26 @@ Rectangle {
             onPicked: v => {
                 item.owner.index = item.rowIndex
                 item.owner.set(item.row.key, v)
+            }
+        }
+        Picker {
+            id: choices
+            visible: item.pick
+            activeFocusOnTab: false
+            host: item.owner
+            options: item.pick ? item.row.values.map((v, i) => ({ value: v, label: item.row.labels[i] })) : []
+            current: item.value
+            onPicked: v => {
+                item.owner.index = item.rowIndex
+                item.owner.set(item.row.key, v)
+            }
+            Connections {
+                target: item.owner
+                ignoreUnknownSignals: true
+                function onPickRow(key) {
+                    if (item.row && item.row.key === key)
+                        choices.show()
+                }
             }
         }
     }

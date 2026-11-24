@@ -13,8 +13,13 @@ Chip {
     label: {
         if (!player)
             return "Music"
-        const t = (player.trackTitle || "") + (player.trackArtist ? " · " + player.trackArtist : "")
+        const t = player.trackTitle || ""
         return t.length > 32 ? t.slice(0, 31) + "…" : t
+    }
+    dim: {
+        const a = player ? player.trackArtist || "" : ""
+        const left = 32 - label.length
+        return left < 6 || !a ? "" : a.length > left ? a.slice(0, left - 1) + "…" : a
     }
     onClicked: player ? player.togglePlaying() : null
     onScrolled: delta => player ? (delta > 0 ? player.next() : player.previous()) : null

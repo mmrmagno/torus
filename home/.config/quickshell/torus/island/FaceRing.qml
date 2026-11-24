@@ -13,7 +13,7 @@ Item {
     implicitHeight: 22
 
     NumberAnimation on sweep {
-        running: ring.phase === "scan" && ring.visible
+        running: ring.phase === "scan" && ring.visible && Theme.motion > 0
         from: 0
         to: 12
         duration: 1100
@@ -33,11 +33,11 @@ Item {
 
     SequentialAnimation {
         id: shake
-        NumberAnimation { target: dots; property: "x"; to: -4; duration: 50 }
-        NumberAnimation { target: dots; property: "x"; to: 4; duration: 70 }
-        NumberAnimation { target: dots; property: "x"; to: -3; duration: 60 }
-        NumberAnimation { target: dots; property: "x"; to: 2; duration: 50 }
-        NumberAnimation { target: dots; property: "x"; to: 0; duration: 40 }
+        NumberAnimation { target: dots; property: "x"; to: -4; duration: 50 * Theme.motion }
+        NumberAnimation { target: dots; property: "x"; to: 4; duration: 70 * Theme.motion }
+        NumberAnimation { target: dots; property: "x"; to: -3; duration: 60 * Theme.motion }
+        NumberAnimation { target: dots; property: "x"; to: 2; duration: 50 * Theme.motion }
+        NumberAnimation { target: dots; property: "x"; to: 0; duration: 40 * Theme.motion }
     }
 
     Item {

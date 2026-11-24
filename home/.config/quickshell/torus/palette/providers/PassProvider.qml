@@ -50,14 +50,14 @@ Provider {
             if (fields === null)
                 return [{ id: "ph", kind: "hint", glyph: "󰔟", title: "Checking " + it.title + "…", sub: "looking up which fields it has", act: () => {} }]
             const openApp = { id: "po", kind: "app", glyph: "󰟵", title: "Open Proton Pass", sub: "for anything else in this item", enter: "open", act: () => Quickshell.execDetached(["proton-pass"]) }
-            const name = { id: "pn", kind: "field", glyph: "󰈚", title: "Name", sub: it.title + " · copy", enter: "copy", act: () => root.copyName(it) }
+            const name = { id: "pn", kind: "field", glyph: "󰈚", title: "Name", sub: "copy from " + it.title, enter: "copy", act: () => root.copyName(it) }
             if (fields.length === 0)
                 return [name, openApp]
             const labels = [["password", "󰌾", "Password"], ["email", "󰇮", "Email"], ["username", "󰀄", "Username"], ["totp", "󰔟", "One-time code"],
                 ["urls", "󰖟", "Website"], ["number", "󰆛", "Card number"], ["cvv", "󰆛", "CVV"], ["cardholder_name", "󰀄", "Cardholder"],
                 ["expiration_date", "󰃭", "Expiry"], ["private_key", "󰌆", "Private key"], ["public_key", "󰌆", "Public key"], ["note", "󰎚", "Note"]]
             return labels.filter(f => fields.indexOf(f[0]) >= 0).map(f => ({
-                id: "pf", kind: "field", glyph: f[1], title: f[2], sub: it.title + " · copy, clears in " + clearAfter + " s", enter: "copy",
+                id: "pf", kind: "field", glyph: f[1], title: f[2], sub: "copy from " + it.title + ", clears in " + clearAfter + " s", enter: "copy",
                 act: () => Quickshell.execDetached(["torus-pass", "copy", it.sid, it.iid, f[0], String(root.clearAfter)])
             })).concat([name, openApp])
         }

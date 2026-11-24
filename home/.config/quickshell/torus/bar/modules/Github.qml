@@ -9,9 +9,9 @@ Chip {
     id: root
 
     readonly property bool shown: GitHub.wanted > 0
-    readonly property var rows: GitHub.review.map(p => ({ glyph: "󰈈", color: Theme.accent, title: p.title, sub: p.repo + " #" + p.number + "  ·  " + p.author + "  ·  " + GitHub.ago(p.updated), url: p.url, head: "Review requests" }))
-        .concat(GitHub.failing.map(r => ({ glyph: "󰅚", color: Theme.red, title: r.repo, sub: r.branch + " is failing  ·  " + GitHub.ago(r.updated), url: r.url, head: "Failing on the main branch" })))
-        .concat(GitHub.mine.map(p => ({ glyph: p.ci === "failure" || p.ci === "error" ? "󰅚" : p.ci === "pending" ? "󰔟" : p.ci === "success" ? "󰄬" : "󰘬", color: p.ci === "failure" || p.ci === "error" ? Theme.red : p.ci === "pending" ? Theme.yellow : p.ci === "success" ? Theme.green : Theme.overlay, title: p.title, sub: p.repo + " #" + p.number + (p.draft ? "  ·  draft" : "") + "  ·  " + GitHub.ago(p.updated), url: p.url, head: "My pull requests" })))
+    readonly property var rows: GitHub.review.map(p => ({ glyph: "󰈈", color: Theme.accent, title: p.title, sub: p.repo + " #" + p.number + " by " + p.author + ", " + GitHub.ago(p.updated), url: p.url, head: "Review requests" }))
+        .concat(GitHub.failing.map(r => ({ glyph: "󰅚", color: Theme.red, title: r.repo, sub: r.branch + " is failing, " + GitHub.ago(r.updated), url: r.url, head: "Failing on the main branch" })))
+        .concat(GitHub.mine.map(p => ({ glyph: p.ci === "failure" || p.ci === "error" ? "󰅚" : p.ci === "pending" ? "󰔟" : p.ci === "success" ? "󰄬" : "󰘬", color: p.ci === "failure" || p.ci === "error" ? Theme.red : p.ci === "pending" ? Theme.yellow : p.ci === "success" ? Theme.green : Theme.overlay, title: p.title, sub: p.repo + " #" + p.number + (p.draft ? ", draft" : "") + ", " + GitHub.ago(p.updated), url: p.url, head: "My pull requests" })))
 
     cardEdges: Edges.Bottom | Edges.Right
     cardGravity: Edges.Bottom | Edges.Left
@@ -26,7 +26,7 @@ Chip {
             width: 420
 
             Text {
-                text: "GitHub" + (GitHub.login ? "  ·  " + GitHub.login : "")
+                text: "GitHub" + (GitHub.login ? " as " + GitHub.login : "")
                 color: Theme.text
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fsMd
@@ -57,14 +57,18 @@ Chip {
                     }
 
                     Rectangle {
+                        id: prRow
                         width: card.width
                         height: 44
                         radius: Theme.rCard
                         color: rowHover.hovered ? Theme.surface0 : "transparent"
 
                         HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                        Press { target: prRow; down: prArea.pressed }
                         MouseArea {
+                            id: prArea
                             anchors.fill: parent
+                            anchors.margins: pressed ? -3 : 0
                             onClicked: GitHub.open(grow.modelData.url)
                         }
 

@@ -28,7 +28,7 @@ PanelWindow {
     SequentialAnimation {
         id: nudge
         NumberAnimation { id: out; target: win; property: "drift"; duration: Theme.durFast; easing.type: Easing.OutCubic }
-        NumberAnimation { target: win; property: "drift"; to: 0; duration: 520; easing.type: Easing.OutBack; easing.overshoot: 1.6 }
+        NumberAnimation { target: win; property: "drift"; to: 0; duration: 520 * Theme.motion; easing.type: Easing.OutBack; easing.overshoot: 1.6 }
     }
 
     visible: shown

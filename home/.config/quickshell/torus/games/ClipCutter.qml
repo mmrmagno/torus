@@ -234,7 +234,7 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 0
             Text { Layout.fillWidth: true; text: cutter.title !== "" ? cutter.title : "Clip"; color: Theme.text; elide: Text.ElideRight; font.family: Theme.fontUi; font.pixelSize: Theme.fsXl; font.weight: Font.DemiBold }
-            Text { Layout.fillWidth: true; text: [cutter.when, cutter.duration > 0 ? cutter.fmt(cutter.duration) + " long" : ""].filter(x => x).join("  ·  "); color: Theme.overlay; elide: Text.ElideRight; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+            Text { Layout.fillWidth: true; text: [cutter.when, cutter.duration > 0 ? cutter.fmt(cutter.duration) + " long" : ""].filter(x => x).join(", "); color: Theme.overlay; elide: Text.ElideRight; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsSm }
         }
         Rectangle {
             Layout.preferredWidth: 30
@@ -243,7 +243,7 @@ Rectangle {
             color: closeHover.hovered ? Theme.surface1 : Theme.surface0
             Text { anchors.centerIn: parent; text: "󰅖"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsMd }
             HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: cutter.close() }
+            Tap { onTapped: cutter.close() }
         }
     }
 
@@ -275,7 +275,7 @@ Rectangle {
             color: Qt.alpha(Theme.crust, 0.7)
             border.width: 1
             border.color: Qt.alpha(Theme.text, 0.2)
-            Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: 3; text: "󰐊"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: 30 }
+            Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: 3; text: "󰐊"; color: Theme.text; font.family: Theme.fontMono; font.pixelSize: Math.round(parent.width * 0.47) }
         }
         TapHandler { onTapped: if (cutter.duration > 0) cutter.togglePlay() }
         HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -305,7 +305,7 @@ Rectangle {
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
             Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: cutter.playing ? 0 : 1; text: cutter.playing ? "󰏤" : "󰐊"; color: playHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontMono; font.pixelSize: Theme.fsXl }
             HoverHandler { id: playHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: cutter.togglePlay() }
+            Tap { onTapped: cutter.togglePlay() }
         }
         Text {
             text: cutter.fmt(cutter.pos) + "  /  " + cutter.fmt(cutter.duration)
@@ -316,10 +316,11 @@ Rectangle {
         Item { Layout.fillWidth: true }
         Text {
             Layout.maximumWidth: 520
-            text: cutter.status !== "" && cutter.duration > 0 ? cutter.status : ("part " + cutter.fmt(cutter.inAt) + " → " + cutter.fmt(cutter.outAt) + "  ·  " + (cutter.outAt - cutter.snapped).toFixed(1) + " s" + (cutter.snapped < cutter.inAt - 0.05 ? "  ·  starts on the keyframe at " + cutter.fmt(cutter.snapped) : ""))
+            text: cutter.status !== "" && cutter.duration > 0 ? cutter.status : ("part " + cutter.fmt(cutter.inAt) + " → " + cutter.fmt(cutter.outAt) + ", " + (cutter.outAt - cutter.snapped).toFixed(1) + " s" + (cutter.snapped < cutter.inAt - 0.05 ? ", starts on the keyframe at " + cutter.fmt(cutter.snapped) : ""))
             color: cutter.keepArmed ? Theme.red : Theme.subtext
             elide: Text.ElideRight
             font.family: Theme.fontMono
+            font.features: ({ "tnum": 1 })
             font.pixelSize: Theme.fsSm
         }
     }

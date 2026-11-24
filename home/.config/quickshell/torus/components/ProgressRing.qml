@@ -16,7 +16,7 @@ Item {
     implicitHeight: 18
 
     NumberAnimation on spin {
-        running: ring.busy && ring.visible
+        running: ring.busy && ring.visible && Theme.motion > 0
         from: 0
         to: 360
         duration: 1100

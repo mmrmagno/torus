@@ -8,8 +8,8 @@ Column {
 
     Row {
         spacing: Theme.sp5
-        Text { text: SysStats.memUsed.toFixed(1) + "G"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsHead; font.weight: Font.Bold }
-        Text { anchors.verticalCenter: parent.verticalCenter; text: "of " + SysStats.memTotal.toFixed(1) + " GiB in use"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+        Text { text: SysStats.memUsed.toFixed(1) + "G"; color: Theme.text; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsHead; font.weight: Font.Bold }
+        Text { anchors.verticalCenter: parent.verticalCenter; text: "of " + SysStats.memTotal.toFixed(1) + " GiB in use"; color: Theme.subtext; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsSm }
     }
 
     Meter { width: 280; label: "Used"; value: Math.round(SysStats.memPercent) + "%"; fraction: SysStats.memPercent / 100 }

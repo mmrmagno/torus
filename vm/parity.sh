@@ -134,6 +134,42 @@ check_island() {
   if [[ -z $bad ]]; then section island ok "states notification, osd, recording, idle; now $st"; else section island fail "$bad now: $st"; fi
 }
 
+check_title() {
+  local bad="" a b n
+  local say="${XDG_RUNTIME_DIR:-/tmp}/parity-title"
+  ttl() { "${QS[@]}" islandTitle 2> /dev/null | tail -n 1; }
+  "${QS[@]}" closeAll > /dev/null 2>&1
+  cat > "$say" <<'T'
+t() { printf '\033]2;%s\007' "$1"; }
+t parity-home
+while read -r w; do
+  case $w in
+    prompt) for i in 1 2 3 4 5; do t "mmr@parity:~"; sleep 0.04; t parity-home; sleep 0.35; done ;;
+    cd) t parity-there ;;
+    tick) for i in $(seq 60); do t "tick $i"; sleep 0.05; done; t parity-home ;;
+    quit) exit ;;
+  esac
+done < "$0.go"
+T
+  rm -f "$say.go"; mkfifo "$say.go"; exec 7<> "$say.go"
+  kitty --class parity-title -o shell_integration=disabled bash "$say" > "$say.log" 2>&1 7<&- &
+  for _ in $(seq 30); do [[ $(ttl) == "parity-home|"* ]] && break; sleep 0.2; done
+  sleep 1
+  a=$(ttl); [[ $a == "parity-home|"* ]] || bad+="start[$a] "
+  echo prompt >&7; sleep 4
+  b=$(ttl); [[ $b == "$a" ]] || bad+="a-prompt-flickers[$a then $b] "
+  echo cd >&7; sleep 0.8
+  b=$(ttl); [[ $b == "parity-there|"* ]] || bad+="new-title-missing[$b] "
+  a=${b##*|}
+  echo tick >&7; sleep 2.5
+  [[ $(ttl) == "tick "* ]] || bad+="ticking-title-stuck[$(ttl)] "
+  sleep 2.5
+  n=$(($(ttl | sed 's/.*|//') - a)); ((n >= 2 && n <= 8)) || bad+="ticks[$n] "
+  pgrep -f "class parity-title" > /dev/null || bad+="terminal-gone[$(tail -n 2 "$say.log" | tr '\n' ' ')] "
+  echo quit >&7; sleep 0.5; exec 7>&-; pkill -f "class parity-title"; rm -f "$say" "$say.go" "$say.log"
+  if [[ -z $bad ]]; then section title ok "two titles per prompt change nothing on the island, a new title shows, a ticking one updates $n times in 3 s"; else section title fail "$bad"; fi
+}
+
 check_groups() {
   local bad="" g r
   export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
@@ -339,6 +375,11 @@ check_polkit() {
   for i in $(seq 40); do [[ $("${QS[@]}" polkitState 2>/dev/null | tail -n 1) == active ]] && break; sleep 0.25; done
   [[ $("${QS[@]}" polkitState 2>/dev/null | tail -n 1) == active ]] || bad+="no-dialog "
   sleep 1
+  local sh0; sh0=$("${QS[@]}" shakes | tail -n 1)
+  type_pw "wrong-on-purpose"
+  for i in $(seq 40); do (( $("${QS[@]}" shakes | tail -n 1) > sh0 )) && break; sleep 0.25; done
+  (( $("${QS[@]}" shakes | tail -n 1) == sh0 + 1 )) || bad+="wrong-password-no-shake "
+  sleep 0.5
   type_pw "$LOCK_PW"
   for i in $(seq 40); do [[ -e $ok ]] && break; sleep 0.25; done
   [[ -e $ok ]] || bad+="pkexec-not-authorized "
@@ -348,7 +389,7 @@ check_polkit() {
   systemctl --user start torus-shell.service; sleep 7
   systemctl --user is-active --quiet hyprpolkitagent.service && bad+="fallback-not-stopped "
   [[ $("${QS[@]}" polkitState 2>/dev/null | tail -n 1) == registered ]] || bad+="not-reregistered "
-  if [[ -z $bad ]]; then section polkit ok "shell agent registered, pkexec authorized through the dialog, hyprpolkitagent covers a stopped shell"; else section polkit fail "$bad"; fi
+  if [[ -z $bad ]]; then section polkit ok "shell agent registered, a wrong password shakes the field once, pkexec authorized through the dialog, hyprpolkitagent covers a stopped shell"; else section polkit fail "$bad"; fi
 }
 
 corners_on() { hyprctl layers -j | jq --arg m "$1" '[.[$m].levels[][] | select(.namespace == "torus-corner")] | length'; }
@@ -558,8 +599,12 @@ check_lock() {
     locked_is true || bad+="wrong-password-unlocked "
     grim -o "$mon" /tmp/parity-lock1.png && c1=$(magick /tmp/parity-lock1.png -colorspace Gray -format '%[fx:standard_deviation]' info:)
     awk -v a="${c0:-0}" -v b="${c1:-0}" 'BEGIN { exit !(b >= a * 0.7) }' || bad+="lock-screen-blank-after-wrong-password($c0>$c1) "
+    local d0; d0=$(moment dissolve)
     type_pw "$LOCK_PW"
     locked_is false || bad+="shell-unlock "
+    (( $(moment dissolve) > d0 )) || bad+="no-dissolve[$d0 $(moment dissolve)] "
+    sleep 1.2
+    [[ $(hyprctl layers -j | jq '[.. | objects | select(.namespace? == "torus-fly")] | length') == 0 ]] || bad+="dissolve-left-over "
     [[ -z $(ls "$XDG_RUNTIME_DIR"/torus-lock/ 2>/dev/null) ]] || bad+="lock-files-left "
   else
     bad+="keybind-path "
@@ -890,7 +935,7 @@ check_ssh() {
   [[ $r == "ssh:parity-alias|ssh:parity-host" || $r == "ssh:parity-host|ssh:parity-alias" ]] || bad+="hosts[$r] "
   "${QS[@]}" paletteQuery "s parity-host" > /dev/null; sleep 0.3
   r=$("${QS[@]}" paletteSub 0 2>/dev/null | tail -n 1)
-  [[ $r == "tester@parity.example  ·  via parity-jump" ]] || bad+="sub[$r] "
+  [[ $r == "tester@parity.example via parity-jump" ]] || bad+="sub[$r] "
   "${QS[@]}" paletteQuery "s wild" > /dev/null; sleep 0.3
   [[ -z $("${QS[@]}" paletteRows 5 2>/dev/null | tail -n 1) ]] || bad+="wildcard-listed "
   "${QS[@]}" paletteQuery "parity-host" > /dev/null; sleep 0.3
@@ -1365,6 +1410,76 @@ check_mixer() {
   if [[ -z $bad ]]; then section mixer ok "15 short sounds never listed, a playing app shows after 1 s [$r] and leaves when it stops, rows slide without jumps"; else section mixer fail "$bad"; fi
 }
 
+check_picker() {
+  local bad="" i ids="" was now r main
+  was=$(pactl get-default-sink)
+  main=$(hyprctl monitors -j | jq -r "sort_by(.id) | .[0].name")
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$main\" }))" > /dev/null
+  for i in Desk Kitchen Headphones Bedroom Studio Balcony Office; do
+    ids+="$(pactl load-module module-null-sink sink_name="parity-${i,,}" sink_properties=device.description="Parity-$i") "
+  done
+  pactl set-default-sink parity-desk; sleep 1
+  "${QS[@]}" closeAll > /dev/null; sleep 0.5; "${QS[@]}" dashboardToggle > /dev/null; sleep 1.2
+  for i in $(seq 45); do wtype -k Tab; sleep 0.12; [[ $("${QS[@]}" focusLabel 2> /dev/null | tail -n 1) == Parity-Desk ]] && break; done
+  [[ $("${QS[@]}" focusLabel | tail -n 1) == Parity-Desk ]] || bad+="tab[$("${QS[@]}" focusLabel | tail -n 1)] "
+  wtype -k Return; sleep 0.5
+  r=$("${QS[@]}" pickerState | tail -n 1)
+  [[ $r == "Parity-Desk|"*Parity-Balcony* ]] || bad+="open[$r] "
+  grim -o "$main" /tmp/parity-picker.png 2> /dev/null
+  wtype balc; sleep 0.4
+  r=$("${QS[@]}" pickerState | tail -n 1)
+  [[ $r == "Parity-Desk|Parity-Balcony|0|"* ]] || bad+="filter[$r] "
+  wtype -k Escape; sleep 0.4
+  [[ $("${QS[@]}" pickerState | tail -n 1) == closed && $("${QS[@]}" isOpen dashboard | tail -n 1) == true && $(pactl get-default-sink) == parity-desk ]] || bad+="esc-closes-only-the-list "
+  wtype -k Return; sleep 0.4; wtype "BALC "; sleep 0.4; wtype -k Return; sleep 0.8
+  now=$(pactl get-default-sink)
+  [[ $now == parity-balcony ]] || bad+="picked[$now] "
+  [[ $("${QS[@]}" pickerState | tail -n 1) == closed && $("${QS[@]}" isOpen dashboard | tail -n 1) == true ]] || bad+="stays-open "
+  "${QS[@]}" closeAll > /dev/null
+  for i in $ids; do pactl unload-module "$i"; done
+  pactl set-default-sink "$was"
+  if [[ -z $bad ]]; then section picker ok "the output is one list: Tab reaches it, typing filters, Enter switches the output, Esc closes only the list"; else section picker fail "$bad"; fi
+}
+
+check_coverkeys() {
+  local bad="" i r m0 was
+  was=$(torus-record replay-mic)
+  torus-record replay-mic default_input > /dev/null 2>&1; m0=default_input
+  "${QS[@]}" closeAll > /dev/null; sleep 0.5
+  "${QS[@]}" captureToggle > /dev/null; sleep 1.2
+  for i in $(seq 40); do wtype -k Tab; sleep 0.1; [[ $("${QS[@]}" focusLabel | tail -n 1) == 󰒓 ]] && break; done
+  [[ $("${QS[@]}" focusLabel | tail -n 1) == 󰒓 ]] || bad+="no-cog-stop "
+  wtype -k Return; sleep 0.6
+  [[ $("${QS[@]}" settingsSheet | tail -n 1) == "Capture settings" ]] || bad+="cog-did-not-open "
+  wtype -k Escape; sleep 0.6
+  [[ $("${QS[@]}" settingsSheet | tail -n 1) == "" && $("${QS[@]}" isOpen capture | tail -n 1) == true ]] || bad+="esc-dead-in-capture-settings "
+  "${QS[@]}" closeAll > /dev/null; sleep 0.5
+  "${QS[@]}" captureToggle > /dev/null; sleep 1.2
+  wtype -M ctrl -k Return -m ctrl; sleep 0.8
+  wtype -k Return; sleep 0.6
+  r=$("${QS[@]}" pickerState | tail -n 1)
+  [[ $r == *"|Off,"* ]] || bad+="mic-list[$r] "
+  wtype -k Left; sleep 0.8
+  [[ $(torus-record replay-mic) == "$m0" && $("${QS[@]}" pickerState | tail -n 1) == "$r" ]] || bad+="right-changed-the-mic-behind-the-list[$m0 $(torus-record replay-mic)] "
+  wtype -k Escape; sleep 0.5
+  [[ $("${QS[@]}" pickerState | tail -n 1) == closed && $("${QS[@]}" settingsSheet | tail -n 1) == "Capture settings" ]] || bad+="esc-in-the-list "
+  wtype -k Return; sleep 0.5; wtype q; sleep 0.3
+  [[ $("${QS[@]}" pickerState | tail -n 1) == *"|Off,"* ]] || bad+="hidden-search-filters "
+  wtype -k Escape; sleep 0.4; wtype -k Escape; sleep 0.4
+  [[ $("${QS[@]}" settingsSheet | tail -n 1) == "" ]] || bad+="esc-after-the-list "
+  torus-record replay-mic "${was:-off}" > /dev/null 2>&1
+  "${QS[@]}" closeAll > /dev/null; sleep 0.5
+  "${QS[@]}" networkToggle > /dev/null; sleep 1
+  wtype -k Tab; sleep 0.2
+  "${QS[@]}" wifiQr NotHere > /dev/null; sleep 1
+  wtype -k Escape; sleep 0.6
+  [[ $("${QS[@]}" isOpen network | tail -n 1) == true ]] || bad+="esc-closed-the-whole-panel "
+  wtype -k Escape; sleep 0.6
+  [[ $("${QS[@]}" isOpen network | tail -n 1) == false ]] || bad+="esc-dead-under-the-wifi-qr "
+  "${QS[@]}" closeAll > /dev/null
+  if [[ -z $bad ]]; then section coverkeys ok "with the focus on a button, opening a sheet over it keeps the keys alive; keys in an open list stay in the list"; else section coverkeys fail "$bad"; fi
+}
+
 check_shot() {
   local bad="" st
   torus-shot p; sleep 0.8
@@ -1823,6 +1938,39 @@ check_hubpolish() {
   rm -rf "$d" "$e"
   torus-trash empty > /dev/null
   if [[ -z $bad ]]; then section hubpolish ok "a held Del never skips the second press, rename keeps the clip selected, close ends quick look and the armed Del, an emptied game chip falls back to all"; else section hubpolish fail "$bad"; fi
+}
+
+check_clippics() {
+  local bad="" i p="" wide big=0 t0 k
+  local pics="${XDG_CACHE_HOME:-$HOME/.cache}/torus/clip"
+  pic() { magick -size 860x360 plasma:navy-orange -scale 3440x1440! -depth 8 -alpha off -fill white -draw "point $1,5" -quality 30 png:- | wl-copy --type image/png; }
+  "${QS[@]}" closeAll > /dev/null; cliphist wipe
+  for i in 1 2 3 4 5 6; do pic "$i"; sleep 1.5; done
+  for _ in $(seq 60); do [[ $(ls "$pics"/*.img 2> /dev/null | wc -l) -ge 6 ]] && break; sleep 0.25; done
+  for _ in $(seq 60); do
+    big=0
+    for p in "$pics"/*.img; do wide=$(magick identify -format %w "$p" 2> /dev/null); ((wide <= 640)) || big=$((big + 1)); done
+    ((big == 0)) && break; sleep 0.25
+  done
+  ((big == 0)) || bad+="cached-full-size[$big of $(ls "$pics"/*.img | wc -l)] "
+  [[ $(stat -c %a "$pics") == 700 && $(stat -c %a "$(ls "$pics"/*.img | head -1)") == 600 ]] || bad+="mode "
+  t0=$(date +%s%N)
+  "${QS[@]}" clipToggle > /dev/null
+  for _ in $(seq 60); do p=$("${QS[@]}" clipPicture | tail -n 1); [[ $p == "image 3440x1440|6/6|big" ]] && break; done
+  k=$(( ($(date +%s%N) - t0) / 1000000 ))
+  [[ $p == "image 3440x1440|6/6|big" ]] && ((k < 400)) || bad+="open[$p ${k}ms] "
+  magick -size 320x200 xc:teal png:- | wl-copy --type image/png
+  for _ in $(seq 60); do p=$("${QS[@]}" clipPicture | tail -n 1); [[ $p == "image 320x200|"*"|big" ]] && break; done
+  [[ $p == "image 320x200|"*"|big" ]] || bad+="new-copy-while-open[$p] "
+  for i in $(seq 20); do printf 'older line %s' "$i" | wl-copy; sleep 0.25; done; sleep 1
+  wtype -k Down -k Down -k Down; sleep 0.5
+  p=$("${QS[@]}" clipSelected | tail -n 1)
+  printf 'copied behind my back' | wl-copy
+  for _ in $(seq 40); do [[ $("${QS[@]}" clipText 0 | tail -n 1) == "copied behind my back" ]] && break; sleep 0.1; done
+  sleep 0.5
+  [[ $p == "older line"* && $("${QS[@]}" clipSelected | tail -n 1) == "$p" ]] || bad+="selection-moved[$p -> $("${QS[@]}" clipSelected | tail -n 1)] "
+  "${QS[@]}" closeAll > /dev/null; cliphist wipe
+  if [[ -z $bad ]]; then section clippics ok "six new screenshots show within ${k} ms of opening the clipboard, cached at 640 px and private; a copy made while it is open shows up"; else section clippics fail "$bad"; fi
 }
 
 check_clipwarm() {
@@ -2329,6 +2477,265 @@ check_shotpin() {
 see_kitty() { hyprctl getprop "address:$1" opacity 2> /dev/null; }
 see_global() { hyprctl getoption decoration:active_opacity -j | jq -r '.float * 100 | round'; }
 
+music_keyring() {
+  printf probe | secret-tool store --label=parity service torus-parity k v > /dev/null 2>&1 && { secret-tool clear service torus-parity k v; return 0; }
+  echo -n vmkeyring | gnome-keyring-daemon --replace --unlock --components=secrets > /dev/null 2>&1
+  sleep 1
+  printf probe | secret-tool store --label=parity service torus-parity k v > /dev/null 2>&1 && secret-tool clear service torus-parity k v
+}
+
+music_fixture() {
+  local d=~/Music/Fixture/Tones
+  mkdir -p "$d"
+  [[ -s $d/02.flac ]] && return
+  ffmpeg -v quiet -y -f lavfi -i "sine=frequency=330:duration=120" -metadata title="Fixture Tone" -metadata artist="Fixture Artist" -metadata album="Tones" -metadata track=1 "$d/01.flac"
+  ffmpeg -v quiet -y -f lavfi -i "sine=frequency=440:duration=120" -metadata title="Second Tone" -metadata artist="Fixture Artist" -metadata album="Tones" -metadata track=2 "$d/02.flac"
+  ffmpeg -v quiet -y -f lavfi -i "color=c=orange:s=300x300:d=1" -frames:v 1 "$d/cover.jpg"
+}
+
+music_meta() {
+  playerctl -p torus_music metadata --format "$1" 2> /dev/null
+}
+
+check_music() {
+  local bad="" row out srvpid log=/tmp/parity-subsonic.log url="http://127.0.0.1:18765/StreamFin" t0 pid1 pos
+  local cfg=~/.config/torus/music.json keep
+  keep=$(mktemp); cp "$cfg" "$keep" 2> /dev/null
+  music_keyring
+  music_fixture
+  torus-music clear > /dev/null 2>&1
+  t0=$(date '+%Y-%m-%d %H:%M:%S')
+  torus-music index > /dev/null 2>&1
+  row=$(torus-music search "fixture tone" local | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["tracks"]))')
+  torus-music play rows "$row" > /dev/null
+  for _ in $(seq 50); do [[ $(music_meta '{{title}}') == "Fixture Tone" ]] && break; sleep 0.2; done
+  [[ $(music_meta '{{title}}|{{artist}}|{{album}}') == "Fixture Tone|Fixture Artist|Tones" ]] || bad+="meta[$(music_meta '{{title}}|{{artist}}')] "
+  [[ $(music_meta '{{mpris:artUrl}}') == file://*Fixture/Tones/cover.jpg ]] || bad+="art[$(music_meta '{{mpris:artUrl}}')] "
+  [[ $(playerctl -p torus_music status 2> /dev/null) == Playing ]] || bad+="not-playing "
+  [[ $("${QS[@]}" islandState) == *"state:media"* ]] || bad+="island-not-media "
+  [[ $(systemctl --user show torus-music -p NoNewPrivileges --value) == yes ]] || bad+="unit-not-hardened "
+  playerctl -p torus_music next > /dev/null 2>&1; sleep 1
+  [[ $(music_meta '{{title}}') == "Second Tone" ]] || bad+="media-key-next[$(music_meta '{{title}}')] "
+  if [[ -z $bad ]]; then section music-local ok "local library: indexed, plays through torus-music, MPRIS title/artist/album, folder cover as file://, media keys, island shows it, unit sandboxed"; else section music-local fail "$bad"; fi
+
+  bad=""
+  : > "$log"
+  pkill -f "[f]ake-subsonic.py 18765" 2> /dev/null
+  FAKE_SECONDS=10 python3 "$REPO/tests/fake-subsonic.py" 18765 "$log" > /dev/null 2>&1 & srvpid=$!
+  for _ in $(seq 50); do curl -s -o /dev/null "$url/rest/ping" && break; sleep 0.1; done
+  printf wrong | torus-music login Fake "$url" marcos > /dev/null 2>&1 && bad+="wrong-password-accepted "
+  printf app-pass-123 | torus-music login Fake "$url" marcos > /dev/null 2>&1 || bad+="login "
+  [[ $(secret-tool lookup service torus-music server Fake) == app-pass-123 ]] || bad+="not-in-keyring "
+  grep -q app-pass "$cfg" && bad+="password-in-config "
+  out=$(torus-music search debut)
+  [[ $out == *'"Debut Song 1"'* ]] || bad+="search "
+  torus-music play album Fake al1 > /dev/null || bad+="play "
+  for _ in $(seq 50); do [[ $(music_meta '{{title}}') == "Debut Song 1" ]] && break; sleep 0.2; done
+  [[ $(music_meta '{{title}}|{{artist}}') == "Debut Song 1|Björk Fake" ]] || bad+="stream-meta[$(music_meta '{{title}}|{{artist}}')] "
+  for _ in $(seq 30); do [[ $(music_meta '{{mpris:artUrl}}') == file://* ]] && break; sleep 0.2; done
+  [[ $(music_meta '{{mpris:artUrl}}') == file://*/torus/music/covers/* ]] || bad+="stream-art[$(music_meta '{{mpris:artUrl}}')] "
+  for _ in $(seq 80); do grep -q "^scrobble id=al1-s1 submission=true" "$log" && break; sleep 0.2; done
+  grep -q "^scrobble id=al1-s1 submission=false" "$log" || bad+="no-now-playing "
+  grep -q "^scrobble id=al1-s1 submission=true" "$log" || bad+="no-scrobble "
+  torus-music pause > /dev/null; torus-music jump 0 > /dev/null; torus-music pause > /dev/null
+  torus-music star > /dev/null || bad+="star "
+  grep -q "^star id=al1-s1" "$log" || bad+="star-not-sent "
+  grep -qE "auth-fail (search3|getAlbum|stream)|plain-password" "$log" && bad+="auth "
+  if [[ -z $bad ]]; then section music-subsonic ok "Subsonic: wrong password refused, password only in the keyring, search, album streams with title/artist/cover, now playing + scrobble after half, star"; else section music-subsonic fail "$bad"; fi
+
+  bad=""
+  ps -eo args | grep -E 'app-pass-123|t=[0-9a-f]{32}|/rest/stream' | grep -v grep > /dev/null && bad+="ps "
+  journalctl --user --since "$t0" --no-pager -o cat 2> /dev/null | grep -qE 'app-pass-123|t=[0-9a-f]{32}|/rest/' && bad+="journal "
+  grep -rqE 'app-pass-123|t=[0-9a-f]{32}|/rest/' ~/.config/torus ~/.local/state/torus ~/.cache/torus/music/local.json 2> /dev/null && bad+="files "
+  playerctl -p torus_music metadata 2> /dev/null | grep -qE 'http|xesam:url' && bad+="mpris-url "
+  [[ $(stat -c %a "$XDG_RUNTIME_DIR/torus-music") == 700 ]] || bad+="rundir-mode "
+  if [[ -z $bad ]]; then section music-secret ok "no password or token in ps, the journal, config, state, cache or MPRIS; run dir 0700"; else section music-secret fail "$bad"; fi
+
+  bad=""
+  rm -f ~/.local/state/torus/first-song
+  torus-music play rows "$row" 1 > /dev/null; sleep 2
+  pid1=$(systemctl --user show torus-music -p MainPID --value)
+  systemctl --user restart torus-shell; sleep 6
+  [[ $(systemctl --user show torus-music -p MainPID --value) == "$pid1" ]] || bad+="daemon-restarted-with-shell "
+  [[ $(playerctl -p torus_music status 2> /dev/null) == Playing ]] || bad+="stopped-by-shell-restart "
+  torus-music pause > /dev/null
+  pos=$(torus-music state | jq .pos)
+  systemctl --user restart torus-music; sleep 1
+  torus-music toggle > /dev/null; torus-music pause > /dev/null
+  out=$(torus-music state)
+  [[ $(jq .pos <<< "$out") == "$pos" && $(jq '.queue | length' <<< "$out") == 2 ]] || bad+="queue-not-restored[$(jq -c '[.pos, (.queue|length)]' <<< "$out")] "
+  if [[ -z $bad ]]; then section music-restart ok "music keeps playing through a shell restart; a service restart restores the queue and position"; else section music-restart fail "$bad"; fi
+
+  bad=""
+  local spot shot=/tmp/parity-music.png
+  music_spot() {
+    local want=$1 r
+    for _ in $(seq 40); do r=$("${QS[@]}" musicSpot 2> /dev/null | tail -n 1); [[ $r == $want ]] && { echo "$r"; return 0; }; sleep 0.2; done
+    echo "$r"; return 1
+  }
+  torus-music clear > /dev/null 2>&1
+  [[ $("${QS[@]}" isOpen music 2> /dev/null | tail -n 1) == true ]] && "${QS[@]}" musicToggle > /dev/null && sleep 0.5
+  "${QS[@]}" musicToggle > /dev/null
+  spot=$(music_spot "home|*|all|ready|[34]|") || bad+="home[$spot] "
+  grim -o "$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')" "$shot" 2> /dev/null
+  wtype debut
+  spot=$(music_spot "search|Debut Song 1|all|ready|3|") || bad+="search[$spot] "
+  wtype -k Return
+  for _ in $(seq 40); do [[ $(music_meta '{{title}}') == "Debut Song 1" ]] && break; sleep 0.2; done
+  [[ $(music_meta '{{title}}') == "Debut Song 1" ]] || bad+="enter-plays[$(music_meta '{{title}}')] "
+  wtype -k Down -k Down; sleep 0.3
+  wtype -M shift -k space -m shift
+  spot=$(music_spot "detail|Debut Song 1|all|ready|2|") || bad+="open-album[$spot] "
+  wtype -M shift -k Return -m shift; sleep 1
+  [[ $(torus-music state | jq '.queue | length') == 3 ]] || bad+="shift-enter-queues "
+  wtype -k Escape; sleep 0.3; wtype -k Escape; sleep 0.3
+  for _ in 1 2 3 4; do wtype -k Tab; sleep 0.2; done
+  spot=$(music_spot "queue|*|all|ready|3|") || bad+="queue-view[$spot] "
+  wtype -k Down; sleep 0.3
+  wtype -M ctrl -k Down -m ctrl; sleep 1.5
+  [[ $("${QS[@]}" musicSel 2> /dev/null | tail -n 1) == 2 ]] || bad+="ctrl-down-moves-and-keeps-selection[$("${QS[@]}" musicSel 2> /dev/null | tail -n 1)] "
+  wtype -M ctrl -k comma -m ctrl
+  spot=$(music_spot "*|settings") || bad+="settings[$spot] "
+  wtype -k Escape
+  spot=$(music_spot "queue|*|") || bad+="settings-esc[$spot] "
+  wtype -k Escape
+  [[ $("${QS[@]}" isOpen music 2> /dev/null | tail -n 1) == false ]] || bad+="esc-closes "
+  "${QS[@]}" paletteQuery "m square" > /dev/null
+  for _ in $(seq 30); do [[ $("${QS[@]}" paletteRows 1 2> /dev/null | tail -n 1) == *"music:Square Song 1"* ]] && break; sleep 0.2; done
+  [[ $("${QS[@]}" paletteRows 1 2> /dev/null | tail -n 1) == *"music:Square Song 1"* ]] || bad+="palette[$("${QS[@]}" paletteRows 1 2> /dev/null | tail -n 1)] "
+  "${QS[@]}" paletteRun 0 > /dev/null
+  for _ in $(seq 40); do [[ $(music_meta '{{title}}') == "Square Song 1" ]] && break; sleep 0.2; done
+  [[ $(music_meta '{{title}}') == "Square Song 1" ]] || bad+="palette-plays[$(music_meta '{{title}}'), state $(torus-music state | jq -c '[.pos, .paused, .queue[0].title]')] "
+  [[ $("${QS[@]}" isOpen palette 2> /dev/null | tail -n 1) == true ]] && "${QS[@]}" paletteToggle > /dev/null
+  torus-music pause > /dev/null
+  if [[ -z $bad ]]; then section music-panel ok "SUPER+M: home shelves, type to search, Enter plays, Shift+Space opens an album, Shift+Enter queues, Tab to the queue, Ctrl+, settings, Esc back and close; m in SUPER+Space plays; $shot"; else section music-panel fail "$bad"; fi
+
+  bad=""
+  local wide
+  wide=$(hyprctl monitors -j | jq -r '[.[] | select(.transform == 0 and .width < 1400)][0] // empty | "\(.name) \(.width)x\(.height)@\(.refreshRate) \(.x)x\(.y)"')
+  [[ -n $wide ]] && hyprctl eval "hl.monitor({ output = \"${wide%% *}\", mode = \"1920x1080@60\", position = \"${wide##* }\", scale = 1 })" > /dev/null && sleep 2
+  torus-music play rows "$row" > /dev/null
+  for _ in $(seq 40); do [[ $(music_meta '{{title}}') == "Fixture Tone" ]] && break; sleep 0.2; done
+  torus-music seek 48 > /dev/null; "${QS[@]}" musicOpen > /dev/null
+  for _ in $(seq 30); do r=$("${QS[@]}" songRings | tail -n 1); [[ $r =~ ^4[0-4]\|4[0-4]$ ]] && break; sleep 0.3; done
+  [[ $r =~ ^4[0-4]\|4[0-4]$ ]] || bad+="rings[$r] "
+  torus-music seek 96 > /dev/null
+  for _ in $(seq 30); do r=$("${QS[@]}" songRings | tail -n 1); [[ $r =~ ^8[0-4]\|8[0-4]$ ]] && break; sleep 0.3; done
+  [[ $r =~ ^8[0-4]\|8[0-4]$ ]] || bad+="rings-after-seek[$r] "
+  grim -o "${wide%% *}" /tmp/parity-rings.png 2> /dev/null
+  "${QS[@]}" closeAll > /dev/null; sleep 1
+  local n1 n2 px py pw ph mx
+  [[ $(moment sweep) == 1 ]] || bad+="first-song-of-the-day[$(moment sweep)] "
+  n1=$("${QS[@]}" flights | tail -n 1 | cut -d'|' -f1)
+  "${QS[@]}" musicToggle > /dev/null; sleep 1.5
+  n2=$("${QS[@]}" flights | tail -n 1)
+  mx=$(hyprctl monitors -j | jq -r --arg m "${wide%% *}" '.[] | select(.name == $m) | .x')
+  read -r px py pw ph < <(hyprctl layers -j | jq -r '.. | objects | select(.namespace? == "torus-panel") | [.x, .y, .w, .h] | @tsv' | head -1)
+  jq -e --argjson x $((px - mx)) --argjson y "$py" --argjson h "$ph" '.[0].y < 40 and (.[1].x - $x | . > 16 and . < 60) and (.[1].y - $y - $h | . < -60 and . > -140)' > /dev/null <<< "${n2##*|}" || bad+="cover-flight[${n2##*|} panel $px,$py ${pw}x$ph] "
+  "${QS[@]}" musicToggle > /dev/null; sleep 1
+  n2=$("${QS[@]}" flights | tail -n 1)
+  [[ ${n2%%|*} == $((n1 + 2)) && $n2 == *"||"* ]] || bad+="flights[$n1 then $n2] "
+  torus-music pause > /dev/null; "${QS[@]}" closeAll > /dev/null
+  [[ -n $wide ]] && { read -r _ m p <<< "$wide"; hyprctl eval "hl.monitor({ output = \"${wide%% *}\", mode = \"$m\", position = \"$p\", scale = 1 })" > /dev/null; sleep 2; }
+  if [[ -z $bad ]]; then section music-rings ok "the ring around the island disk and the play button follow the song, also after a seek (island|button: $r %), the first song of the day sweeps it once, and the cover flies from the island into the panel and back"; else section music-rings fail "$bad"; fi
+
+  bad=""
+  local k r took=""
+  rows_in() {
+    local want=$1 t=$(date +%s%N) r
+    for _ in $(seq 80); do
+      r=$("${QS[@]}" musicSpot 2> /dev/null | tail -n 1)
+      [[ $r == $want ]] && { echo $(( ($(date +%s%N) - t) / 1000000 )); return; }
+    done
+    echo 9999
+  }
+  "${QS[@]}" closeAll > /dev/null; sleep 0.5
+  "${QS[@]}" musicToggle > /dev/null
+  for _ in 1 2 3 4 5; do [[ $("${QS[@]}" musicSpot 2> /dev/null | tail -n 1) == home* ]] && break; wtype -k Tab; sleep 0.4; done
+  for k in albums artists playlists queue home; do wtype -k Tab; sleep 1; done
+  "${QS[@]}" closeAll > /dev/null
+  sleep 0.8
+  "${QS[@]}" musicToggle > /dev/null
+  music_spot "home|*|all|ready|[34]|" > /dev/null || bad+="reopen "
+  sleep 0.5
+  wtype -k Right; sleep 0.3; wtype -k Right; sleep 0.6
+  local sel=$("${QS[@]}" musicSpot | tail -n 1 | cut -d'|' -f2)
+  "${QS[@]}" closeAll > /dev/null
+  touch "$log.slow" "$log.fresh"
+  sleep 21
+  "${QS[@]}" musicToggle > /dev/null
+  sleep 0.1
+  k=$(rows_in "home|*|all|@(part|ready)|[34]|"); took+="home ${k}ms "; (( k < 400 )) || bad+="home[$k] "
+  sleep 2
+  r=$("${QS[@]}" musicSpot | tail -n 1)
+  [[ $(cut -d'|' -f2 <<<"$r") == "$sel" && $(cut -d'|' -f4 <<<"$r") == ready ]] || bad+="home-selection-jumped[$sel -> $r] "
+  [[ $(torus-music home Fake | jq -r '.sections[0].rows[0].title') == "Fresh Pressing" ]] || bad+="fixture "
+  rm -f "$log.fresh"
+  wtype -k Tab; k=$(rows_in "albums|*|all|@(part|ready)|[4-9]|"); took+="albums ${k}ms "; (( k < 400 )) || bad+="albums[$k] "
+  wtype -k Tab; k=$(rows_in "artists|*|all|@(part|ready)|[3-9]|"); took+="artists ${k}ms "; (( k < 400 )) || bad+="artists[$k] "
+  wtype -k Tab; k=$(rows_in "playlists|*|all|@(part|ready)|1|"); took+="playlists ${k}ms "; (( k < 400 )) || bad+="playlists[$k] "
+  wtype fixture; k=$(rows_in "search|*|all|@(part|ready)|[3-9]|"); took+="search ${k}ms "; (( k < 400 )) || bad+="search[$k] "
+  "${QS[@]}" closeAll > /dev/null; sleep 0.5
+  local t1=$(date +%s%N)
+  "${QS[@]}" paletteQuery "m fixture tone" > /dev/null
+  for _ in $(seq 60); do [[ $("${QS[@]}" paletteRows 1 2> /dev/null | tail -n 1) == *"music:Fixture Tone"* ]] && break; done
+  k=$(( ($(date +%s%N) - t1) / 1000000 )); took+="palette ${k}ms"; (( k < 400 )) || bad+="palette[$k] "
+  [[ $("${QS[@]}" isOpen palette 2> /dev/null | tail -n 1) == true ]] && "${QS[@]}" paletteToggle > /dev/null
+  rm -f "$log.slow"
+  if [[ -z $bad ]]; then section music-speed ok "with a server that needs 500 ms per answer, rows show in $took"; else section music-speed fail "$bad"; fi
+
+  bad=""
+  local main_before v id
+  mvol() { "${QS[@]}" musicVol 2> /dev/null | tail -n 1; }
+  mvol_is() { for _ in $(seq 25); do [[ $(mvol) == $1 ]] && return 0; sleep 0.2; done; return 1; }
+  stream_id() { pw-dump | jq -r '[.[] | select(.info.props."node.name" == "torus-music") | .id] | first // empty'; }
+  main_before=$(wpctl get-volume @DEFAULT_AUDIO_SINK@)
+  torus-music volume 1 > /dev/null; torus-music volume unmute > /dev/null
+  torus-music play rows "$row" > /dev/null; sleep 1.5
+  "${QS[@]}" musicToggle > /dev/null
+  mvol_is "100|on|stream|*" || bad+="start[$(mvol)] "
+  id=$(stream_id)
+  wpctl set-volume "$id" 0.35
+  mvol_is "35|on|stream|*" || bad+="mixer-to-slider[$(mvol)] "
+  wpctl set-mute "$id" 1
+  mvol_is "35|muted|stream|*" || bad+="mute[$(mvol)] "
+  wpctl set-mute "$id" 0
+  sleep 1.5
+  [[ $(torus-music state | jq .volume) == 0.35 ]] || bad+="daemon-does-not-follow[$(torus-music state | jq .volume)] "
+  torus-music volume 0.6 > /dev/null
+  mvol_is "60|on|stream|*" || bad+="set[$(mvol)] "
+  v=$(wpctl get-volume "$id"); [[ $v == *0.60* ]] || bad+="stream[$v] "
+  torus-music volume 0.9 > /dev/null; sleep 0.2
+  wpctl set-volume "$id" 0.35; sleep 4
+  mvol_is "35|on|stream|*" || bad+="mixer-right-after-a-set-is-undone[$(mvol)] "
+  torus-music volume 0.6 > /dev/null
+  mvol_is "60|on|stream|*" || bad+="set-again[$(mvol)] "
+  "${QS[@]}" closeAll > /dev/null; sleep 0.5
+  "${QS[@]}" dashboardToggle > /dev/null; sleep 2
+  [[ $(mixer_listed) == *"torus-music=60"* ]] || bad+="mixer-row[$(mixer_listed)] "
+  "${QS[@]}" dashboardToggle > /dev/null
+  torus-music clear > /dev/null; sleep 1
+  [[ -z $(stream_id) ]] || bad+="stream-stays "
+  "${QS[@]}" musicToggle > /dev/null
+  mvol_is "60|on|idle|*" || bad+="idle[$(mvol)] "
+  torus-music volume 0.25 > /dev/null
+  mvol_is "25|on|idle|*" || bad+="idle-set[$(mvol)] "
+  systemctl --user restart torus-music; sleep 1
+  torus-music play rows "$row" > /dev/null; sleep 3
+  v=$(wpctl get-volume "$(stream_id)"); [[ $v == *0.25* ]] || bad+="next-song-level[$v] "
+  mvol_is "25|on|stream|*" || bad+="next-song-slider[$(mvol)] "
+  [[ $(wpctl get-volume @DEFAULT_AUDIO_SINK@) == "$main_before" ]] || bad+="main-output-moved "
+  torus-music volume 1 > /dev/null; torus-music pause > /dev/null
+  "${QS[@]}" closeAll > /dev/null
+  if [[ -z $bad ]]; then section music-volume ok "the music slider, its row in SUPER+D and the stream agree from either side, the level survives no stream and a service restart, the main output never moves"; else section music-volume fail "$bad"; fi
+
+  torus-music clear > /dev/null 2>&1
+  torus-music logout Fake > /dev/null 2>&1
+  kill "$srvpid" 2> /dev/null
+  if [[ -s $keep ]]; then cp "$keep" "$cfg"; else rm -f "$cfg"; fi
+  rm -f "$keep"
+}
+
 check_seethrough() {
   local bad="" a o keep rules
   keep=$(cat ~/.local/state/torus/see-through 2> /dev/null)
@@ -2540,6 +2947,59 @@ check_rings() {
     [[ $("${QS[@]}" isOpen "$name") == false ]] || { bad+="$name-esc "; "${QS[@]}" closeAll > /dev/null; }
   done
   if [[ -z $bad ]]; then section rings ok "Tab reaches every control, also the ones that were mouse only (stops: $out)"; else section rings fail "$bad[$out]"; fi
+}
+
+check_barfit() {
+  local bad="" out n
+  out=$(python3 "$HERE/speed.py" bar 2>&1 | grep '^bar ')
+  n=$(wc -l <<<"$out")
+  [[ $n == $(hyprctl monitors -j | jq length) ]] || bad+="bars[$n] "
+  while read -r _ mon json; do
+    jq -e '."width jitter" == {}' <<<"$json" > /dev/null || bad+="$mon jitter $(jq -c '."width jitter"' <<<"$json") "
+    jq -e 'to_entries | map(select(.key | startswith("hit areas")) | .value) == [{}]' <<<"$json" > /dev/null || bad+="$mon small $(jq -c 'to_entries | map(select(.key | startswith("hit areas")) | .value)' <<<"$json") "
+    jq -e '.modules >= 12' <<<"$json" > /dev/null || bad+="$mon modules "
+  done <<<"$out"
+  if [[ -z $bad ]]; then section barfit ok "under load no bar module changes width, every one can be clicked over the full bar height and at least 28 px on $n screens"; else section barfit fail "$bad"; fi
+}
+
+check_reverse() {
+  local bad="" n a b i
+  layer() { hyprctl layers -j | jq -r '.. | objects | select(.namespace? == "torus-panel") | .address' | head -1; }
+  for n in dashboard palette clip music games network; do
+    "${QS[@]}" closeAll > /dev/null; sleep 0.6
+    "${QS[@]}" "${n}Toggle" > /dev/null; sleep 0.8
+    a=$(layer)
+    [[ -n $a ]] || { bad+="$n-no-layer "; continue; }
+    "${QS[@]}" "${n}Toggle" > /dev/null
+    "${QS[@]}" "${n}Toggle" > /dev/null
+    b=$(layer); sleep 0.6
+    [[ $("${QS[@]}" isOpen "$n" | tail -n 1) == true && $("${QS[@]}" panelMotion "$n" | tail -n 1) == 1.00* ]] || bad+="$n-not-reopened "
+    [[ $a == "$b" && $(layer) == "$a" ]] || bad+="$n-remapped "
+    for i in 1 2 3 4 5 6; do "${QS[@]}" "${n}Toggle" > /dev/null; done
+    sleep 1
+    [[ $(hyprctl layers -j | jq '[.. | objects | select(.namespace? == "torus-panel")] | length') == 1 && $("${QS[@]}" panelMotion "$n" | tail -n 1) == 1.00* ]] || bad+="$n-key-repeat "
+  done
+  "${QS[@]}" closeAll > /dev/null; sleep 0.6
+  "${QS[@]}" paletteToggle > /dev/null; sleep 0.8; a=$("${QS[@]}" paletteRows 3 | tail -n 1)
+  wtype "zzqq nothing"; sleep 0.6
+  "${QS[@]}" paletteToggle > /dev/null; "${QS[@]}" paletteToggle > /dev/null; sleep 0.8
+  b=$("${QS[@]}" paletteRows 3 | tail -n 1)
+  [[ $a == "$b" ]] || bad+="palette-keeps-the-old-query[$a then $b] "
+  wtype "kitty"; sleep 0.5
+  [[ $("${QS[@]}" paletteRows 1 | tail -n 1) == *kitty* ]] || bad+="palette-lost-the-keyboard "
+  "${QS[@]}" closeAll > /dev/null; sleep 0.6
+  [[ -z $(layer) ]] || bad+="left-open "
+  if [[ -z $bad ]]; then section reverse ok "a panel that is closing opens again from where it is, the same surface stays, six quick presses end where they should"; else section reverse fail "$bad"; fi
+}
+
+check_opentime() {
+  local bad="" p out
+  out=$(python3 "$HERE/speed.py" panels 2>&1 | grep '^| open ')
+  [[ $(wc -l <<<"$out") -ge 16 ]] || bad+="panels-missing[$(wc -l <<<"$out")] "
+  p=$(awk -F'|' '{n=$2; gsub(/open | /, "", n); f=$3+0; r=$5+0; if (f == 0 || r == 0 || f > 400 || r > 250) printf "%s[%s/%s] ", n, f, r}' <<<"$out")
+  [[ -z $p ]] || bad+="slow: $p"
+  p=$(awk -F'|' '{f=$3+0; if (f > m) m=f} END {print m}' <<<"$out")
+  if [[ -z $bad ]]; then section opentime ok "every panel is on screen within $p ms of the key on its first open"; else section opentime fail "$bad"; fi
 }
 
 check_budget() {
@@ -2999,8 +3459,29 @@ check_btbattery() {
   if [[ -z $bad ]]; then section btbattery ok "headphones and controllers: battery on the island when they connect, one warning under 20 % until they are back over 25 %"; else section btbattery fail "$bad"; fi
 }
 
+moment() { "${QS[@]}" moments 2> /dev/null | tail -n 1 | grep -o "$1=[0-9]*" | cut -d= -f2; }
+
+check_moments() {
+  local bad="" m0 r
+  "${QS[@]}" clearNotifs > /dev/null; "${QS[@]}" setDnd false > /dev/null 2>&1; sleep 0.5
+  m0=$(moment done)
+  notify-send -a Timer -h int:x-torus-done:1 "Timer done: tea" "time is up"; sleep 1
+  (( $(moment done) > m0 )) || bad+="timer-ring[$m0 $(moment done)] "
+  grim -o "$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')" /tmp/parity-moment.png 2> /dev/null
+  m0=$(moment done); sleep 4
+  notify-send -a Parity "plain note" "nothing finished"; sleep 1
+  (( $(moment done) == m0 )) || bad+="ring-on-a-plain-note "
+  "${QS[@]}" islandRecap "Portal: Still Alive" "played 10 min, average 198 FPS" "" > /dev/null; sleep 0.6
+  r=$("${QS[@]}" islandText | tail -n 1)
+  [[ $r == "notification|Portal: Still Alive|played 10 min, average 198 FPS" ]] || bad+="recap[$r] "
+  [[ $("${QS[@]}" soundTake 2> /dev/null | tail -n 1) == recap ]] || bad+="recap-sound "
+  "${QS[@]}" clearNotifs > /dev/null
+  if [[ -z $bad ]]; then section moments ok "a finished timer closes its ring on the island, a plain note does not, a game recap has the game as its title and its own sound"; else section moments fail "$bad"; fi
+}
+
 check_downloads() {
-  local bad="" d=${XDG_DOWNLOAD_DIR:-$HOME/Downloads} n=parity-dl-$$.bin st p0
+  local bad="" d=${XDG_DOWNLOAD_DIR:-$HOME/Downloads} n=parity-dl-$$.bin st p0 m0
+  m0=$(moment done)
   mkdir -p "$d"
   "${QS[@]}" clearNotifs > /dev/null 2>&1
   p0=$("${QS[@]}" popupCount 2>/dev/null | tail -n 1)
@@ -3010,7 +3491,9 @@ check_downloads() {
   [[ $(jq -r '.jobs[0]' <<<"$st") == "$n:"* ]] || bad+="job[$st] "
   [[ $("${QS[@]}" islandState 2>/dev/null) == *progress* ]] || bad+="no-ring "
   mv "$d/$n.part" "$d/$n"
-  sleep 2
+  for _ in $(seq 20); do (( $(moment done) > m0 )) && break; sleep 0.1; done
+  (( $(moment done) > m0 )) || bad+="ring-does-not-close "
+  sleep 1.5
   st=$("${QS[@]}" browserDownloads 2>/dev/null | tail -n 1)
   [[ $(jq -r .last <<<"$st") == "done:$n" ]] || bad+="not-done[$st] "
   [[ $("${QS[@]}" popupCount 2>/dev/null | tail -n 1) -gt ${p0:-0} ]] || bad+="no-actions-popup "
@@ -3485,9 +3968,18 @@ case ${1:-all} in
   calendar) check_calendar ;;
   pins) check_pins ;;
   seethrough) check_seethrough ;;
+  clippics) check_clippics ;;
+  barfit) check_barfit ;;
+  reverse) check_reverse ;;
+  coverkeys) check_coverkeys ;;
+  moments) check_moments ;;
+  picker) check_picker ;;
+  opentime) check_opentime ;;
+  music) check_music ;;
   notifkeys) check_notifkeys ;;
   notify) check_notify ;;
   island) check_island ;;
+  title) check_title ;;
   widgets) check_widgets ;;
   groups) check_groups ;;
   clip) check_clip ;;
@@ -3497,7 +3989,7 @@ case ${1:-all} in
   corners) check_corners ;;
   binds) check_binds ;;
   bar) check_bar ;;
-  all) check_binds; check_bar; check_notify; check_island; check_groups; check_clip; check_clipboard; check_qr; check_clipplain; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_quicklook; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_shot; check_shotwindow; check_shotpin; check_qrscan; check_wsmove; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_seethrough; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
+  all) check_binds; check_bar; check_notify; check_island; check_title; check_groups; check_clip; check_clipboard; check_qr; check_clipplain; check_clippics; check_clipwarm; check_ai; check_widgets; check_corners; check_donut; check_dashboard; check_look; check_webapp; check_lock; check_spin; check_night; check_palette; check_palette2; check_quicklook; check_projects; check_ssh; check_servers; check_cmddone; check_trust; check_github; check_scratch; check_meeting; check_overlay; check_containers; check_games; check_threads; check_displays; check_face; check_reload; check_follow; check_focus; check_switch; check_pass; check_mixer; check_picker; check_coverkeys; check_shot; check_shotwindow; check_shotpin; check_qrscan; check_wsmove; check_dragout; check_zoom; check_trash; check_undorace; check_envknobs; check_launchenv; check_panels; check_pins; check_smart; check_session; check_rules; check_calendar; check_polkit; check_media; check_artquant; check_motion; check_keys; check_rings; check_polish; check_gpuwatch; check_popuprest; check_notifkeys; check_capturekeys; check_clips2; check_recall; check_hubpolish; check_update; check_cheatsheet; check_budget; check_barfit; check_opentime; check_reverse; check_flash; check_escape; check_calm; check_faceisland; check_feel; check_seethrough; check_music; check_homelab; check_play; check_playkeep; check_gsi; check_battery; check_psr; check_ruler; check_draw; check_safeupdate; check_downloads; check_moments; check_btbattery; check_ddc; check_steamdl; check_cleanup; check_library; check_gamesettings; check_steam; check_steamheld; check_cutter; check_meetjoin; check_layout; check_living; check_otp; check_crashlog; check_segv; check_fit; check_scopes; check_qmllog ;;
   *) echo "unknown section: $1" >&2; exit 1 ;;
 esac
 echo "parity: $passed/$total"

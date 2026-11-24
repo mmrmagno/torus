@@ -358,8 +358,8 @@ def alert(action, now):
         lines = []
         for c in result["connections"]:
             line = time.strftime("%H:%M", time.localtime(c["dep"])) + " → " + time.strftime("%H:%M", time.localtime(c["arr"]))
-            line += " · " + " ".join(c["lines"]) + (f" · pl. {c['platform']}" if c["platform"] else "")
-            line += f" · {c['minutes']} min" + (f" · +{c['delay']} late" if c["delay"] else "")
+            line += ", " + " ".join(c["lines"]) + (f", pl. {c['platform']}" if c["platform"] else "")
+            line += f", {c['minutes']} min" + (f", +{c['delay']} late" if c["delay"] else "")
             lines.append(line)
         first = result["connections"][0]
         leave = max(0, round((first["dep"] - now) / 60))

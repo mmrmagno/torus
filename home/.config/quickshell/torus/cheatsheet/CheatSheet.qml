@@ -60,6 +60,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: parent
+            name: "cheatsheet"
             shown: Store.isOpen("cheatsheet") && !Store.moving
         }
         anchors.fill: parent
@@ -146,7 +147,7 @@ PanelWindow {
                             text: modelData.name
                             color: Theme.accent
                             font.family: Theme.fontUi
-                            font.pixelSize: Theme.icon
+                            font.pixelSize: Theme.fsLg + 1
                             font.weight: Font.DemiBold
                             bottomPadding: 4
                         }

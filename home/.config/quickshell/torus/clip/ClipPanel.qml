@@ -29,15 +29,39 @@ PanelWindow {
     property string fullText: ""
     property string fullKey: ""
     property bool moved: false
+    property string held: ""
+    Binding {
+        target: Clip
+        property: "selected"
+        value: root.current ? root.current.text : ""
+    }
 
     Connections {
         target: Clip
+        function onChanging() {
+            root.held = root.moved && root.current ? root.current.key : ""
+        }
         function onShownChanged() {
             if (!root.moved && list.count > 0) {
                 list.currentIndex = 0
                 list.positionViewAtBeginning()
+            } else if (root.held !== "") {
+                const at = Clip.shown.findIndex(e => e.key === root.held)
+                if (at >= 0)
+                    list.currentIndex = at
             }
         }
+    }
+
+    Component.onCompleted: Clip.pics = () => {
+        let want = 0, have = 0
+        for (const r of list.contentItem.children) {
+            if (r.kind !== "image" || r.y + r.height < list.contentY || r.y > list.contentY + list.height)
+                continue
+            want++
+            have += r.picReady
+        }
+        return have + "/" + want + "|" + (big.visible && big.status === Image.Ready ? "big" : "")
     }
 
     function cycleKind(d) {
@@ -139,6 +163,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: clipFrame
+            name: "clip"
             shown: Store.isOpen("clip")
         }
         anchors.fill: parent
@@ -266,7 +291,7 @@ PanelWindow {
                                 Text { text: chip.modelData[1]; color: chip.on ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
                             }
                             HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: { Clip.kindFilter = chip.modelData[0]; list.currentIndex = 0 } }
+                            Tap { onTapped: { Clip.kindFilter = chip.modelData[0]; list.currentIndex = 0 } }
                         }
                     }
                 }
@@ -282,18 +307,15 @@ PanelWindow {
                     highlightMoveDuration: 120
                     boundsBehavior: Flickable.StopAtBounds
                     section.property: "group"
-                    section.delegate: Text {
+                    section.delegate: SectionTitle {
                         required property string section
                         visible: section !== "Matches"
                         height: visible ? 26 : 0
                         verticalAlignment: Text.AlignBottom
                         leftPadding: 4
                         bottomPadding: 4
-                        text: section.toUpperCase()
-                        color: Theme.overlay
-                        font.family: Theme.fontUi
+                        text: section
                         font.pixelSize: Theme.fsXs
-                        font.letterSpacing: 1.2
                     }
 
                     delegate: Rectangle {
@@ -309,6 +331,7 @@ PanelWindow {
                         required property string rest
                         required property string marks
                         required property string line
+                        readonly property bool picReady: kind === "image" && pic.status === Image.Ready
                         readonly property bool isCurrent: ListView.isCurrentItem
                         readonly property bool armed: Clip.armed === key || (Clip.armed === "marked" && pinned && Clip.marked[key] === true)
                         readonly property bool isMarked: Clip.marked[key] === true
@@ -364,6 +387,7 @@ PanelWindow {
                                 radius: Theme.rSm
                                 color: Qt.alpha(Theme.crust, 0.6)
                                 Image {
+                                    id: pic
                                     anchors.fill: parent
                                     source: row.thumb
                                     sourceSize.width: 192
@@ -387,28 +411,32 @@ PanelWindow {
                             }
                             Text {
                                 visible: row.pinned || hover.hovered || pinHover.containsMouse || delHover.containsMouse || row.isCurrent
+                                id: pinGlyph
                                 text: "󰐃"
                                 color: row.pinned ? Theme.peach : (pinHover.containsMouse ? Theme.accent : Theme.overlay)
                                 font.family: Theme.fontMono
                                 font.pixelSize: Theme.fsLg
+                                Press { target: pinGlyph; down: pinHover.pressed }
                                 MouseArea {
                                     id: pinHover
                                     anchors.fill: parent
-                                    anchors.margins: -6
+                                    anchors.margins: pressed ? -9 : -6
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: Clip.togglePin(Clip.entryAt(row.index))
                                 }
                             }
                             Text {
+                                id: delGlyph
                                 text: "󰆴"
                                 color: delHover.containsMouse || row.armed ? Theme.red : Theme.overlay
                                 font.family: Theme.fontMono
                                 font.pixelSize: Theme.fsLg
+                                Press { target: delGlyph; down: delHover.pressed }
                                 MouseArea {
                                     id: delHover
                                     anchors.fill: parent
-                                    anchors.margins: -6
+                                    anchors.margins: pressed ? -9 : -6
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
@@ -443,12 +471,15 @@ PanelWindow {
                                 }
                             }
                         }
+                        Press { target: row; down: hover.pressed }
                         MouseArea {
                             id: hover
                             readonly property bool hovered: containsMouse
                             anchors.fill: parent
+                            anchors.margins: pressed ? -3 : 0
                             z: -1
                             hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (Clip.manage)
                                     Clip.toggleMark(Clip.entryAt(row.index))
@@ -548,9 +579,10 @@ PanelWindow {
                         spacing: Theme.sp4
                         Text {
                             Layout.fillWidth: true
-                            text: preview.e ? (preview.e.pinned ? "PINNED · " : "") + (preview.e.kind || "text").toUpperCase() + (preview.e.kind === "text" || preview.e.kind === "code" ? "  ·  " + root.fullText.length + " chars" : "") : ""
+                            text: preview.e ? (preview.e.pinned ? "PINNED " : "") + (preview.e.kind || "text").toUpperCase() + (preview.e.kind === "text" || preview.e.kind === "code" ? "  " + root.fullText.length + " chars" : "") : ""
                             color: Theme.overlay
                             font.family: Theme.fontUi
+                            font.features: ({ "tnum": 1 })
                             font.pixelSize: Theme.fsXs
                             font.letterSpacing: 1.2
                             elide: Text.ElideRight
@@ -569,6 +601,7 @@ PanelWindow {
                     }
 
                     Image {
+                        id: big
                         visible: preview.e !== null && preview.e.kind === "image"
                         Layout.fillWidth: true
                         Layout.fillHeight: true

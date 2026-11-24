@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import qs
+import qs.components
 
 Rectangle {
     id: row
@@ -18,7 +19,7 @@ Rectangle {
     color: row.clickable && hover.hovered ? Theme.surface0 : "transparent"
 
     HoverHandler { id: hover; enabled: row.clickable; cursorShape: Qt.PointingHandCursor }
-    TapHandler { enabled: row.clickable; onTapped: row.clicked() }
+    Tap { enabled: row.clickable; onTapped: row.clicked() }
 
     RowLayout {
         anchors.fill: parent

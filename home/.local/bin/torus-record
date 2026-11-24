@@ -14,6 +14,10 @@ replay_audio() {
 
 replay_start() {
   local file=()
+  if journalctl -k -b -q --no-pager -o cat -g 'GPU reset begin|ring vcn_unified_[0-9]+ timeout' -n 1 2> /dev/null | grep -q .; then
+    notify-send -a torus "Replay" "off until a reboot: the GPU reset itself, recording now could hang it again"
+    exit 1
+  fi
   [[ -s $state/play-session.json ]] && file=(-sc "$(dirname "$(readlink -f "$0")")/torus-play-saved")
   setsid -f gpu-screen-recorder -w portal -f 60 -a "$(replay_audio)" -c mp4 -r 60 "${file[@]}" -o "$dir" > /dev/null 2>&1
 }

@@ -42,6 +42,7 @@ case ${1:-status} in
       plug) f=power-plug v=0.5 ;;
       unplug) f=power-unplug v=0.5 ;;
       delete) f=trash-empty v=0.5 ;;
+      recap) f=complete v=0.5 ;;
       record-start) f=device-added v=0.5 ;;
       record-stop) f=device-removed v=0.5 ;;
       notify) f=message-new-instant v=0.45 ;;
@@ -58,5 +59,5 @@ case ${1:-status} in
     [[ -f $dir/$f.oga ]] || exit 0
     play "$dir/$f.oga" "$(awk -v a="$v" -v b="$scale" 'BEGIN { v = a * b; if (v > 1) v = 1; printf "%g", v }')"
     ;;
-  *) echo "usage: torus-sound on|off|status|play|preview open|lock|unlock|shot|tick|device-in|device-out|error|online|offline|plug|unplug|delete|record-start|record-stop|notify|critical|name:NAME|file:PATH" >&2; exit 2 ;;
+  *) echo "usage: torus-sound on|off|status|play|preview open|lock|unlock|shot|tick|device-in|device-out|error|online|offline|plug|unplug|delete|recap|record-start|record-stop|notify|critical|name:NAME|file:PATH" >&2; exit 2 ;;
 esac

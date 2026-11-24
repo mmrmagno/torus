@@ -206,6 +206,7 @@ bind("XF86MonBrightnessDown", "test \"$(qs -c torus ipc call torus brightnessSte
 bind(MOD .. " + K", "hyprctl switchxkblayout all next", "[Utilities] next keyboard layout", locked)
 bind(MOD .. " + ALT + G", "torus-gamemode", "[Utilities] game mode")
 bind(MOD .. " + SHIFT + G", ipc("gamesToggle"), "[Utilities] game hub")
+bind(MOD .. " + M", ipc("musicToggle"), "[Utilities] music")
 bind(MOD .. " + H", ipc("homelabToggle"), "[Utilities] homelab hub (Spire, read only)")
 bind(MOD .. " + SHIFT + P", "torus-pick", "[Utilities] color picker")
 bind(MOD .. " + P", "torus-shot s", "[Utilities] screenshot area, click for a window")

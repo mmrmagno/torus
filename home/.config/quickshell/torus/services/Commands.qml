@@ -42,7 +42,7 @@ Singleton {
     readonly property string home: Quickshell.env("HOME")
     readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/torus"
 
-    readonly property var providers: [appsP, windowsP, actionsP, projectsP, recentP, sshP, githubP, containersP, displaysP, calcP, filesP, webP, colorsP, emojiP, glyphP, timerP, notifsP, otpP, kbP, aiP, passP]
+    readonly property var providers: [appsP, windowsP, actionsP, projectsP, recentP, sshP, githubP, containersP, displaysP, calcP, filesP, webP, colorsP, emojiP, glyphP, timerP, notifsP, otpP, kbP, musicP, aiP, passP]
     readonly property var win: windowsP
     readonly property var prefixed: providers.filter(p => p.prefix !== "").sort((a, b) => b.prefix.length - a.prefix.length)
     readonly property var parsed: R.parse(query, prefixed, tabScope)
@@ -85,7 +85,7 @@ Singleton {
         return top.concat(R.arrange(groups, 4)).slice(0, 40)
     }
 
-    readonly property var scopeOrder: ["all", "apps", "files", "projects", "pass", "ssh", "github", "containers", "windows", "actions", "recent", "calc", "web", "colors", "emoji", "glyphs", "timer", "notifs", "kb", "ai"]
+    readonly property var scopeOrder: ["all", "apps", "files", "projects", "pass", "ssh", "github", "containers", "windows", "actions", "recent", "calc", "web", "colors", "emoji", "glyphs", "timer", "notifs", "kb", "music", "ai"]
     readonly property var scopes: scopeOrder.map(k => k === "all" ? { key: "all", name: "All", glyph: "󰍉", prefix: "" } : byKey(k)).filter(p => p && (p.key === "all" || p.scoped)).map(p => ({ key: p.key, name: p.name, glyph: p.glyph, prefix: p.prefix }))
     readonly property string glyph: current ? current.glyph : "󰍉"
     readonly property bool help: mode === "kb" && term === ""
@@ -171,6 +171,8 @@ Singleton {
         for (const p of providers)
             if (p.reset)
                 p.reset()
+        if (current && current.eager && term.length > 0)
+            current.eager(term)
         debounce.restart()
     }
 
@@ -212,6 +214,7 @@ Singleton {
     NotifsProvider { id: notifsP }
     OtpProvider { id: otpP }
     KbProvider { id: kbP }
+    MusicProvider { id: musicP }
     AiProvider { id: aiP }
     PassProvider { id: passP }
 

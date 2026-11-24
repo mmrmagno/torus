@@ -8,10 +8,10 @@ Column {
 
     Row {
         spacing: Theme.sp5
-        Text { text: Math.round(SysStats.cpu) + "%"; color: Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsHead; font.weight: Font.Bold }
+        Text { text: Math.round(SysStats.cpu) + "%"; color: Theme.text; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsHead; font.weight: Font.Bold }
         Column {
             anchors.verticalCenter: parent.verticalCenter
-            Text { text: "CPU" + (SysStats.cpuMhz > 0 ? "  " + (SysStats.cpuMhz / 1000).toFixed(2) + " GHz" : ""); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
+            Text { text: "CPU" + (SysStats.cpuMhz > 0 ? "  " + (SysStats.cpuMhz / 1000).toFixed(2) + " GHz" : ""); color: Theme.subtext; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsSm }
             Text { text: "load " + SysStats.load; color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: Theme.fsSm }
         }
     }

@@ -55,14 +55,17 @@ Chip {
                         font.capitalization: Font.AllUppercase
                     }
                     Text {
+                        id: projText
                         visible: grp.modelData.project !== ""
                         text: "󰑓 restart project"
                         color: projArea.containsMouse ? Theme.accent : Theme.subtext
                         font.family: Theme.fontUi
                         font.pixelSize: Theme.fsXs
+                        Press { target: projText; down: projArea.pressed }
                         MouseArea {
                             id: projArea
                             anchors.fill: parent
+                            anchors.margins: pressed ? -3 : 0
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: ContainerWatch.restartProject(grp.modelData.engine, grp.modelData.project)
@@ -79,8 +82,11 @@ Chip {
                     color: rowHover.hovered ? Theme.surface0 : "transparent"
 
                     HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                    Press { target: srow; down: rowArea.pressed }
                     MouseArea {
+                        id: rowArea
                         anchors.fill: parent
+                        anchors.margins: pressed ? -3 : 0
                         onClicked: ContainerWatch.logs(srow.modelData)
                     }
 
@@ -95,7 +101,7 @@ Chip {
                             spacing: 1
                             Text {
                                 Layout.fillWidth: true
-                                text: srow.modelData.name + "  ·  " + srow.modelData.image
+                                text: srow.modelData.name + "  " + srow.modelData.image
                                 color: Theme.text
                                 font.family: Theme.fontUi
                                 font.pixelSize: Theme.fsBase
@@ -103,7 +109,7 @@ Chip {
                             }
                             Text {
                                 Layout.fillWidth: true
-                                text: srow.modelData.status + (srow.modelData.ports ? "  ·  " + srow.modelData.ports : "") + (srow.modelData.engine === "podman" ? "  ·  podman" : "")
+                                text: srow.modelData.status + (srow.modelData.ports ? ", " + srow.modelData.ports : "") + (srow.modelData.engine === "podman" ? ", podman" : "")
                                 color: Theme.subtext
                                 font.family: Theme.fontMono
                                 font.pixelSize: Theme.fsXs
@@ -111,6 +117,7 @@ Chip {
                             }
                         }
                         Rectangle {
+                            id: restartBtn
                             Layout.preferredWidth: 28
                             Layout.preferredHeight: 28
                             radius: Theme.radius
@@ -122,15 +129,18 @@ Chip {
                                 font.family: Theme.fontMono
                                 font.pixelSize: Theme.fsBase
                             }
+                            Press { target: restartBtn; down: restartArea.pressed }
                             MouseArea {
                                 id: restartArea
                                 anchors.fill: parent
+                                anchors.margins: pressed ? -3 : 0
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: ContainerWatch.act(srow.modelData, "restart")
                             }
                         }
                         Rectangle {
+                            id: stopBtn
                             Layout.preferredWidth: 28
                             Layout.preferredHeight: 28
                             radius: Theme.radius
@@ -142,9 +152,11 @@ Chip {
                                 font.family: Theme.fontMono
                                 font.pixelSize: Theme.fsBase
                             }
+                            Press { target: stopBtn; down: stopArea.pressed }
                             MouseArea {
                                 id: stopArea
                                 anchors.fill: parent
+                                anchors.margins: pressed ? -3 : 0
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: ContainerWatch.act(srow.modelData, "stop")

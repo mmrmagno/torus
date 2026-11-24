@@ -53,13 +53,15 @@ PanelWindow {
                     text: Qt.formatDateTime(clock.date, "hh:mm")
                     color: Theme.text
                     font.family: Theme.fontUi
-                    font.pixelSize: 84
+                    font.features: ({ "tnum": 1 })
+                    font.pixelSize: Theme.fsHuge
                     font.weight: Font.Bold
                 }
                 Text {
                     text: Qt.formatDateTime(clock.date, "dddd, d MMMM")
                     color: Theme.accent
                     font.family: Theme.fontUi
+                    font.features: ({ "tnum": 1 })
                     font.pixelSize: Theme.fsTitle
                 }
             }
@@ -114,7 +116,7 @@ PanelWindow {
                         text: "󰎆"
                         color: Theme.accent
                         font.family: Theme.fontMono
-                        font.pixelSize: 22
+                        font.pixelSize: Theme.iconLg
                     }
                     Image {
                         id: art
@@ -154,8 +156,8 @@ PanelWindow {
                                 color: hover.hovered ? Theme.lavender : Theme.accent
                                 font.family: Theme.fontMono
                                 font.pixelSize: Theme.fsXl
-                                HoverHandler { id: hover }
-                                TapHandler { onTapped: if (Island.player) Island.player[parent.modelData[1]]() }
+                                HoverHandler { id: hover; margin: 5; cursorShape: Qt.PointingHandCursor }
+                                Tap { reach: 5; onTapped: if (Island.player) Island.player[parent.modelData[1]]() }
                             }
                         }
                     }

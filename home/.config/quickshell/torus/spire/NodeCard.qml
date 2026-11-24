@@ -25,11 +25,11 @@ Rectangle {
             Text { text: card.node.role; color: Theme.overlay; font.family: Theme.fontUi; font.pixelSize: Theme.fsXs }
         }
         Text { text: card.node.ready ? "Ready" : "NotReady"; color: card.node.ready ? Theme.subtext : Theme.red; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm }
-        Text { text: "cpu " + (card.node.cpu || "?") + "  ·  mem " + (card.node.mem || "?"); color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
+        Text { text: "cpu " + (card.node.cpu || "?") + "  mem " + (card.node.mem || "?"); color: Theme.subtext; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
         Text {
             Layout.fillWidth: true
             elide: Text.ElideRight
-            text: (card.node.os || "").replace(/^Talos \((.*)\)$/, "Talos $1") + "  ·  k8s " + (card.node.kubelet || "")
+            text: (card.node.os || "").replace(/^Talos \((.*)\)$/, "Talos $1") + ", k8s " + (card.node.kubelet || "")
             color: Theme.overlay
             font.family: Theme.fontUi
             font.pixelSize: Theme.fsXs

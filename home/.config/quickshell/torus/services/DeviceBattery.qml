@@ -38,7 +38,7 @@ Singleton {
             known = k
             if (Date.now() - startedAt > 5000) {
                 last = "connect:" + name + ":" + pct
-                Island.flash("osd", { icon: icon(kind), label: name + "  ·  " + pct + "%", value: pct / 100, cat: "devices" }, 2600)
+                Island.flash("osd", { icon: icon(kind), label: name + "  " + pct + "%", value: pct / 100, cat: "devices" }, 2600)
             }
             if (pct < low)
                 warn(name, kind, pct)

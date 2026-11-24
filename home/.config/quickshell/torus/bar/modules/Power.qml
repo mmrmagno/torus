@@ -5,8 +5,10 @@ import qs.components
 import qs.services
 
 Chip {
+    id: chip
+
     icon: "󰐥"
     tip: "Lock, log out, reboot, power off"
     iconColor: Theme.red
-    onClicked: Store.toggleOn("logout", QsWindow.window ? QsWindow.window.screen : null)
+    onClicked: Store.toggleFrom("logout", chip)
 }

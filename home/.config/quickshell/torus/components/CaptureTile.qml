@@ -80,7 +80,7 @@ Rectangle {
         Text {
             id: badgeText
             anchors.centerIn: parent
-            text: "AUTO · " + tile.badge.toUpperCase()
+            text: "AUTO " + tile.badge.toUpperCase()
             color: Theme.peach
             font.family: Theme.fontUi
             font.pixelSize: Theme.fsXs
@@ -121,7 +121,7 @@ Rectangle {
         text: tile.kind === "video" ? "󰕧" : "󰋩"
         color: Theme.overlay
         font.family: Theme.fontMono
-        font.pixelSize: 26
+        font.pixelSize: Theme.iconLg
     }
     Rectangle {
         visible: tile.kind === "video"
@@ -138,7 +138,7 @@ Rectangle {
         anchors.bottom: tile.bottom
         anchors.margins: 8
         spacing: Theme.sp2
-        Text { Layout.fillWidth: true; text: (tile.caption !== "" ? tile.caption + "  ·  " : "") + tile.ago(tile.time); color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsXs; elide: Text.ElideRight }
+        Text { Layout.fillWidth: true; text: (tile.caption !== "" ? tile.caption + ", " : "") + tile.ago(tile.time); color: Theme.subtext; font.family: Theme.fontUi; font.features: ({ "tnum": 1 }); font.pixelSize: Theme.fsXs; elide: Text.ElideRight }
         Text { visible: tile.bytes > 0; text: tile.size(tile.bytes); color: Theme.overlay; font.family: Theme.fontMono; font.pixelSize: Theme.fsXs }
     }
 
@@ -146,7 +146,9 @@ Rectangle {
         id: tileHover
         onHoveredChanged: if (!hovered && tile.armed) tile.act("disarm")
     }
+    Press { target: picFrame; down: tileArea.pressed }
     MouseArea {
+        id: tileArea
         anchors.fill: tile
         cursorShape: Qt.PointingHandCursor
         onClicked: tile.opened()
@@ -183,9 +185,11 @@ Rectangle {
                     font.family: Theme.fontMono
                     font.pixelSize: Theme.fsMd
                 }
+                Press { target: mini; down: miniHover.pressed }
                 MouseArea {
                     id: miniHover
                     anchors.fill: mini
+                    anchors.margins: pressed ? -3 : 0
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: tile.act(mini.modelData[1])

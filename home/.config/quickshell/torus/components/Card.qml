@@ -16,17 +16,12 @@ Rectangle {
     border.width: 1
     border.color: Qt.alpha(Theme.surface1, 0.6)
 
-    Text {
+    SectionTitle {
         id: heading
         visible: root.title !== ""
         text: root.title
         x: 14
         y: 10
-        color: Theme.overlay
-        font.family: Theme.fontUi
-        font.pixelSize: Theme.fsSm
-        font.letterSpacing: 1.2
-        font.capitalization: Font.AllUppercase
     }
 
     Item {

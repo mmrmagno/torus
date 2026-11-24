@@ -88,7 +88,7 @@ cp "$F/state/torus/play-session.json" "$F/session.bak"
 "$P" end --closed
 grep -q -- '-f torus-gsi serve' "$F/pkill.log" || fail "the game ending stops the listener"
 txt=$("$P" recap | jq -r .text)
-[[ $txt == "Counter-Strike 2: de_mirage 2:3 · 11/2 K/D · 2 MVPs · "*"best round ace (round 1)"*"2 clips saved (1 auto)" ]] || fail "recap: $txt"
+[[ $txt == "Counter-Strike 2: de_mirage 2:3, 11/2 K/D, 2 MVPs, "*"best round ace (round 1)"*"2 clips saved (1 auto)" ]] || fail "recap: $txt"
 
 "$S" uninstall > /dev/null
 assert_absent "$cfg/gamestate_integration_torus.cfg"

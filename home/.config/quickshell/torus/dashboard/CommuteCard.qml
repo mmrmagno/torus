@@ -164,7 +164,7 @@ Card {
             border.color: Qt.alpha(Theme.accent, 0.35)
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
             HoverHandler { id: heroHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: card.expanded = card.expanded === 0 ? -1 : 0 }
+            Tap { onTapped: card.expanded = card.expanded === 0 ? -1 : 0 }
 
             ColumnLayout {
                 id: hero
@@ -199,9 +199,10 @@ Card {
                         Lines { Layout.alignment: Qt.AlignRight; lines: card.first ? card.first.lines : [] }
                         Text {
                             Layout.alignment: Qt.AlignRight
-                            text: card.first ? card.first.minutes + " min · " + card.changes(card.first.changes) + (card.first.platform ? " · pl. " + card.first.platform : "") : ""
+                            text: card.first ? card.first.minutes + " min, " + card.changes(card.first.changes) + (card.first.platform ? ", pl. " + card.first.platform : "") : ""
                             color: Theme.subtext
                             font.family: Theme.fontUi
+                            font.features: ({ "tnum": 1 })
                             font.pixelSize: Theme.fsSm
                         }
                         Text {
@@ -231,7 +232,7 @@ Card {
                 color: rowHover.hovered ? Theme.surface1 : Qt.alpha(Theme.base, 0.35)
                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
                 HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: card.expanded = card.expanded === row.slot ? -1 : row.slot }
+                Tap { onTapped: card.expanded = card.expanded === row.slot ? -1 : row.slot }
 
                 ColumnLayout {
                     id: rowBody
@@ -262,9 +263,10 @@ Card {
                             font.weight: Font.DemiBold
                         }
                         Text {
-                            text: row.modelData.minutes + " min · " + card.changes(row.modelData.changes) + (row.modelData.delay > 0 ? " · +" + row.modelData.delay : "")
+                            text: row.modelData.minutes + " min, " + card.changes(row.modelData.changes) + (row.modelData.delay > 0 ? ", +" + row.modelData.delay : "")
                             color: row.modelData.delay > 0 ? Theme.peach : Theme.subtext
                             font.family: Theme.fontUi
+                            font.features: ({ "tnum": 1 })
                             font.pixelSize: Theme.fsSm
                         }
                     }
@@ -288,7 +290,7 @@ Card {
             visible: !card.editing && Commute.configured
             Text {
                 Layout.fillWidth: true
-                text: "Timetable data: opentransportdata.swiss" + (Commute.result.updated ? " · " + card.hhmm(Commute.result.updated) : "")
+                text: "Timetable data: opentransportdata.swiss" + (Commute.result.updated ? ", " + card.hhmm(Commute.result.updated) : "")
                 color: Theme.overlay
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fsXs
@@ -300,8 +302,8 @@ Card {
                 color: sbbHover.hovered ? Theme.accent : Theme.subtext
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fsSm
-                HoverHandler { id: sbbHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: Quickshell.execDetached(["torus-launch", "xdg-open", Commute.result.sbb]) }
+                HoverHandler { id: sbbHover; margin: 5; cursorShape: Qt.PointingHandCursor }
+                Tap { reach: 5; onTapped: Quickshell.execDetached(["torus-launch", "xdg-open", Commute.result.sbb]) }
             }
         }
     }
@@ -374,7 +376,7 @@ Card {
                     Text {
                         visible: legRow.ride
                         width: parent.width
-                        text: (legRow.modelData.platform ? "platform " + legRow.modelData.platform + "  ·  " : "") + "arrives " + card.hhmm(legRow.modelData.arr) + (legRow.modelData.delay > 0 ? "  ·  +" + legRow.modelData.delay + " min" : "")
+                        text: (legRow.modelData.platform ? "platform " + legRow.modelData.platform + ", " : "") + "arrives " + card.hhmm(legRow.modelData.arr) + (legRow.modelData.delay > 0 ? ", +" + legRow.modelData.delay + " min" : "")
                         color: legRow.modelData.delay > 0 ? Theme.peach : Theme.overlay
                         font.family: Theme.fontUi
                         font.pixelSize: Theme.fsXs
@@ -412,7 +414,7 @@ Card {
             RotationAnimation on rotation { running: ib.spinning && Theme.motion > 0; from: 0; to: 360; duration: 900; loops: Animation.Infinite; onStopped: ibGlyph.rotation = 0 }
         }
         HoverHandler { id: ibHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: ib.clicked() }
+        Tap { onTapped: ib.clicked() }
     }
 
     component Field: ColumnLayout {

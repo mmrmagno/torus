@@ -15,6 +15,10 @@ PanelWindow {
     readonly property bool narrow: screen ? screen.width < 1400 : false
     readonly property bool focused: Store.focusedScreen === screen
     readonly property bool flashing: Island.state === "osd" || Island.state === "notification" || Island.state === "shot" || Island.state === "trash"
+    function esc(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    }
+
     readonly property string resting: Island.recording ? "recording" : Island.sharing ? "sharing" : Zoom.on ? "zoom" : (SteamLog.top || BrowserDownloads.top ? "progress" : (Timers.running ? "timer" : (Focus.running ? "focus" : (narrow ? "" : (Island.player && Feel.islandOn("music") ? "media" : "idle")))))
     readonly property bool faceOn: FaceScan.state !== "idle"
     readonly property string mode: faceOn && focused ? "face" : (flashing && focused ? Island.state : resting)
@@ -52,7 +56,11 @@ PanelWindow {
     readonly property int barHole: narrow || mode === "" ? 0 : pillWidth
     onBarHoleChanged: Island.setHole(screen.name, barHole)
     onModeChanged: Island.report(screen.name, mode === "" ? "hidden" : mode)
+    Component.onDestruction: delete Store.musicSpots[spotOf]
+    property string spotOf: ""
     Component.onCompleted: {
+        spotOf = screen.name
+        Store.musicSpots[screen.name] = () => root.visible && root.mode === "media" && Island.player && Island.player.identity === "torus music" ? Fly.box(diskSpot, diskSpot.width / 2) : null
         Island.report(screen.name, mode === "" ? "hidden" : mode)
         Island.setHole(screen.name, barHole)
     }
@@ -88,25 +96,32 @@ PanelWindow {
         Behavior on height { NumberAnimation { duration: Theme.durSlow; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
         Behavior on opacity { NumberAnimation { duration: Theme.durMed } }
 
+        Press { target: pill; down: pillArea.pressed && root.mode !== "shot" && root.mode !== "trash" }
         MouseArea {
+            id: pillArea
             anchors.fill: parent
+            anchors.margins: pressed ? -3 : 0
             cursorShape: Qt.PointingHandCursor
             acceptedButtons: Qt.LeftButton | Qt.RightButton
+            hoverEnabled: root.mode === "media"
+            onEntered: if (Island.player && Island.player.identity === "torus music") Music.warm()
             onClicked: mouse => {
                 if (root.mode === "focus" && mouse.button === Qt.RightButton)
                     Focus.stop()
                 else if (root.mode === "timer")
                     mouse.button === Qt.RightButton ? Timers.stop() : Timers.togglePause()
                 else if (root.mode === "notification")
-                    Store.setOpen("center", true)
+                    Store.openFrom("center", pill)
                 else if (root.mode === "recording")
                     Quickshell.execDetached(["torus-record", "toggle"])
                 else if (root.mode === "zoom")
                     Zoom.reset()
                 else if (root.mode === "media" && mouse.button === Qt.RightButton && Island.player)
                     Island.player.togglePlaying()
+                else if (root.mode === "media" && Island.player && Island.player.identity === "torus music")
+                    Store.toggleFrom("music", diskSpot)
                 else
-                    Store.toggleOn("dashboard", root.screen)
+                    Store.toggleFrom("dashboard", pill)
             }
             onWheel: wheel => {
                 if (root.mode !== "media" || !Island.player)
@@ -148,7 +163,7 @@ PanelWindow {
             Behavior on opacity { NumberAnimation { duration: root.mode === "idle" ? Theme.durMed : Theme.durFast; easing.type: Easing.OutCubic } }
             anchors.centerIn: parent
             spacing: Theme.sp4
-            readonly property var win: Hyprland.activeToplevel
+            readonly property var win: Island.win
             readonly property string appId: win && win.wayland && win.wayland.appId ? win.wayland.appId : ""
             IconImage {
                 implicitSize: 16
@@ -160,7 +175,7 @@ PanelWindow {
             }
             Text {
                 id: idleText
-                text: parent.win && parent.win.title ? parent.win.title : "marc @ os"
+                text: Island.winTitle || "marc @ os"
                 color: Theme.text
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fontSize
@@ -180,15 +195,44 @@ PanelWindow {
             spacing: Theme.sp4
 
             Item {
+                id: diskSpot
+                opacity: Fly.moving && Fly.name === "music" && Fly.screenName === root.screen.name ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
                 Layout.preferredWidth: root.pillHeight - 6
                 Layout.preferredHeight: root.pillHeight - 6
 
+                ProgressRing {
+                    id: songRing
+                    visible: Island.songLength > 0
+                    anchors.fill: parent
+                    anchors.margins: -1
+                    thickness: 1.5
+                    value: sweep >= 0 ? sweep : Island.songPart
+                    property real sweep: -1
+                    SequentialAnimation {
+                        id: firstSweep
+                        NumberAnimation { target: songRing; property: "sweep"; from: 0; to: 1; duration: 700 * Theme.motion; easing.type: Easing.InOutCubic }
+                        PauseAnimation { duration: 120 * Theme.motion }
+                        PropertyAction { target: songRing; property: "sweep"; value: -1 }
+                    }
+                    NumberAnimation { id: firstDisk; target: diskSpot; property: "scale"; from: 0.5; to: 1; duration: 700 * Theme.motion; easing.type: Easing.OutBack }
+                    Connections {
+                        target: Island
+                        function onFirstSong() {
+                            if (Theme.motion === 0)
+                                return
+                            firstSweep.restart()
+                            firstDisk.restart()
+                        }
+                    }
+                }
                 ClippingRectangle {
                     id: disk
                     anchors.fill: parent
+                    anchors.margins: songRing.visible ? 3 : 0
                     radius: width / 2
                     color: Theme.crust
-                    border.width: 1
+                    border.width: songRing.visible ? 0 : 1
                     border.color: Qt.alpha(Theme.accent, 0.5)
 
                     Text {
@@ -202,7 +246,7 @@ PanelWindow {
                     Image {
                         id: art
                         anchors.fill: parent
-                        anchors.margins: 1
+                        anchors.margins: songRing.visible ? 0 : 1
                         source: Island.player ? Island.player.trackArtUrl : ""
                         sourceSize.width: 64
                         sourceSize.height: 64
@@ -219,7 +263,7 @@ PanelWindow {
                         border.color: Qt.alpha(Theme.text, 0.4)
                     }
                     RotationAnimation on rotation {
-                        running: root.mode === "media"
+                        running: root.mode === "media" && Theme.motion > 0
                         paused: running && !(Island.player && Island.player.isPlaying && root.focused)
                         from: 0
                         to: 360
@@ -235,7 +279,8 @@ PanelWindow {
 
                 Text {
                     Layout.fillWidth: true
-                    text: Island.player ? (Island.player.trackTitle + (Island.player.trackArtist ? "  ·  " + Island.player.trackArtist : "")) : ""
+                    text: Island.player ? root.esc(Island.player.trackTitle) + (Island.player.trackArtist ? "<font color=\"" + Theme.subtext + "\">&nbsp; " + root.esc(Island.player.trackArtist) + "</font>" : "") : ""
+                    textFormat: Text.StyledText
                     color: Theme.text
                     font.family: Theme.fontUi
                     font.pixelSize: root.lyricRow ? Theme.fontSize - 1 : Theme.fontSize
@@ -309,7 +354,13 @@ PanelWindow {
             anchors.leftMargin: 14
             anchors.rightMargin: 16
             spacing: Theme.sp5
+            DoneRing {
+                visible: root.noteData.done === true
+                of: root.noteData
+                on: root.mode === "notification" && visible
+            }
             NotifIcon {
+                visible: root.noteData.done !== true
                 size: 28
                 image: root.noteData.image || ""
                 appIcon: root.noteData.icon || ""
@@ -404,7 +455,7 @@ PanelWindow {
                                 Text { id: shotLabel; text: shotBtn.modelData[1]; color: shotHover.hovered ? Theme.crust : Theme.text; font.family: Theme.fontUi; font.pixelSize: Theme.fsSm; anchors.verticalCenter: parent.verticalCenter }
                             }
                             HoverHandler { id: shotHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: Island.shotAct(shotBtn.modelData[1]) }
+                            Tap { onTapped: Island.shotAct(shotBtn.modelData[1]) }
                         }
                     }
                 }
@@ -500,7 +551,7 @@ PanelWindow {
                 radius: 5
                 color: Theme.peach
                 SequentialAnimation on opacity {
-                    running: root.mode === "sharing"
+                    running: root.mode === "sharing" && Theme.motion > 0
                     loops: Animation.Infinite
                     NumberAnimation { to: 0.3; duration: 900 }
                     NumberAnimation { to: 1; duration: 900 }
@@ -511,7 +562,7 @@ PanelWindow {
                 color: Theme.text
                 font.family: Theme.fontUi
                 font.pixelSize: Theme.fontSize
-                text: "Sharing · " + Island.shareApps.join(", ")
+                text: "Sharing " + Island.shareApps.join(", ")
             }
         }
 
@@ -558,16 +609,17 @@ PanelWindow {
                 id: progText
                 color: Theme.text
                 font.family: Theme.fontUi
+                font.features: ({ "tnum": 1 })
                 font.pixelSize: Theme.fontSize
                 text: {
                     const j = SteamLog.top || BrowserDownloads.top
                     if (!j)
                         return ""
                     if (j.kind === "browser")
-                        return j.name + "  ·  " + j.size + (j.speed ? "  ·  " + j.speed : "")
+                        return j.name + "  " + j.size + (j.speed ? ", " + j.speed : "")
                     const what = j.kind === "download" ? (j.speed || "downloading") : "shaders"
                     const left = SteamLog.left(j.left)
-                    return j.name + "  ·  " + what + " " + j.pct + "%" + (left ? "  ·  " + left : "")
+                    return j.name + "  " + what + " " + j.pct + "%" + (left ? ", " + left : "")
                 }
             }
         }
@@ -585,7 +637,7 @@ PanelWindow {
                 radius: 5
                 color: Theme.red
                 SequentialAnimation on opacity {
-                    running: root.mode === "recording"
+                    running: root.mode === "recording" && Theme.motion > 0
                     loops: Animation.Infinite
                     NumberAnimation { to: 0.25; duration: 700 }
                     NumberAnimation { to: 1; duration: 700 }
@@ -604,7 +656,7 @@ PanelWindow {
                     triggeredOnStart: true
                     onTriggered: {
                         const s = Math.max(0, Math.floor((Date.now() - Island.recordStart) / 1000))
-                        recText.text = "REC " + String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0") + (Island.sharing ? "  ·  sharing" : "")
+                        recText.text = "REC " + String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0") + (Island.sharing ? "  sharing" : "")
                     }
                 }
             }

@@ -31,7 +31,7 @@ Provider {
                 const host = f[0], name = f[1] || "", user = f[2] || "", jump = f[3] || ""
                 return {
                     id: "ssh:" + host, kind: "ssh", glyph: "󰣀", title: host,
-                    sub: (user ? user + "@" : "") + (name || host) + (jump ? "  ·  via " + jump : ""), keys: name,
+                    sub: (user ? user + "@" : "") + (name || host) + (jump ? " via " + jump : ""), keys: name,
                     enter: "connect", act: () => Quickshell.execDetached(["torus-launch", "kitty", "--title", "ssh " + host, "ssh", host]),
                     ctrl: { label: "copy ssh command", act: () => Quickshell.execDetached(["wl-copy", "--", "ssh " + host]) },
                     alt: { label: "kitten ssh", act: () => Quickshell.execDetached(["torus-launch", "kitty", "--title", "ssh " + host, "kitten", "ssh", host]) }

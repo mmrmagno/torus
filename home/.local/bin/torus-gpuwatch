@@ -69,8 +69,7 @@ def text(ev, later=False):
     if later:
         head += " (that is why the session restarted)"
     parts = [head + "."]
-    if ev["encoder"]:
-        parts.append("The video encoder stays broken until a reboot, so game clips are off.")
+    parts.append(("The video encoder stays broken" if ev["encoder"] else "Recording could hang it again") + ", so game clips are off until a reboot.")
     parts.append("A reboot gives a clean GPU." if ev["recovered"] else "The reset failed, reboot now.")
     return " ".join(parts)
 

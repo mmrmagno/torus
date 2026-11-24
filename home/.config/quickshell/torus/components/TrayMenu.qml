@@ -68,7 +68,7 @@ PopupWindow {
                 color: backHover.hovered ? Theme.surface0 : "transparent"
                 Text { anchors.verticalCenter: parent.verticalCenter; x: 10; text: "󰁍  back"; color: Theme.subtext; font.family: Theme.fontUi; font.pixelSize: Theme.fsMd }
                 HoverHandler { id: backHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.stack = root.stack.slice(0, -1) }
+                Tap { onTapped: root.stack = root.stack.slice(0, -1) }
             }
 
             ListView {
@@ -133,7 +133,7 @@ PopupWindow {
                         }
 
                         HoverHandler { id: rowHover; cursorShape: row.modelData.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor }
-                        TapHandler {
+                        Tap {
                             enabled: row.modelData.enabled
                             onTapped: {
                                 if (row.modelData.hasChildren && root.stack.length < root.openers.length - 1) {

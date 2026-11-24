@@ -43,6 +43,7 @@ PanelWindow {
         PanelMotion {
             id: motion
             target: stageHost
+            name: "overview"
             shown: Store.isOpen("overview")
             from: 0.98
         }
@@ -122,11 +123,12 @@ PanelWindow {
                     readonly property bool target: stage.dragging !== null && stage.hoverWs === modelData
                     border.width: active || target ? 2 : 1
                     border.color: target ? Theme.green : (active ? Theme.accent : Theme.surface1)
-                    scale: target ? 1.04 : 1
+                    scale: tilePress.pressed ? 0.98 : target ? 1.04 : tileHover.hovered ? 1.01 : 1
                     Behavior on scale { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
 
-
+                    HoverHandler { id: tileHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler {
+                        id: tilePress
                         onTapped: {
                             Hyprland.dispatch('hl.dsp.focus({ workspace = "' + tile.modelData + '" })')
                             Store.setOpen("overview", false)
@@ -219,7 +221,7 @@ PanelWindow {
                         border.color: thumbHover.hovered ? Theme.accent : Qt.alpha(Theme.accent, 0.4)
                     }
                     HoverHandler { id: thumbHover; cursorShape: Qt.OpenHandCursor }
-                    TapHandler {
+                    Tap {
                         onTapped: {
                             Store.setOpen("overview", false)
                             Store.focusWindow(thumb.modelData)

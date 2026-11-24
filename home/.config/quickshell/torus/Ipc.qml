@@ -41,6 +41,10 @@ IpcHandler {
         Store.toggle("center")
     }
 
+    function islandTitle(): string {
+        return Island.winTitle + "|" + Island.titleChanges
+    }
+
     function islandState(): string {
         const out = []
         for (const s in Island.modes)
@@ -190,6 +194,16 @@ IpcHandler {
 
     function islandFlash(kind: string, label: string): void {
         Island.flash(kind, { icon: "󰋼", label: label, value: -1, summary: label, body: "" }, 3000)
+    }
+
+    function islandRecap(game: string, text: string, art: string): void {
+        Island.flash("notification", { summary: game, body: text, app: "Steam", icon: "steam", image: art, cat: "steam" }, 7000)
+        if (!Store.dnd)
+            Store.sound("recap")
+    }
+
+    function moments(): string {
+        return "done=" + Store.doneRings + " sweep=" + Store.sweeps + " dissolve=" + Store.dissolves
     }
 
     function notifGroups(): string {
@@ -513,6 +527,50 @@ IpcHandler {
         Store.toggle("games")
     }
 
+    function musicToggle(): void {
+        Store.toggle("music")
+    }
+
+    function musicOpen(): void {
+        Store.setOpen("music", true)
+    }
+
+    function musicSel(): int {
+        return Store.musicSel
+    }
+
+    function barBoxes(screen: string): string {
+        return Store.bars[screen] ? JSON.stringify(Store.bars[screen]()) : ""
+    }
+
+    function musicVol(): string {
+        return Store.musicVol ? Store.musicVol() : ""
+    }
+
+    function panelMotion(name: string): string {
+        return Store.motions[name] ? Store.motions[name]() : ""
+    }
+
+    function pickerState(): string {
+        return Store.picker ? Store.picker.label + "|" + Store.picker.rows().join(",") + "|" + Store.picker.index() + "|" + Store.picker.box() : "closed"
+    }
+
+    function shakes(): int {
+        return Store.shakes
+    }
+
+    function flights(): string {
+        return Fly.count + "|" + (Fly.on ? Fly.name : "") + "|" + JSON.stringify([Fly.start, Fly.end])
+    }
+
+    function songRings(): string {
+        return Math.round(Island.songPart * 100) + "|" + Math.round(Store.songPart * 100)
+    }
+
+    function musicSpot(): string {
+        return Store.isOpen("music") ? Store.musicSpot : "closed"
+    }
+
     function homelabToggle(): void {
         Store.toggle("homelab")
     }
@@ -818,6 +876,14 @@ IpcHandler {
 
     function clipThumbs(): string {
         return JSON.stringify({ ready: Object.keys(Clip.thumbReady).length, queued: Clip.queue.length, decoding: Clip.decoderKey, images: Clip.entries.filter(e => e.image).length })
+    }
+
+    function clipPicture(): string {
+        return (Clip.entries.length ? Clip.entries[0].text : "") + "|" + (Clip.pics ? Clip.pics() : "0/0|")
+    }
+
+    function clipSelected(): string {
+        return Clip.selected
     }
 
     function clipText(index: int): string {

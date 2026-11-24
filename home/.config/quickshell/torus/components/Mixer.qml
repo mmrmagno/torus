@@ -8,6 +8,7 @@ import qs
 ColumnLayout {
     id: root
 
+    property Item host: null
     readonly property var nodes: Pipewire.nodes.values.filter(n => n.audio)
     readonly property var outputs: nodes.filter(n => n.isSink && !n.isStream)
     readonly property var inputs: nodes.filter(n => !n.isSink && !n.isStream && !(n.name || "").endsWith(".monitor"))
@@ -49,13 +50,20 @@ ColumnLayout {
                 rows.append({ nid: id })
         }
         settle.running = pending
-        const names = []
-        for (let i = 0; i < rows.count; i++) {
-            const n = nodeOf(rows.get(i).nid)
-            if (n)
-                names.push(label(n) + "=" + (n.audio ? Math.round(n.audio.volume * 100) : 0))
+    }
+
+    Binding {
+        target: Store
+        property: "mixerShown"
+        value: {
+            const names = []
+            for (let i = 0; i < rows.count; i++) {
+                const n = root.nodeOf(rows.get(i).nid)
+                if (n)
+                    names.push(root.label(n) + "=" + (n.audio ? Math.round(n.audio.volume * 100) : 0))
+            }
+            return names.join("|")
         }
-        Store.mixerShown = names.join("|")
     }
 
     onStreamsChanged: sync()
@@ -86,46 +94,30 @@ ColumnLayout {
 
     PwObjectTracker { objects: root.nodes }
 
-    component DeviceRow: Flow {
+    component DeviceRow: RowLayout {
         id: devRow
         property var devices: []
         property var current: null
         property string glyph: ""
         signal picked(var node)
+        visible: devices.length > 0
         Layout.fillWidth: true
-        spacing: Theme.sp3
+        spacing: Theme.sp5
         Text {
             text: devRow.glyph
             color: Theme.accent
             font.family: Theme.fontMono
             font.pixelSize: Theme.icon
-            height: 28
-            verticalAlignment: Text.AlignVCenter
         }
-        Repeater {
-            model: devRow.devices
-            Rectangle {
-                required property var modelData
-                readonly property bool on: devRow.current && devRow.current.id === modelData.id
-                height: 28
-                width: devText.implicitWidth + 24
-                radius: 14
-                color: on ? Theme.accent : (devHover.hovered ? Theme.surface1 : Theme.surface0)
-                Behavior on color { ColorAnimation { duration: Theme.durFast } }
-                Text {
-                    id: devText
-                    anchors.centerIn: parent
-                    text: modelData.nickname || modelData.description || modelData.name
-                    color: parent.on ? Theme.crust : Theme.text
-                    font.family: Theme.fontUi
-                    font.pixelSize: Theme.fsSm
-                    elide: Text.ElideRight
-                    width: Math.min(implicitWidth, 220)
-                }
-                HoverHandler { id: devHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: devRow.picked(parent.modelData) }
-            }
+        Picker {
+            host: root.host
+            most: 420
+            options: devRow.devices.map(n => ({ value: String(n.id), label: n.nickname || n.description || n.name }))
+            current: devRow.current ? String(devRow.current.id) : ""
+            hint: "no device"
+            onPicked: value => devRow.picked(devRow.devices.find(n => String(n.id) === value))
         }
+        Item { Layout.fillWidth: true }
     }
 
     DeviceRow {
@@ -211,11 +203,11 @@ ColumnLayout {
                 Text {
                     readonly property bool muted: streamRow.node && streamRow.node.audio && streamRow.node.audio.muted
                     text: muted ? "󰝟" : "󰕾"
-                    color: muted ? Theme.red : Theme.accent
+                    color: muted ? Theme.red : muteHover.hovered ? Theme.lavender : Theme.accent
                     font.family: Theme.fontMono
                     font.pixelSize: Theme.icon
-                    TapHandler { onTapped: if (streamRow.node && streamRow.node.audio) streamRow.node.audio.muted = !streamRow.node.audio.muted }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    Tap { reach: 5; onTapped: if (streamRow.node && streamRow.node.audio) streamRow.node.audio.muted = !streamRow.node.audio.muted }
+                    HoverHandler { id: muteHover; margin: 5; cursorShape: Qt.PointingHandCursor }
                 }
             }
         }
